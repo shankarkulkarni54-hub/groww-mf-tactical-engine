@@ -1,0 +1,38 @@
+name: Daily Tactical MF Engine Run
+
+on:
+  schedule:
+    # 09:00 UTC = 14:30 IST (2:30 PM IST) Monday to Friday
+    # Exactly 30 minutes prior to the 15:00 IST (3:00 PM) Indian Mutual Fund Cut-off
+    - cron: '0 9 * * 1-5'
+  workflow_dispatch: # Allows manual one-click trigger from GitHub Actions tab
+
+jobs:
+  run-tactical-engine:
+    name: Execute Tactical Allocation & Telegram Alert
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Daily Tactical Cycle
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DASHBOARD_URL: ${{ secrets.DASHBOARD_URL }}
+        run: |
+          python -c "from src.daily_job import run_daily_cycle; run_daily_cycle(force_send_telegram=True)"

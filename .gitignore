@@ -1,0 +1,14 @@
+# Environment variables and secrets
+.env
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Local database cache
+data/*.db
+data/*.sqlite
+
+# Streamlit config
+.streamlit/secrets.toml
