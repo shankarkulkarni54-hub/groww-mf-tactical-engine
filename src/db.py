@@ -45,9 +45,15 @@ class SupabaseDB:
             return False
 
     def upsert_holdings(self, holdings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        cleaned_holdings = []
+        now_iso = datetime.now().isoformat()
         for h in holdings:
-            h["updated_at"] = datetime.now().isoformat()
-        res = self.client.table("holdings").upsert(holdings, on_conflict="scheme_name").execute()
+            item = dict(h)
+            item.pop("id", None)
+            item.pop("created_at", None)
+            item["updated_at"] = now_iso
+            cleaned_holdings.append(item)
+        res = self.client.table("holdings").upsert(cleaned_holdings, on_conflict="scheme_name").execute()
         return res.data
 
     def get_holdings(self, active_only: bool = True) -> List[Dict[str, Any]]:
@@ -58,10 +64,13 @@ class SupabaseDB:
         return res.data or []
 
     def record_regime_scores(self, scores: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        cleaned_scores = []
         for s in scores:
-            if "created_at" not in s:
-                s["created_at"] = datetime.now().isoformat()
-        res = self.client.table("regime_scores").upsert(scores, on_conflict="score_date,sleeve").execute()
+            item = dict(s)
+            item.pop("id", None)
+            item.pop("created_at", None)
+            cleaned_scores.append(item)
+        res = self.client.table("regime_scores").upsert(cleaned_scores, on_conflict="score_date,sleeve").execute()
         return res.data
 
     def get_latest_regime_scores(self) -> Dict[str, Dict[str, Any]]:
@@ -75,9 +84,10 @@ class SupabaseDB:
         return latest_by_sleeve
 
     def add_transaction(self, tx: Dict[str, Any]) -> Dict[str, Any]:
-        if "created_at" not in tx:
-            tx["created_at"] = datetime.now().isoformat()
-        res = self.client.table("transactions").insert(tx).execute()
+        item = dict(tx)
+        item.pop("id", None)
+        item.pop("created_at", None)
+        res = self.client.table("transactions").insert(item).execute()
         return res.data[0] if res.data else {}
 
     def get_transactions(self, ledger: Optional[str] = None, limit: int = 200) -> List[Dict[str, Any]]:
@@ -88,9 +98,10 @@ class SupabaseDB:
         return res.data or []
 
     def save_portfolio_snapshot(self, snapshot: Dict[str, Any]) -> Dict[str, Any]:
-        if "created_at" not in snapshot:
-            snapshot["created_at"] = datetime.now().isoformat()
-        res = self.client.table("portfolio_snapshots").upsert(snapshot, on_conflict="snapshot_date").execute()
+        item = dict(snapshot)
+        item.pop("id", None)
+        item.pop("created_at", None)
+        res = self.client.table("portfolio_snapshots").upsert(item, on_conflict="snapshot_date").execute()
         return res.data[0] if res.data else {}
 
     def get_portfolio_snapshots(self, days: int = 180) -> List[Dict[str, Any]]:
@@ -102,9 +113,10 @@ class SupabaseDB:
         return res.data[0] if res.data else None
 
     def record_alert(self, alert: Dict[str, Any]) -> Dict[str, Any]:
-        if "created_at" not in alert:
-            alert["created_at"] = datetime.now().isoformat()
-        res = self.client.table("daily_alerts").insert(alert).execute()
+        item = dict(alert)
+        item.pop("id", None)
+        item.pop("created_at", None)
+        res = self.client.table("daily_alerts").insert(item).execute()
         return res.data[0] if res.data else {}
 
     def get_latest_alerts(self, limit: int = 10) -> List[Dict[str, Any]]:
