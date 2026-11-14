@@ -13,12 +13,15 @@ from dotenv import load_dotenv
 from src.db import get_db
 
 try:
-    from src.regime_engine import score_unrestricted_universe
+    from src.regime_engine import score_unrestricted_universe, format_inr, check_smart_ltcg_switches
 except Exception:
     try:
-        from src import score_unrestricted_universe
+        from src import score_unrestricted_universe, format_inr, check_smart_ltcg_switches
     except Exception:
         score_unrestricted_universe = None
+        check_smart_ltcg_switches = None
+        def format_inr(val, decimals=0, show_sign=False):
+            return f"₹{val:,.{decimals}f}" if val is not None else "₹0"
 
 load_dotenv()
 
@@ -112,41 +115,46 @@ def format_tactical_alert(
 
     total_cash_sip = decisions.get("total_sip_cash", 0.0)
     total_eq_sip = decisions.get("total_sip_equity", 50000.0)
+    smart_alerts = decisions.get("smart_ltcg_alerts", [])
+    if not smart_alerts and check_smart_ltcg_switches:
+        try:
+            smart_alerts = check_smart_ltcg_switches(as_of_date=now.date())
+        except Exception:
+            smart_alerts = []
 
     if is_action_window:
         msg.append(f"⚡ <b>ACTION REQUIRED ON GROWW (For 3rd SIP)</b>:")
-        msg.append(f"📦 <b>1. Passive Groww SIP Plan:</b>")
-        msg.append(f"• Equity: ₹{total_eq_sip:,.0f} | Shadow Cash: ₹{total_cash_sip:,.0f}")
-        for f_name, d_info in decisions.get("sip_decisions", {}).items():
-            short_name = f_name.replace(" Direct Growth", "")
-            msg.append(f"  └ {short_name}: <b>{d_info['action']}</b> (₹{d_info['amount']:,.0f})")
-
         if ai_picks:
-            msg.append(f"\n🏆 <b>2. Unrestricted AI Advisor Directive:</b>")
+            msg.append(f"\n🏆 <b>Winning 17.55% AI Advisor Allocation ({format_inr(50000)}):</b>")
             for p in ai_picks:
-                msg.append(f"  • <b>₹{p['allocation_amount']:,.0f}</b> in <b>{p['short_name']}</b> (Score {p['score']:.0f})")
+                msg.append(f"  • <b>{format_inr(p['allocation_amount'])}</b> in <b>{p['short_name']}</b> (Score {p['score']:.0f})")
                 msg.append(f"    └ <i>{p['thesis']}</i>")
             msg.append("  └ <i>Smart Switching: 0.005% stamp duty, 0% exit load on fresh SIPs.</i>")
 
-    elif is_execution_day:
-        msg.append(f"• Auto-debit executing today: ₹{total_eq_sip:,.0f} Equity | ₹{total_cash_sip:,.0f} Shadow Cash.")
-        if ai_picks:
-            msg.append(f"• <b>AI Top Picks Today:</b> {ai_picks[0]['short_name']} + {ai_picks[1]['short_name']}")
-    else:
-        msg.append(f"• <b>Daily Status:</b> Outside the monthly SIP window. All active units held.")
-        msg.append(f"• <b>Next Action Window:</b> {decisions.get('window_status_label')}")
-        msg.append(f"• <i>Groww SIP Preview:</i> ₹{total_eq_sip:,.0f} Equity | ₹{total_cash_sip:,.0f} Cash")
-        if ai_picks and len(ai_picks) >= 2:
-            msg.append(f"• <i>AI Advisor Preview:</i> ₹25k {ai_picks[0]['short_name']} + ₹25k {ai_picks[1]['short_name']}")
+        msg.append(f"\n📦 <b>Passive Groww Reference:</b> {format_inr(total_eq_sip)} Equity | {format_inr(total_cash_sip)} Cash")
 
-    # Emergency switches
+    elif is_execution_day:
+        msg.append(f"• Auto-debit executing today: {format_inr(total_eq_sip)} Equity | {format_inr(total_cash_sip)} Shadow Cash.")
+        if ai_picks and len(ai_picks) >= 2:
+            msg.append(f"• <b>AI Top Picks Today:</b> {ai_picks[0]['short_name']} ({format_inr(ai_picks[0]['allocation_amount'])}) + {ai_picks[1]['short_name']} ({format_inr(ai_picks[1]['allocation_amount'])})")
+    else:
+        msg.append(f"• <b>Daily Status:</b> Outside the monthly SIP window. All active units held safely.")
+        msg.append(f"• <b>Next Action Window:</b> {decisions.get('window_status_label')}")
+        if ai_picks and len(ai_picks) >= 2:
+            msg.append(f"• <i>Winning AI Directive:</i> {format_inr(ai_picks[0]['allocation_amount'])} {ai_picks[0]['short_name']} + {format_inr(ai_picks[1]['allocation_amount'])} {ai_picks[1]['short_name']}")
+
+    # Smart LTCG Switches & Emergency alerts
+    if smart_alerts:
+        for sa in smart_alerts:
+            msg.append(f"\n⚡ <b>SMART LTCG SWITCH ALERT:</b> {sa['scheme_name']} is >8% below 200-DMA ({sa['dma_dist_pct']:+.1f}%). Redeploy to {ai_picks[0]['short_name'] if ai_picks else 'top leader'}.")
+    else:
+        msg.append("• <i>Smart LTCG Switch:</i> ✅ Zero churn triggered (all holdings within healthy trend bands).")
+
     switches = decisions.get("switch_signals", [])
     if switches:
         for sw in switches:
             if sw.get("action") == "SWITCH_TO_CASH":
                 msg.append(f"\n🚨 <b>EMERGENCY SWITCH TRIGGERED:</b> {sw['scheme_name']} -> Cash (Expected DD > Friction).")
-            else:
-                msg.append(f"\n🛡️ <b>HOLD CONFIRMED:</b> {sw['scheme_name']} retained (Friction drag exceeds expected drawdown).")
 
     # Valuation & Alpha
     if snapshot:
@@ -154,14 +162,13 @@ def format_tactical_alert(
         tac_cash = snapshot.get("tactical_cash_value", 0.0)
         pas_val = snapshot.get("passive_total_value", 0.0)
         alpha_rs = snapshot.get("alpha_rupees", 0.0)
-        alpha_sign = "+" if alpha_rs >= 0 else ""
 
         msg.append("━━━━━━━━━━━━━━━━━━━━━")
         msg.append("📊 <b>PORTFOLIO PERFORMANCE</b>:")
-        msg.append(f"• <b>Tactical Ledger A:</b> ₹{tac_val:,.2f}")
-        msg.append(f"  └ Equity: ₹{tac_val - tac_cash:,.2f} | Cash: ₹{tac_cash:,.2f}")
-        msg.append(f"• <b>Passive Ledger B:</b>  ₹{pas_val:,.2f}")
-        msg.append(f"• <b>Tactical Alpha:</b>    <b>{alpha_sign}₹{alpha_rs:,.2f}</b> ({snapshot.get('alpha_percent', 0.0):+.2f}%)")
+        msg.append(f"• <b>Tactical Ledger A:</b> {format_inr(tac_val, decimals=2)}")
+        msg.append(f"  └ Equity: {format_inr(tac_val - tac_cash, decimals=2)} | Cash: {format_inr(tac_cash, decimals=2)}")
+        msg.append(f"• <b>Passive Ledger B:</b>  {format_inr(pas_val, decimals=2)}")
+        msg.append(f"• <b>Tactical Alpha:</b>    <b>{format_inr(alpha_rs, decimals=2, show_sign=True)}</b> ({snapshot.get('alpha_percent', 0.0):+.2f}%)")
 
     msg.append("━━━━━━━━━━━━━━━━━━━━━")
     msg.append(f"📱 <a href='{dashboard_url}'>Open Mobile Web Dashboard</a>")

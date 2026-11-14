@@ -14,12 +14,16 @@ from src.db import get_db
 try:
     from src.regime_engine import (
         score_unrestricted_universe,
-        UNRESTRICTED_UNIVERSE
+        UNRESTRICTED_UNIVERSE,
+        check_smart_ltcg_switches,
+        format_inr
     )
 except ImportError:
     from src import (
         score_unrestricted_universe,
-        UNRESTRICTED_UNIVERSE
+        UNRESTRICTED_UNIVERSE,
+        check_smart_ltcg_switches,
+        format_inr
     )
 
 # Scheme Code Mapping
@@ -188,96 +192,39 @@ def evaluate_tactical_decisions(
         window_status_label = f"1st–2nd {target_sip_date.strftime('%b %Y')} (for 3rd {target_sip_date.strftime('%b')} SIP)"
 
     # -------------------------------------------------------------
-    # TIER 1: SIP ALLOCATION ON 30-DAY ROLLING SCORE
-    # (With Spot < 40 Sharp Crash Override)
+    # WINNING 17.55% AI MOMENTUM ROTATION ENGINE ALLOCATION
+    # (90-Day Momentum + 200-DMA Trend Gating + Smart LTCG Switch)
     # -------------------------------------------------------------
+    ai_report = score_unrestricted_universe(current_date)
+    ai_picks = ai_report.get("top_picks", [])
+    ai_mode = ai_report.get("allocation_mode", "EQUITY_MOMENTUM_LEADERSHIP")
+    ai_thesis = ai_report.get("thesis_summary", "")
+
+    # Check for Smart LTCG Switch alerts on active holdings (>365d and <-8% 200-DMA)
+    smart_ltcg_alerts = check_smart_ltcg_switches(as_of_date=current_date)
+
     sip_decisions = {}
     total_sip_equity = 0.0
     total_sip_cash = 0.0
 
-    # 1. Parag Parikh Flexi Cap (₹10,000, Nifty 500 Sleeve)
-    if spot_nifty < 40.0:
-        sip_decisions["Parag Parikh Flexi Cap Fund Direct Growth"] = {
-            "action": "SHADOW_CASH",
-            "amount": 10000.0,
-            "reason": f"Crash Override: Spot score ({spot_nifty:.1f}) dropped sharply below 40."
-        }
-        total_sip_cash += 10000.0
-    elif rolling_nifty >= 60.0:
-        sip_decisions["Parag Parikh Flexi Cap Fund Direct Growth"] = {
-            "action": "EQUITY",
-            "amount": 10000.0,
-            "reason": f"Normal Equity SIP: 30-Day Rolling Score ({rolling_nifty:.1f}) is Bullish (>= 60)."
-        }
-        total_sip_equity += 10000.0
-    elif rolling_nifty >= 40.0:
-        sip_decisions["Parag Parikh Flexi Cap Fund Direct Growth"] = {
-            "action": "EQUITY",
-            "amount": 10000.0,
-            "reason": f"Core Flexi Cap Equity SIP continues in Caution band (30-Day Avg: {rolling_nifty:.1f})."
-        }
-        total_sip_equity += 10000.0
-    else:
-        sip_decisions["Parag Parikh Flexi Cap Fund Direct Growth"] = {
-            "action": "SHADOW_CASH",
-            "amount": 10000.0,
-            "reason": f"Diverted to Shadow Cash: 30-Day Rolling Score ({rolling_nifty:.1f}) < 40."
-        }
-        total_sip_cash += 10000.0
-
-    # 2. Motilal Oswal Midcap Fund Direct Growth (₹20,000, Mid/Small Sleeve)
-    # 3. Nippon India Small Cap Fund Direct Growth (₹20,000, Mid/Small Sleeve)
-    if spot_mid < 40.0:
-        # Crash override: both diverted to cash immediately
-        sip_decisions["Motilal Oswal Midcap Fund Direct Growth"] = {
-            "action": "SHADOW_CASH",
-            "amount": 20000.0,
-            "reason": f"Crash Override: Mid/Small Spot Score ({spot_mid:.1f}) dropped sharply below 40."
-        }
-        sip_decisions["Nippon India Small Cap Fund Direct Growth"] = {
-            "action": "SHADOW_CASH",
-            "amount": 20000.0,
-            "reason": f"Crash Override: Mid/Small Spot Score ({spot_mid:.1f}) dropped sharply below 40."
-        }
-        total_sip_cash += 40000.0
-    elif rolling_mid >= 60.0:
-        # Bullish 30-day average: full equity
-        sip_decisions["Motilal Oswal Midcap Fund Direct Growth"] = {
-            "action": "EQUITY",
-            "amount": 20000.0,
-            "reason": f"Normal Equity SIP: 30-Day Rolling Score ({rolling_mid:.1f}) is Bullish (>= 60)."
-        }
-        sip_decisions["Nippon India Small Cap Fund Direct Growth"] = {
-            "action": "EQUITY",
-            "amount": 20000.0,
-            "reason": f"Normal Equity SIP: 30-Day Rolling Score ({rolling_mid:.1f}) is Bullish (>= 60)."
-        }
-        total_sip_equity += 40000.0
-    elif rolling_mid >= 40.0:
-        # Caution 40-59 band: Divert ₹20,000 Mid/Small SIP to Shadow Cash, keep ₹20k Midcap
-        sip_decisions["Motilal Oswal Midcap Fund Direct Growth"] = {
-            "action": "EQUITY",
-            "amount": 20000.0,
-            "reason": f"Midcap SIP continues in Equity (30-Day Avg: {rolling_mid:.1f} >= 40)."
-        }
-        sip_decisions["Nippon India Small Cap Fund Direct Growth"] = {
-            "action": "SHADOW_CASH",
-            "amount": 20000.0,
-            "reason": f"Smallcap ₹20,000 diverted to Shadow Cash (30-Day Avg: {rolling_mid:.1f} in Caution 40-59)."
-        }
-        total_sip_equity += 20000.0
-        total_sip_cash += 20000.0
-    else:
-        # Defensive < 40: Both Mid and Small diverted to cash
-        sip_decisions["Motilal Oswal Midcap Fund Direct Growth"] = {
-            "action": "SHADOW_CASH",
-            "amount": 20000.0,
-            "reason": f"Diverted to Shadow Cash: 30-Day Rolling Score ({rolling_mid:.1f}) < 40."
-        }
-        sip_decisions["Nippon India Small Cap Fund Direct Growth"] = {
-            "action": "SHADOW_CASH",
-            "amount": 20000.0,
-            "reason": f"Diverted to Shadow Cash: 30-Day Rolling Score ({rolling_mid:.1f}) < 40."
+    for pick in ai_picks:
+        f_name = pick["name"]
+        amt = float(pick["allocation_amount"])
+        is_cash = pick["category"] == "CASH"
+        act = "SHADOW_CASH" if is_cash else "EQUITY"
+        if is_cash:
+            total_sip_cash += amt
+        else:
+            total_sip_equity += amt
+        sip_decisions[f_name] = {
+            "short_name": pick["short_name"],
+            "fund_key": pick["fund_key"],
+            "action": act,
+            "amount": amt,
+            "score": pick["score"],
+            "category": pick["category"],
+            "sub_category": pick["sub_category"],
+            "reason": pick["thesis"]
         }
         total_sip_cash += 40000.0
 
@@ -346,23 +293,28 @@ def evaluate_tactical_decisions(
     # Action Badges and Guidance
     has_emergency_switch = any(s.get("action") == "SWITCH_TO_CASH" for s in switch_signals)
     has_confirmed_reentry = any(r.get("action") == "REENTRY_CONFIRMED" for r in reentry_signals)
+    has_smart_switch = len(smart_ltcg_alerts) > 0
 
     if has_emergency_switch:
         overall_status = "DEFENSIVE"
         action_badge = "🚨 EMERGENCY ACTION REQUIRED: Corpus Switch Triggered"
         action_banner = "🔴 EMERGENCY CRASH: Spot score < 30 breakdown. Friction-checked corpus de-risking active."
+    elif has_smart_switch:
+        overall_status = "ACTION_REQUIRED"
+        action_badge = "⚡ SMART LTCG SWITCH RECOMMENDED: Breakdown Below 200-DMA"
+        action_banner = f"⚡ SMART LTCG SWITCH: {smart_ltcg_alerts[0]['scheme_name']} trading >8% below 200-DMA. Switch to top momentum leader."
     elif is_sip_action_window:
         overall_status = "CAUTION" if total_sip_cash > 0 else "BULLISH"
         action_badge = "⚡ SIP ACTION WINDOW OPEN: Set Groww SIP for the 3rd"
-        action_banner = f"⚡ ACTION WINDOW OPEN (1st–2nd): Configure 3rd SIP on Groww $\\rightarrow$ ₹{total_sip_equity:,.0f} Equity | ₹{total_sip_cash:,.0f} Shadow Cash"
+        action_banner = f"⚡ ACTION WINDOW OPEN (1st–2nd): Configure 3rd SIP on Groww $\\rightarrow$ {format_inr(total_sip_equity)} Equity | {format_inr(total_sip_cash)} Shadow Cash"
     elif is_sip_execution_day:
         overall_status = "CAUTION" if total_sip_cash > 0 else "BULLISH"
         action_badge = "📅 SIP EXECUTION DAY: Auto-debit on Groww"
-        action_banner = f"📅 SIP EXECUTION DAY (3rd): Auto-debit scheduled for ₹{total_sip_equity:,.0f} Equity | ₹{total_sip_cash:,.0f} Shadow Cash"
+        action_banner = f"📅 SIP EXECUTION DAY (3rd): Auto-debit scheduled for {format_inr(total_sip_equity)} Equity | {format_inr(total_sip_cash)} Shadow Cash"
     else:
         overall_status = "HOLD_STEADY"
         action_badge = "🛡️ NO ACTION REQUIRED TODAY — Hold Existing Units"
-        action_banner = f"🛡️ NO ACTION REQUIRED TODAY: Outside SIP window. All 4 active holdings held securely."
+        action_banner = f"🛡️ NO ACTION REQUIRED TODAY: Outside SIP window. All active holdings held securely with zero churn."
 
     return {
         "as_of_date": str(current_date),
@@ -377,6 +329,11 @@ def evaluate_tactical_decisions(
         "total_sip_equity": total_sip_equity,
         "total_sip_cash": total_sip_cash,
         "sip_decisions": sip_decisions,
+        "ai_top_picks": ai_picks,
+        "ai_allocation_mode": ai_mode,
+        "ai_thesis_summary": ai_thesis,
+        "smart_ltcg_alerts": smart_ltcg_alerts,
+        "has_smart_ltcg_switch": has_smart_switch,
         "switch_signals": switch_signals,
         "reentry_signals": reentry_signals,
         "scores": {

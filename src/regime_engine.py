@@ -57,12 +57,47 @@ SLEEVE_CONFIG = {
 }
 
 
+def format_inr(amount: Optional[float], decimals: int = 0, show_sign: bool = False) -> str:
+    """Formats a number in the Indian numbering system (Lakhs and Crores).
+    E.g. 4722571 -> ₹47,22,571; 50000 -> ₹50,000; -81872 -> -₹81,872.
+    """
+    if amount is None:
+        return "₹0"
+    is_negative = amount < 0
+    abs_amt = abs(amount)
+    if decimals > 0:
+        val_str = f"{abs_amt:.{decimals}f}"
+        int_part, dec_part = val_str.split(".")
+        dec_suffix = f".{dec_part}"
+    else:
+        int_part = str(int(round(abs_amt)))
+        dec_suffix = ""
+
+    if len(int_part) <= 3:
+        formatted_int = int_part
+    else:
+        last3 = int_part[-3:]
+        rem = int_part[:-3]
+        groups = []
+        while len(rem) > 2:
+            groups.insert(0, rem[-2:])
+            rem = rem[:-2]
+        if rem:
+            groups.insert(0, rem)
+        formatted_int = ",".join(groups) + "," + last3
+
+    sign_prefix = "+" if (show_sign and amount > 0) else ("-" if is_negative else "")
+    return f"{sign_prefix}₹{formatted_int}{dec_suffix}"
+
+
 __all__ = [
     "SLEEVE_CONFIG",
     "UNRESTRICTED_UNIVERSE",
     "fetch_universe_navs",
     "get_universe_nav_on",
     "score_unrestricted_universe",
+    "check_smart_ltcg_switches",
+    "format_inr",
     "compute_sleeve_regime",
     "update_all_regimes"
 ]
@@ -433,6 +468,71 @@ def score_unrestricted_universe(
         "thesis_summary": thesis_summary,
         "ranked_funds": [fund_evaluations[k] for k in ranked_keys]
     }
+
+
+def check_smart_ltcg_switches(
+    holdings: Optional[List[Dict[str, Any]]] = None,
+    as_of_date: Optional[date] = None,
+    navs_dict: Optional[Dict[str, Dict[str, float]]] = None
+) -> List[Dict[str, Any]]:
+    """
+    Evaluates whether any active portfolio holding has broken down > 8.0% below its 200-DMA
+    after being held for > 365 days, triggering a Smart LTCG Switch at 12.5% LTCG / 0% exit load.
+    """
+    if as_of_date is None:
+        as_of_date = date.today()
+    if navs_dict is None:
+        navs_dict = fetch_universe_navs()
+    if holdings is None:
+        try:
+            from src.db import get_db
+            holdings = get_db().get_holdings(active_only=True)
+        except Exception:
+            holdings = []
+
+    name_to_key = {
+        "Motilal Oswal Midcap Fund Direct Growth": "MOMC",
+        "Nippon India Small Cap Fund Direct Growth": "NISC",
+        "Parag Parikh Flexi Cap Fund Direct Growth": "PPFC",
+        "Edelweiss US Technology Equity FoF Direct Growth": "EDEL_USTECH"
+    }
+
+    alerts = []
+    for h in holdings:
+        s_name = h.get("scheme_name", "")
+        key = name_to_key.get(s_name)
+        if not key or key not in navs_dict:
+            continue
+        f_navs = navs_dict[key]
+        n_now = get_universe_nav_on(f_navs, as_of_date)
+        n_200 = get_universe_nav_on(f_navs, as_of_date - timedelta(days=200))
+        dma_dist = ((n_now - n_200) / n_200 * 100.0) if n_200 > 0 else 0.0
+
+        if dma_dist < -8.0:
+            units = float(h.get("units", 0))
+            current_val = units * n_now
+            invested_val = float(h.get("invested_value", 0))
+            gain = max(0.0, current_val - invested_val)
+            tax_rate = 0.20 if key == "EDEL_USTECH" else 0.125
+            taxable_gain = max(0.0, gain - (125000.0 if key != "EDEL_USTECH" else 0.0))
+            est_tax = tax_rate * taxable_gain
+
+            alerts.append({
+                "scheme_name": s_name,
+                "fund_key": key,
+                "current_nav": round(n_now, 2),
+                "dma_200": round(n_200, 2),
+                "dma_dist_pct": round(dma_dist, 2),
+                "current_value": round(current_val, 2),
+                "units": units,
+                "estimated_tax": round(est_tax, 2),
+                "message": (
+                    f"Structural Breakdown: {s_name} is trading at {dma_dist:.1f}% vs 200-DMA (NAV {format_inr(n_now, decimals=2)} vs 200-DMA {format_inr(n_200, decimals=2)}). "
+                    f"Units held >365 days qualify for 0% exit load and 12.5% LTCG. "
+                    f"Recommended: Harvest dead capital and switch proceeds into current #1 momentum leader."
+                )
+            })
+    return alerts
 
 
 

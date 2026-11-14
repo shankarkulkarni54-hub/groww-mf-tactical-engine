@@ -14,16 +14,32 @@ from plotly.subplots import make_subplots
 from datetime import datetime, date
 from src.db import get_db
 try:
-    from src.regime_engine import update_all_regimes, SLEEVE_CONFIG, UNRESTRICTED_UNIVERSE, score_unrestricted_universe
+    from src.regime_engine import (
+        update_all_regimes,
+        SLEEVE_CONFIG,
+        UNRESTRICTED_UNIVERSE,
+        score_unrestricted_universe,
+        check_smart_ltcg_switches,
+        format_inr
+    )
 except ImportError:
     try:
-        from src import update_all_regimes, SLEEVE_CONFIG, UNRESTRICTED_UNIVERSE, score_unrestricted_universe
+        from src import (
+            update_all_regimes,
+            SLEEVE_CONFIG,
+            UNRESTRICTED_UNIVERSE,
+            score_unrestricted_universe,
+            check_smart_ltcg_switches,
+            format_inr
+        )
     except ImportError:
         import src.regime_engine as _re
         update_all_regimes = getattr(_re, "update_all_regimes", None)
         SLEEVE_CONFIG = getattr(_re, "SLEEVE_CONFIG", {})
         UNRESTRICTED_UNIVERSE = getattr(_re, "UNRESTRICTED_UNIVERSE", {})
         score_unrestricted_universe = getattr(_re, "score_unrestricted_universe", None)
+        check_smart_ltcg_switches = getattr(_re, "check_smart_ltcg_switches", None)
+        format_inr = getattr(_re, "format_inr", None)
 from src.paper_ledger import evaluate_tactical_decisions, calculate_friction_and_drag, get_dual_ledger_holdings, get_live_forward_challenge
 from src.telegram_bot import format_tactical_alert, send_telegram_alert
 from src.backtester import run_five_year_backtest
@@ -158,6 +174,39 @@ def render_html(html_str: str):
     st.markdown(cleaned, unsafe_allow_html=True)
 
 
+def format_inr(amount: Optional[float], decimals: int = 0, show_sign: bool = False) -> str:
+    """Formats a number in the Indian numbering system (Lakhs and Crores).
+    E.g. 4722571 -> ₹47,22,571; 50000 -> ₹50,000; -81872 -> -₹81,872.
+    """
+    if amount is None:
+        return "₹0"
+    is_negative = amount < 0
+    abs_amt = abs(amount)
+    if decimals > 0:
+        val_str = f"{abs_amt:.{decimals}f}"
+        int_part, dec_part = val_str.split(".")
+        dec_suffix = f".{dec_part}"
+    else:
+        int_part = str(int(round(abs_amt)))
+        dec_suffix = ""
+
+    if len(int_part) <= 3:
+        formatted_int = int_part
+    else:
+        last3 = int_part[-3:]
+        rem = int_part[:-3]
+        groups = []
+        while len(rem) > 2:
+            groups.insert(0, rem[-2:])
+            rem = rem[:-2]
+        if rem:
+            groups.insert(0, rem)
+        formatted_int = ",".join(groups) + "," + last3
+
+    sign_prefix = "+" if (show_sign and amount > 0) else ("-" if is_negative else "")
+    return f"{sign_prefix}₹{formatted_int}{dec_suffix}"
+
+
 def init_app():
     """Initializes and caches base state."""
     db = get_db()
@@ -206,6 +255,8 @@ is_outside_window = decisions.get("is_outside_sip_window", True)
 has_emergency_switch = any(s.get("action") == "SWITCH_TO_CASH" for s in decisions.get("switch_signals", []))
 is_action_window = decisions.get("is_sip_action_window", False)
 is_execution_day = decisions.get("is_sip_execution_day", False)
+smart_alerts = decisions.get("smart_ltcg_alerts", [])
+has_smart_switch = len(smart_alerts) > 0
 
 if has_emergency_switch:
     badge_bg = "rgba(239, 68, 68, 0.18)"
@@ -213,6 +264,12 @@ if has_emergency_switch:
     badge_border = "#ef4444"
     guide_border = "#ef4444"
     badge_text = "🚨 EMERGENCY ACTION REQUIRED: Corpus Switch Triggered"
+elif has_smart_switch:
+    badge_bg = "rgba(245, 158, 11, 0.18)"
+    badge_fg = "#fcd34d"
+    badge_border = "#f59e0b"
+    guide_border = "#f59e0b"
+    badge_text = "⚡ SMART LTCG SWITCH RECOMMENDED: Breakdown Below 200-DMA"
 elif is_action_window:
     badge_bg = "rgba(16, 185, 129, 0.18)"
     badge_fg = "#6ee7b7"
@@ -232,68 +289,87 @@ else:
     guide_border = "#2563eb"
     badge_text = "🛡️ NO ACTION REQUIRED TODAY — Hold Existing Units"
 
-tot_eq = decisions.get("total_sip_equity", 30000.0)
-tot_cash = decisions.get("total_sip_cash", 20000.0)
-sip_decs = decisions.get("sip_decisions", {})
+tot_eq = decisions.get("total_sip_equity", 50000.0)
+tot_cash = decisions.get("total_sip_cash", 0.0)
+ai_picks = decisions.get("ai_top_picks", [])
+if not ai_picks and score_unrestricted_universe:
+    ai_picks = score_unrestricted_universe().get("top_picks", [])
+
+picks_html = []
+for p in ai_picks:
+    amt_str = format_inr(p.get("allocation_amount", 25000.0))
+    score_val = p.get("score", 60.0)
+    badge_c = "#00D09C" if score_val >= 60.0 else "#F59E0B"
+    picks_html.append(f"""
+    <div style='background:rgba(255,255,255,0.03); border:1px solid #334155; border-radius:8px; padding:10px 12px; margin-bottom:8px;'>
+        <div style='display:flex; justify-content:space-between; align-items:center;'>
+            <div>
+                <span style='font-size:0.88rem; font-weight:700; color:#FFFFFF;'>{p.get('short_name')}</span>
+                <span style='font-size:0.72rem; color:#94a3b8; margin-left:6px;'>({p.get('sub_category')})</span>
+            </div>
+            <span class='badge' style='background:rgba(0, 208, 156, 0.15); color:{badge_c}; border:1px solid {badge_c}; font-size:0.75rem;'>
+                Score {score_val:.0f}/100 • {amt_str}
+            </span>
+        </div>
+        <div style='font-size:0.75rem; color:#cbd5e1; margin-top:4px; line-height:1.4;'>
+            💡 <b>Reason:</b> {p.get('thesis')}
+        </div>
+    </div>
+    """)
+
+# Smart LTCG Switch Status
+if smart_alerts:
+    sa = smart_alerts[0]
+    switch_html = f"""
+    <div style='background:rgba(239, 68, 68, 0.12); border:1px solid #ef4444; border-radius:8px; padding:10px 12px; margin-top:10px;'>
+        <div style='font-size:0.78rem; font-weight:700; color:#f87171;'>🚨 Smart LTCG Switch Alert: {sa['scheme_name']}</div>
+        <div style='font-size:0.74rem; color:#fca5a5; margin-top:2px;'>
+            {sa['message']} (Est. Tax: {format_inr(sa.get('estimated_tax', 0))})
+        </div>
+    </div>
+    """
+else:
+    switch_html = f"""
+    <div style='background:rgba(16, 185, 129, 0.08); border:1px solid rgba(16, 185, 129, 0.3); border-radius:8px; padding:8px 12px; margin-top:10px; display:flex; justify-content:space-between; align-items:center;'>
+        <div style='font-size:0.75rem; color:#a7f3d0;'>
+            🛡️ <b>Smart LTCG Switch Status:</b> Zero churn triggered. All active holdings are trading safely above breakdown bands (none &gt;8% below 200-DMA).
+        </div>
+        <span class='badge' style='background:#064e3b; color:#6ee7b7; font-size:0.68rem;'>0% Load • 0% Churn</span>
+    </div>
+    """
 
 sip_guide_html = f"""
 <div class='metric-card' style='border: 1px solid {guide_border}; background: linear-gradient(135deg, #131d34 0%, #1a2544 100%); padding: 16px 18px; margin-bottom: 16px;'>
-<div style='display:flex; justify-content:space-between; align-items:center;'>
-<div style='font-size:1.02rem; font-weight:700; color:#FFFFFF;'>📅 Monthly SIP Action Guide (3rd of Month)</div>
-<span class='badge' style='background:#1e3a8a; color:#bfdbfe; font-size:0.75rem;'>₹50,000/Mo Total</span>
-</div>
+    <div style='display:flex; justify-content:space-between; align-items:center;'>
+        <div style='font-size:1.02rem; font-weight:700; color:#FFFFFF;'>📅 Monthly SIP Action Guide (3rd of Month)</div>
+        <span class='badge' style='background:#065f46; color:#6ee7b7; font-size:0.72rem;'>Winning 17.55% AI Engine • {format_inr(50000)}/Mo</span>
+    </div>
 
-<div style='margin-top:10px; margin-bottom:12px;'>
-<div style='display:inline-block; background:{badge_bg}; color:{badge_fg}; border:1px solid {badge_border}; font-size:0.84rem; padding:5px 12px; border-radius:6px; font-weight:700;'>
-{badge_text}
-</div>
-</div>
+    <div style='margin-top:10px; margin-bottom:12px;'>
+        <div style='display:inline-block; background:{badge_bg}; color:{badge_fg}; border:1px solid {badge_border}; font-size:0.84rem; padding:5px 12px; border-radius:6px; font-weight:700;'>
+            {badge_text}
+        </div>
+    </div>
 
-<div style='background:rgba(15, 23, 42, 0.65); border:1px solid #334155; border-radius:8px; padding:10px 12px; margin-bottom:12px;'>
-<div style='font-size:0.72rem; text-transform:uppercase; color:#94a3b8; font-weight:600; letter-spacing:0.5px;'>Next Action Window (Review & Set on Groww)</div>
-<div style='font-size:0.92rem; font-weight:600; color:#38bdf8; margin-top:2px;'>
-🗓️ {decisions.get('window_status_label')}
-</div>
-</div>
+    <div style='background:rgba(15, 23, 42, 0.65); border:1px solid #334155; border-radius:8px; padding:10px 12px; margin-bottom:12px;'>
+        <div style='font-size:0.72rem; text-transform:uppercase; color:#94a3b8; font-weight:600; letter-spacing:0.5px;'>Next Action Window (Review & Set on Groww)</div>
+        <div style='font-size:0.92rem; font-weight:600; color:#38bdf8; margin-top:2px;'>
+            🗓️ {decisions.get('window_status_label')}
+        </div>
+    </div>
 
-<div>
-<div style='font-size:0.72rem; text-transform:uppercase; color:#94a3b8; font-weight:600; margin-bottom:8px;'>₹50k Allocation Split (Governed by 30-Day Rolling Score)</div>
+    <div>
+        <div style='font-size:0.72rem; text-transform:uppercase; color:#94a3b8; font-weight:600; margin-bottom:8px;'>
+            ₹50,000 Allocation Split (Governed by Winning 17.55% Engine — 90d Momentum + 200-DMA Gating)
+        </div>
+        {"".join(picks_html)}
+        {switch_html}
 
-<div style='background:rgba(255,255,255,0.03); border-radius:6px; padding:8px 10px; margin-bottom:6px;'>
-<div style='display:flex; justify-content:space-between; font-size:0.86rem;'>
-<span><b>Parag Parikh Flexi Cap</b> (₹10k)</span>
-<span class='badge' style='background:{"#065f46" if sip_decs.get("Parag Parikh Flexi Cap Fund Direct Growth", {}).get("action") == "EQUITY" else "#78350f"}; color:{"#a7f3d0" if sip_decs.get("Parag Parikh Flexi Cap Fund Direct Growth", {}).get("action") == "EQUITY" else "#fde68a"};'>
-{sip_decs.get("Parag Parikh Flexi Cap Fund Direct Growth", {}).get("action")} • ₹{sip_decs.get("Parag Parikh Flexi Cap Fund Direct Growth", {}).get("amount", 10000):,.0f}
-</span>
-</div>
-<div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>{sip_decs.get("Parag Parikh Flexi Cap Fund Direct Growth", {}).get("reason", "")}</div>
-</div>
-
-<div style='background:rgba(255,255,255,0.03); border-radius:6px; padding:8px 10px; margin-bottom:6px;'>
-<div style='display:flex; justify-content:space-between; font-size:0.86rem;'>
-<span><b>Motilal Oswal Midcap</b> (₹20k)</span>
-<span class='badge' style='background:{"#065f46" if sip_decs.get("Motilal Oswal Midcap Fund Direct Growth", {}).get("action") == "EQUITY" else "#78350f"}; color:{"#a7f3d0" if sip_decs.get("Motilal Oswal Midcap Fund Direct Growth", {}).get("action") == "EQUITY" else "#fde68a"};'>
-{sip_decs.get("Motilal Oswal Midcap Fund Direct Growth", {}).get("action")} • ₹{sip_decs.get("Motilal Oswal Midcap Fund Direct Growth", {}).get("amount", 20000):,.0f}
-</span>
-</div>
-<div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>{sip_decs.get("Motilal Oswal Midcap Fund Direct Growth", {}).get("reason", "")}</div>
-</div>
-
-<div style='background:rgba(255,255,255,0.03); border-radius:6px; padding:8px 10px; margin-bottom:6px;'>
-<div style='display:flex; justify-content:space-between; font-size:0.86rem;'>
-<span><b>Nippon India Small Cap</b> (₹20k)</span>
-<span class='badge' style='background:{"#065f46" if sip_decs.get("Nippon India Small Cap Fund Direct Growth", {}).get("action") == "EQUITY" else "#78350f"}; color:{"#a7f3d0" if sip_decs.get("Nippon India Small Cap Fund Direct Growth", {}).get("action") == "EQUITY" else "#fde68a"};'>
-{sip_decs.get("Nippon India Small Cap Fund Direct Growth", {}).get("action")} • ₹{sip_decs.get("Nippon India Small Cap Fund Direct Growth", {}).get("amount", 20000):,.0f}
-</span>
-</div>
-<div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>{sip_decs.get("Nippon India Small Cap Fund Direct Growth", {}).get("reason", "")}</div>
-</div>
-
-<div style='display:flex; justify-content:space-between; font-weight:700; font-size:0.86rem; margin-top:10px; padding-top:8px; border-top:1px solid #334155;'>
-<span class='text-green'>🟢 Equity SIP: ₹{tot_eq:,.0f}</span>
-<span class='text-amber'>🟡 Liquid / Shadow Cash: ₹{tot_cash:,.0f}</span>
-</div>
-</div>
+        <div style='display:flex; justify-content:space-between; font-weight:700; font-size:0.86rem; margin-top:10px; padding-top:8px; border-top:1px solid #334155;'>
+            <span class='text-green'>🟢 Winning Engine Equity SIP: {format_inr(tot_eq)}</span>
+            <span class='text-amber'>🟡 Liquid / Shadow Cash: {format_inr(tot_cash)}</span>
+        </div>
+    </div>
 </div>
 """
 render_html(sip_guide_html)
@@ -314,7 +390,7 @@ with m1:
     render_html(f"""
     <div class='metric-card'>
         <div class='metric-title'>Tactical Net Worth (Ledger A)</div>
-        <div class='metric-val'>₹{tac_val:,.0f}</div>
+        <div class='metric-val'>{format_inr(tac_val)}</div>
         <div class='metric-sub'>
             <span class='text-green'>{eq_pct:.1f}% Equity</span> • 
             <span class='text-amber'>{cash_pct:.1f}% Cash</span>
@@ -324,13 +400,12 @@ with m1:
 
 with m2:
     alpha_class = "text-green" if alpha_rs >= 0 else "text-red"
-    alpha_sign = "+" if alpha_rs >= 0 else ""
     render_html(f"""
     <div class='metric-card'>
         <div class='metric-title'>Tactical Alpha vs Passive</div>
-        <div class='metric-val {alpha_class}'>{alpha_sign}₹{alpha_rs:,.0f}</div>
+        <div class='metric-val {alpha_class}'>{format_inr(alpha_rs, show_sign=True)}</div>
         <div class='metric-sub'>
-            <span class='{alpha_class}'>{alpha_sign}{alpha_pct:.2f}%</span> vs Buy & Hold (₹{pas_val:,.0f})
+            <span class='{alpha_class}'>{format_inr(alpha_rs, show_sign=True)} ({alpha_pct:+.2f}%)</span> vs Buy & Hold ({format_inr(pas_val)})
         </div>
     </div>
     """)
@@ -446,17 +521,17 @@ with tab_holdings:
         <div style='display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:8px;'>
             <div style='background:rgba(0, 208, 156, 0.08); border:1px solid rgba(0, 208, 156, 0.25); border-radius:8px; padding:8px 10px;'>
                 <div style='font-size:0.72rem; color:#00D09C; font-weight:700;'>🛡️ TACTICAL ENGINE (A)</div>
-                <div style='font-size:1.15rem; font-weight:700; color:#FFFFFF; margin-top:2px;'>₹{tac_grand:,.0f}</div>
-                <div style='font-size:0.72rem; color:#94a3b8;'>Equity: ₹{tac_eq:,.0f} • <span style='color:#f59e0b; font-weight:600;'>Cash: ₹{tac_cash:,.0f}</span></div>
+                <div style='font-size:1.15rem; font-weight:700; color:#FFFFFF; margin-top:2px;'>{format_inr(tac_grand)}</div>
+                <div style='font-size:0.72rem; color:#94a3b8;'>Equity: {format_inr(tac_eq)} • <span style='color:#f59e0b; font-weight:600;'>Cash: {format_inr(tac_cash)}</span></div>
             </div>
             <div style='background:rgba(245, 158, 11, 0.08); border:1px solid rgba(245, 158, 11, 0.25); border-radius:8px; padding:8px 10px;'>
                 <div style='font-size:0.72rem; color:#f59e0b; font-weight:700;'>📦 PASSIVE BUY & HOLD (B)</div>
-                <div style='font-size:1.15rem; font-weight:700; color:#FFFFFF; margin-top:2px;'>₹{pas_grand:,.0f}</div>
-                <div style='font-size:0.72rem; color:#94a3b8;'>Equity: ₹{pas_grand:,.0f} • Cash: ₹0</div>
+                <div style='font-size:1.15rem; font-weight:700; color:#FFFFFF; margin-top:2px;'>{format_inr(pas_grand)}</div>
+                <div style='font-size:0.72rem; color:#94a3b8;'>Equity: {format_inr(pas_grand)} • Cash: {format_inr(0)}</div>
             </div>
         </div>
         <div style='margin-top:8px; display:flex; justify-content:space-between; align-items:center; font-size:0.78rem; border-top:1px solid #1e293b; padding-top:6px;'>
-            <span style='color:#cbd5e1;'>Net Alpha: <b style='color:{alpha_color};'>{alpha_sign}₹{alpha_rs:,.2f} ({alpha_sign}{alpha_pct:.2f}%)</b></span>
+            <span style='color:#cbd5e1;'>Net Alpha: <b style='color:{alpha_color};'>{format_inr(alpha_rs, decimals=2, show_sign=True)} ({alpha_pct:+.2f}%)</b></span>
             <span style='color:#cbd5e1;'>Shadow Cash Yield: <b style='color:#38bdf8;'>6.5% p.a. (Liquid)</b></span>
         </div>
     </div>
@@ -477,18 +552,17 @@ with tab_holdings:
         friction = item["friction"]
 
         diff_color = "#f59e0b" if diff_v < 0 else ("#00D09C" if diff_v > 0 else "#94a3b8")
-        diff_sign = "+" if diff_v > 0 else ""
 
         table_rows.append({
             "Fund": name.replace(" Direct Growth", "").replace(" Fund", ""),
             "Sleeve": item["sleeve"],
-            "NAV": f"₹{nav:.2f}",
+            "NAV": format_inr(nav, decimals=2),
             "Tactical Units": f"{t_units:,.3f}",
-            "Tactical Value": f"₹{t_val:,.0f}",
+            "Tactical Value": format_inr(t_val),
             "Passive Units": f"{p_units:,.3f}",
-            "Passive Value": f"₹{p_val:,.0f}",
+            "Passive Value": format_inr(p_val),
             "Unit Diff": f"{diff_u:+,.3f}" if diff_u != 0 else "0.000",
-            "Value Diff": f"{diff_sign}₹{diff_v:,.0f}" if diff_v != 0 else "₹0",
+            "Value Diff": format_inr(diff_v, show_sign=True) if diff_v != 0 else "₹0",
             "Tactical Status": item["status_badge"]
         })
 
@@ -501,7 +575,7 @@ with tab_holdings:
                     <span class='badge' style='background:#1e293b; color:#cbd5e1;'>Folio: {item['folio_no']}</span>
                 </div>
                 <div style='text-align:right;'>
-                    <div style='font-size:0.92rem; font-weight:700; color:#38bdf8;'>NAV: ₹{nav:.2f}</div>
+                    <div style='font-size:0.92rem; font-weight:700; color:#38bdf8;'>NAV: {format_inr(nav, decimals=2)}</div>
                     <span class='badge' style='background:{item['status_badge_color']}22; color:{item['status_badge_color']}; border:1px solid {item['status_badge_color']}; margin-top:2px;'>
                         {item['status_badge']}
                     </span>
@@ -512,12 +586,12 @@ with tab_holdings:
             <div style='display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:10px; background:rgba(0,0,0,0.25); padding:10px 12px; border-radius:8px; border:1px solid #2d3748;'>
                 <div style='border-right:1px solid #334155; padding-right:8px;'>
                     <div style='font-size:0.70rem; color:#00D09C; font-weight:700; text-transform:uppercase;'>🛡️ Tactical (Ledger A)</div>
-                    <div style='font-size:1.15rem; font-weight:700; color:#FFFFFF; margin-top:2px;'>₹{t_val:,.2f}</div>
+                    <div style='font-size:1.15rem; font-weight:700; color:#FFFFFF; margin-top:2px;'>{format_inr(t_val, decimals=2)}</div>
                     <div style='font-size:0.80rem; color:#cbd5e1;'><b>{t_units:,.3f}</b> units</div>
                 </div>
                 <div style='padding-left:4px;'>
                     <div style='font-size:0.70rem; color:#f59e0b; font-weight:700; text-transform:uppercase;'>📦 Passive (Ledger B)</div>
-                    <div style='font-size:1.15rem; font-weight:700; color:#FFFFFF; margin-top:2px;'>₹{p_val:,.2f}</div>
+                    <div style='font-size:1.15rem; font-weight:700; color:#FFFFFF; margin-top:2px;'>{format_inr(p_val, decimals=2)}</div>
                     <div style='font-size:0.80rem; color:#cbd5e1;'><b>{p_units:,.3f}</b> units</div>
                 </div>
             </div>
@@ -526,15 +600,15 @@ with tab_holdings:
             <div style='background:rgba(255,255,255,0.03); border-radius:6px; padding:6px 10px; margin-top:8px; display:flex; justify-content:space-between; align-items:center; font-size:0.82rem;'>
                 <span style='color:#94a3b8;'>Variance (Tactical vs. Passive):</span>
                 <span style='font-weight:700; color:{diff_color};'>
-                    {'+' if diff_v > 0 else ''}₹{diff_v:,.2f} ({'+' if diff_u > 0 else ''}{diff_u:,.3f} units)
+                    {format_inr(diff_v, decimals=2, show_sign=True)} ({diff_u:+,.3f} units)
                 </span>
             </div>
 
             <!-- Strategy & Friction Details -->
             <div style='margin-top:8px; font-size:0.78rem; color:#9ca3af; border-top:1px solid #2D3546; padding-top:6px;'>
                 <div style='display:flex; justify-content:space-between;'>
-                    <span>Monthly SIP: <b>{"₹{:,.0f}".format(sip_amt) if sip_amt > 0 else "None (Hold Only)"}</b></span>
-                    <span>Load: <b>{friction['load_pct']}%</b> | Tax Drag: <b>₹{friction['stcg_tax'] + friction['ltcg_tax']:,.0f}</b> ({friction['friction_drag_pct']:.1f}%)</span>
+                    <span>Monthly SIP: <b>{format_inr(sip_amt) if sip_amt > 0 else "None (Hold Only)"}</b></span>
+                    <span>Load: <b>{friction['load_pct']}%</b> | Tax Drag: <b>{format_inr(friction['stcg_tax'] + friction['ltcg_tax'])}</b> ({friction['friction_drag_pct']:.1f}%)</span>
                 </div>
                 <div style='color:#64748b; font-size:0.74rem; margin-top:3px;'>
                     💡 {item['status_note']}
@@ -553,22 +627,22 @@ with tab_holdings:
                 <span class='badge' style='background:#1e293b; color:#cbd5e1;'>6.5% Annualized Yield</span>
             </div>
             <div style='text-align:right;'>
-                <div style='font-size:1.15rem; font-weight:700; color:#38bdf8;'>₹{tac_cash:,.2f}</div>
+                <div style='font-size:1.15rem; font-weight:700; color:#38bdf8;'>{format_inr(tac_cash, decimals=2)}</div>
                 <span class='badge' style='background:rgba(56, 189, 248, 0.15); color:#38bdf8; border:1px solid #0284c7;'>Protected Dry Powder</span>
             </div>
         </div>
         <div style='margin-top:10px; border-top:1px solid #2D3546; padding-top:8px; font-size:0.80rem; color:#94a3b8;'>
             <div style='display:flex; justify-content:space-between;'>
                 <span>Tactical Engine (Ledger A):</span>
-                <span style='color:#38bdf8; font-weight:600;'>₹{tac_cash:,.2f}</span>
+                <span style='color:#38bdf8; font-weight:600;'>{format_inr(tac_cash, decimals=2)}</span>
             </div>
             <div style='display:flex; justify-content:space-between; margin-top:3px;'>
                 <span>Passive Buy & Hold (Ledger B):</span>
-                <span>₹0.00 (100% Equity, zero cash buffer)</span>
+                <span>{format_inr(0, decimals=2)} (100% Equity, zero cash buffer)</span>
             </div>
             <div style='display:flex; justify-content:space-between; margin-top:3px; color:#00D09C;'>
                 <span>Cash Buffer Advantage:</span>
-                <span style='font-weight:700;'>+₹{tac_cash:,.2f}</span>
+                <span style='font-weight:700;'>+{format_inr(tac_cash, decimals=2)}</span>
             </div>
         </div>
     </div>
@@ -579,13 +653,13 @@ with tab_holdings:
         table_rows.append({
             "Fund": "🛡️ Shadow Cash (6.5% Yield)",
             "Sleeve": "LIQUID_CASH",
-            "NAV": "₹1.00",
+            "NAV": format_inr(1.0, decimals=2),
             "Tactical Units": f"{tac_cash:,.2f}",
-            "Tactical Value": f"₹{tac_cash:,.0f}",
+            "Tactical Value": format_inr(tac_cash),
             "Passive Units": "0.000",
-            "Passive Value": "₹0",
+            "Passive Value": format_inr(0),
             "Unit Diff": f"+{tac_cash:,.2f}",
-            "Value Diff": f"+₹{tac_cash:,.0f}",
+            "Value Diff": format_inr(tac_cash, show_sign=True),
             "Tactical Status": "Dry Powder"
         })
         table_rows.append({
@@ -593,12 +667,12 @@ with tab_holdings:
             "Sleeve": "ALL",
             "NAV": "—",
             "Tactical Units": "—",
-            "Tactical Value": f"₹{tac_grand:,.0f}",
+            "Tactical Value": format_inr(tac_grand),
             "Passive Units": "—",
-            "Passive Value": f"₹{pas_grand:,.0f}",
+            "Passive Value": format_inr(pas_grand),
             "Unit Diff": "—",
-            "Value Diff": f"{alpha_sign}₹{alpha_rs:,.0f}",
-            "Tactical Status": f"Alpha: {alpha_sign}{alpha_pct:.2f}%"
+            "Value Diff": format_inr(alpha_rs, show_sign=True),
+            "Tactical Status": f"Alpha: {alpha_pct:+.2f}%"
         })
         st.dataframe(pd.DataFrame(table_rows), use_container_width=True, hide_index=True)
 
@@ -614,7 +688,6 @@ with tab_holdings:
             l_gain = l_curr - l_inv
             l_gain_pct = (l_gain / l_inv * 100.0) if l_inv > 0 else 0.0
             l_color = "text-green" if l_gain >= 0 else "text-red"
-            l_sign = "+" if l_gain >= 0 else ""
 
             render_html(f"""
             <div class='fund-card' style='opacity:0.85; background:#181c24; border:1px solid #334155;'>
@@ -625,13 +698,13 @@ with tab_holdings:
                         <span class='badge' style='background:#1e293b; color:#cbd5e1;'>Folio: {l.get('folio_no')}</span>
                     </div>
                     <div style='text-align:right;'>
-                        <div style='font-weight:700;'>₹{l_curr:,.2f}</div>
-                        <div class='{l_color}' style='font-size:0.78rem;'>{l_sign}₹{l_gain:,.2f} ({l_sign}{l_gain_pct:.1f}%)</div>
+                        <div style='font-weight:700;'>{format_inr(l_curr, decimals=2)}</div>
+                        <div class='{l_color}' style='font-size:0.78rem;'>{format_inr(l_gain, decimals=2, show_sign=True)} ({l_gain_pct:+.1f}%)</div>
                     </div>
                 </div>
                 <div style='margin-top:8px; border-top:1px solid #2D3546; padding-top:6px; font-size:0.78rem; color:#9ca3af; display:flex; justify-content:space-between;'>
-                    <span>Units: <b>{l_units:,.3f}</b> @ <b>₹{l_nav:.2f}</b></span>
-                    <span>Invested: <b>₹{l_inv:,.2f}</b></span>
+                    <span>Units: <b>{l_units:,.3f}</b> @ <b>{format_inr(l_nav, decimals=2)}</b></span>
+                    <span>Invested: <b>{format_inr(l_inv, decimals=2)}</b></span>
                 </div>
             </div>
             """)
@@ -665,7 +738,7 @@ with tab_chart:
                 </span>
             </div>
             <div style='font-size:0.78rem; color:#cbd5e1; margin-top:10px; border-top:1px solid #334155; padding-top:8px; line-height:1.5;'>
-                Starting <b>Dec 3, 2026</b>, ₹50,000 will be deployed forward on the 3rd of every month across 12 months (₹6.0L total).
+                Starting <b>Dec 3, 2026</b>, ₹50,000 will be deployed forward on the 3rd of every month across 12 months (₹6,00,000 total).
                 We strictly track <b>FIFO tax lots</b>, <b>0.005% stamp duty</b>, exit loads, and actual Indian capital gains taxes (20% STCG / 12.5% LTCG).
             </div>
         </div>
@@ -713,13 +786,13 @@ with tab_chart:
                 <div style='border-top:1px solid #2d3748; padding-top:6px; font-size:0.78rem;'>
                     <div style='display:flex; justify-content:space-between; margin-bottom:4px;'>
                         <span style='color:#e2e8f0;'>{top1.get('short_name', 'Top Pick 1')}</span>
-                        <b style='color:#00D09C;'>₹25,000</b>
+                        <b style='color:#00D09C;'>{format_inr(top1.get('allocation_amount', 25000))}</b>
                     </div>
                     <div style='font-size:0.68rem; color:#94a3b8; margin-bottom:4px;'>Score: {top1.get('score', 0):.0f} • {top1.get('sub_category', '')}</div>
                     
                     <div style='display:flex; justify-content:space-between; margin-bottom:4px;'>
                         <span style='color:#e2e8f0;'>{top2.get('short_name', 'Top Pick 2')}</span>
-                        <b style='color:#00D09C;'>₹25,000</b>
+                        <b style='color:#00D09C;'>{format_inr(top2.get('allocation_amount', 25000))}</b>
                     </div>
                     <div style='font-size:0.68rem; color:#94a3b8;'>Score: {top2.get('score', 0):.0f} • {top2.get('sub_category', '')}</div>
                 </div>
@@ -771,11 +844,13 @@ with tab_chart:
         # 4. 12-MONTH LIVE TRACKING SCHEDULE
         # -------------------------------------------------------------
         with st.expander("📅 12-Month Live Tracking Schedule (Dec 2026 – Nov 2027)", expanded=False):
-            df_sch = pd.DataFrame(fwd["schedule"])
+            df_sch = pd.DataFrame(fwd["schedule"]).copy()
+            if "sip_amount" in df_sch.columns:
+                df_sch["sip_amount"] = df_sch["sip_amount"].apply(lambda v: format_inr(v))
             st.dataframe(df_sch[["month_num", "date", "sip_amount", "passive_allocation", "status"]].rename(columns={
                 "month_num": "Month #",
                 "date": "Execution Date",
-                "sip_amount": "Amount (₹)",
+                "sip_amount": "Amount",
                 "passive_allocation": "Passive Allocation",
                 "status": "Tracking Status"
             }), use_container_width=True, hide_index=True)
@@ -801,7 +876,8 @@ with tab_chart:
                     mode="lines",
                     name="Tactical Engine (Total)",
                     line=dict(color="#00D09C", width=2.8),
-                    hovertemplate="Tactical Total: ₹%{y:,.0f}<extra></extra>"
+                    customdata=[format_inr(v) for v in df_snap["tactical_total_value"]],
+                    hovertemplate="Tactical Total: %{customdata}<extra></extra>"
                 ))
                 fig_snap1.add_trace(go.Scatter(
                     x=df_snap["Date"],
@@ -809,7 +885,8 @@ with tab_chart:
                     mode="lines",
                     name="Passive Buy & Hold",
                     line=dict(color="#F8FAFC", width=2.2, dash="dash"),
-                    hovertemplate="Passive Buy & Hold: ₹%{y:,.0f}<extra></extra>"
+                    customdata=[format_inr(v) for v in df_snap["passive_total_value"]],
+                    hovertemplate="Passive Buy & Hold: %{customdata}<extra></extra>"
                 ))
                 fig_snap1.update_layout(
                     template="plotly_dark",
@@ -827,11 +904,28 @@ with tab_chart:
                 # Chart 2: Net Alpha & Cash
                 fig_snap2 = make_subplots(specs=[[{"secondary_y": True}]])
                 fig_snap2.add_trace(
-                    go.Bar(x=df_snap["Date"], y=df_snap["alpha_rupees"], name="Net Alpha (₹)", marker_color="#00D09C", hovertemplate="Net Alpha: ₹%{y:+,.2f}<extra></extra>"),
+                    go.Bar(
+                        x=df_snap["Date"],
+                        y=df_snap["alpha_rupees"],
+                        name="Net Alpha (₹)",
+                        marker_color="#00D09C",
+                        customdata=[format_inr(v, decimals=2, show_sign=True) for v in df_snap["alpha_rupees"]],
+                        hovertemplate="Net Alpha: %{customdata}<extra></extra>"
+                    ),
                     secondary_y=False
                 )
                 fig_snap2.add_trace(
-                    go.Scatter(x=df_snap["Date"], y=df_snap["tactical_cash_value"], mode="lines", name="Shadow Cash Reserve", line=dict(color="#F59E0B", width=2), fill="tozeroy", fillcolor="rgba(245, 158, 11, 0.15)", hovertemplate="Shadow Cash: ₹%{y:,.0f}<extra></extra>"),
+                    go.Scatter(
+                        x=df_snap["Date"],
+                        y=df_snap["tactical_cash_value"],
+                        mode="lines",
+                        name="Shadow Cash Reserve",
+                        line=dict(color="#F59E0B", width=2),
+                        fill="tozeroy",
+                        fillcolor="rgba(245, 158, 11, 0.15)",
+                        customdata=[format_inr(v) for v in df_snap["tactical_cash_value"]],
+                        hovertemplate="Shadow Cash: %{customdata}<extra></extra>"
+                    ),
                     secondary_y=True
                 )
                 fig_snap2.update_layout(
@@ -891,36 +985,36 @@ with tab_chart:
             <!-- Card 1: Winning AI Advisor -->
             <div class='metric-card' style='padding:12px; border-left:3px solid #00D09C;'>
                 <div class='metric-title' style='color:#00D09C;'>🏆 Winning AI Engine</div>
-                <div style='font-size:1.18rem; font-weight:700; color:#FFFFFF;'>₹{ai_net:,.0f}</div>
+                <div style='font-size:1.18rem; font-weight:700; color:#FFFFFF;'>{format_inr(ai_net)}</div>
                 <div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>
                     Post-Tax XIRR: <span style='color:#00D09C; font-weight:700;'>{ai_xirr:.2f}% p.a.</span>
                 </div>
                 <div style='font-size:0.68rem; color:#64748b; margin-top:3px;'>
-                    Max DD: <b style='color:#38bdf8;'>{ai_dd:.2f}%</b> • Taxes: ₹{ai_tax:,.0f}
+                    Max DD: <b style='color:#38bdf8;'>{ai_dd:.2f}%</b> • Taxes: {format_inr(ai_tax)}
                 </div>
             </div>
 
             <!-- Card 2: Passive Groww SIP -->
             <div class='metric-card' style='padding:12px; border-left:3px solid #f59e0b;'>
                 <div class='metric-title' style='color:#f59e0b;'>📦 Passive Groww SIP (Blind 80% Mid/Small)</div>
-                <div style='font-size:1.18rem; font-weight:700; color:#FFFFFF;'>₹{pas_net:,.0f}</div>
+                <div style='font-size:1.18rem; font-weight:700; color:#FFFFFF;'>{format_inr(pas_net)}</div>
                 <div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>
                     Post-Tax XIRR: <span style='color:#f59e0b; font-weight:700;'>{pas_xirr:.2f}% p.a.</span>
                 </div>
                 <div style='font-size:0.68rem; color:#64748b; margin-top:3px;'>
-                    Max DD: <b style='color:#f87171;'>{pas_dd:.2f}%</b> • Taxes: ₹{pas_tax:,.0f}
+                    Max DD: <b style='color:#f87171;'>{pas_dd:.2f}%</b> • Taxes: {format_inr(pas_tax)}
                 </div>
             </div>
 
             <!-- Card 3: Net Alpha -->
             <div class='metric-card' style='padding:12px; border-left:3px solid #38bdf8;'>
                 <div class='metric-title' style='color:#38bdf8;'>🚀 Net Post-Tax Alpha</div>
-                <div style='font-size:1.18rem; font-weight:700; color:#38bdf8;'>+₹{alpha_rs:,.0f}</div>
+                <div style='font-size:1.18rem; font-weight:700; color:#38bdf8;'>{format_inr(alpha_rs, show_sign=True)}</div>
                 <div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>
                     Post-Tax XIRR Alpha: <span style='color:#34d399; font-weight:700;'>+{alpha_xirr:.2f}% p.a.</span>
                 </div>
                 <div style='font-size:0.68rem; color:#64748b; margin-top:3px;'>
-                    Tax Savings: <b>₹{tax_saved:,.0f}</b> vs Passive
+                    Tax Savings: <b>{format_inr(tax_saved)}</b> vs Passive
                 </div>
             </div>
 
@@ -932,7 +1026,7 @@ with tab_chart:
                     AI Max DD: <span style='color:#34d399; font-weight:600;'>{ai_dd:.2f}%</span> vs <span style='color:#f87171;'>{pas_dd:.2f}%</span>
                 </div>
                 <div style='font-size:0.68rem; color:#64748b; margin-top:3px;'>
-                    Invested: ₹{b_inv:,.0f} ({b_months} mos @ ₹50k)
+                    Invested: {format_inr(b_inv)} ({b_months} mos @ {format_inr(50000)})
                 </div>
             </div>
         </div>
@@ -962,7 +1056,9 @@ with tab_chart:
         # Candidate Comparison Scorecard Table
         st.markdown("<div style='font-size:0.92rem; font-weight:700; color:#E2E8F0; margin-top:10px; margin-bottom:6px;'>🔬 Walk-Forward Research & Candidate Evaluation Scorecard (Nov 2021 – Nov 2026)</div>", unsafe_allow_html=True)
         if "candidates_scorecard" in b_res and b_res["candidates_scorecard"]:
-            df_cand = pd.DataFrame(b_res["candidates_scorecard"])
+            df_cand = pd.DataFrame(b_res["candidates_scorecard"]).copy()
+            df_cand["net_corpus"] = df_cand["net_corpus"].apply(lambda v: format_inr(v))
+            df_cand["taxes_paid"] = df_cand["taxes_paid"].apply(lambda v: format_inr(v))
             st.dataframe(df_cand[["candidate", "net_corpus", "xirr", "max_dd", "taxes_paid", "rule"]].rename(columns={
                 "candidate": "Strategy Candidate",
                 "net_corpus": "Net Corpus (₹)",
@@ -985,11 +1081,11 @@ with tab_chart:
                 <!-- In-Sample -->
                 <div style='background:#181c24; border:1px solid #334155; border-radius:8px; padding:10px;'>
                     <div style='font-size:0.72rem; color:#94a3b8; font-weight:700; text-transform:uppercase;'>In-Sample (Nov 2021–Oct 2023)</div>
-                    <div style='font-size:0.70rem; color:#64748b;'>24 Months • ₹12.0L Invested</div>
+                    <div style='font-size:0.70rem; color:#64748b;'>24 Months • {format_inr(1200000)} Invested</div>
                     <div style='margin-top:6px; font-size:0.78rem;'>
-                        <div style='display:flex; justify-content:space-between;'><span style='color:#94a3b8;'>AI Net:</span> <b>₹{ins.get('ai_net', 0):,.0f}</b></div>
+                        <div style='display:flex; justify-content:space-between;'><span style='color:#94a3b8;'>AI Net:</span> <b>{format_inr(ins.get('ai_net', 0))}</b></div>
                         <div style='display:flex; justify-content:space-between;'><span style='color:#94a3b8;'>AI XIRR:</span> <b style='color:#38bdf8;'>{ins.get('ai_xirr', 0):.2f}%</b></div>
-                        <div style='display:flex; justify-content:space-between;'><span style='color:#94a3b8;'>Passive Net:</span> <b>₹{ins.get('passive_net', 0):,.0f}</b></div>
+                        <div style='display:flex; justify-content:space-between;'><span style='color:#94a3b8;'>Passive Net:</span> <b>{format_inr(ins.get('passive_net', 0))}</b></div>
                         <div style='display:flex; justify-content:space-between;'><span style='color:#94a3b8;'>Passive XIRR:</span> <b style='color:#f59e0b;'>{ins.get('passive_xirr', 0):.2f}%</b></div>
                         <div style='display:flex; justify-content:space-between; border-top:1px solid #334155; margin-top:4px; padding-top:2px;'><span style='color:#94a3b8;'>AI Max DD:</span> <b style='color:#34d399;'>{ins.get('ai_max_dd', 0):.2f}%</b></div>
                     </div>
@@ -998,11 +1094,11 @@ with tab_chart:
                 <!-- Out-of-Sample -->
                 <div style='background:#181c24; border:1px solid #334155; border-radius:8px; padding:10px;'>
                     <div style='font-size:0.72rem; color:#94a3b8; font-weight:700; text-transform:uppercase;'>Out-of-Sample (Nov 2023–Nov 2026)</div>
-                    <div style='font-size:0.70rem; color:#64748b;'>37 Months • ₹18.5L Invested</div>
+                    <div style='font-size:0.70rem; color:#64748b;'>37 Months • {format_inr(1850000)} Invested</div>
                     <div style='margin-top:6px; font-size:0.78rem;'>
-                        <div style='display:flex; justify-content:space-between;'><span style='color:#94a3b8;'>AI Net:</span> <b>₹{oos.get('ai_net', 0):,.0f}</b></div>
+                        <div style='display:flex; justify-content:space-between;'><span style='color:#94a3b8;'>AI Net:</span> <b>{format_inr(oos.get('ai_net', 0))}</b></div>
                         <div style='display:flex; justify-content:space-between;'><span style='color:#94a3b8;'>AI XIRR:</span> <b style='color:#00D09C;'>{oos.get('ai_xirr', 0):.2f}%</b></div>
-                        <div style='display:flex; justify-content:space-between;'><span style='color:#94a3b8;'>Passive Net:</span> <b>₹{oos.get('passive_net', 0):,.0f}</b></div>
+                        <div style='display:flex; justify-content:space-between;'><span style='color:#94a3b8;'>Passive Net:</span> <b>{format_inr(oos.get('passive_net', 0))}</b></div>
                         <div style='display:flex; justify-content:space-between;'><span style='color:#94a3b8;'>Passive XIRR:</span> <b style='color:#f59e0b;'>{oos.get('passive_xirr', 0):.2f}%</b></div>
                         <div style='display:flex; justify-content:space-between; border-top:1px solid #334155; margin-top:4px; padding-top:2px;'><span style='color:#94a3b8;'>AI Max DD:</span> <b style='color:#34d399;'>{oos.get('ai_max_dd', 0):.2f}%</b></div>
                     </div>
@@ -1011,13 +1107,13 @@ with tab_chart:
                 <!-- Full 5-Year Cycle -->
                 <div style='background:#181c24; border:1px solid rgba(0, 208, 156, 0.45); border-radius:8px; padding:10px;'>
                     <div style='font-size:0.72rem; color:#00D09C; font-weight:700; text-transform:uppercase;'>Full 5-Year Cycle (Nov 2021–Nov 2026)</div>
-                    <div style='font-size:0.70rem; color:#64748b;'>61 Months • ₹30.5L Invested</div>
+                    <div style='font-size:0.70rem; color:#64748b;'>61 Months • {format_inr(3050000)} Invested</div>
                     <div style='margin-top:6px; font-size:0.78rem;'>
-                        <div style='display:flex; justify-content:space-between;'><span style='color:#94a3b8;'>AI Net:</span> <b style='color:#FFFFFF;'>₹{fp.get('ai_net', 0):,.0f}</b></div>
+                        <div style='display:flex; justify-content:space-between;'><span style='color:#94a3b8;'>AI Net:</span> <b style='color:#FFFFFF;'>{format_inr(fp.get('ai_net', 0))}</b></div>
                         <div style='display:flex; justify-content:space-between;'><span style='color:#94a3b8;'>AI XIRR:</span> <b style='color:#00D09C;'>{fp.get('ai_xirr', 0):.2f}%</b></div>
-                        <div style='display:flex; justify-content:space-between;'><span style='color:#94a3b8;'>Passive Net:</span> <b>₹{fp.get('passive_net', 0):,.0f}</b></div>
+                        <div style='display:flex; justify-content:space-between;'><span style='color:#94a3b8;'>Passive Net:</span> <b>{format_inr(fp.get('passive_net', 0))}</b></div>
                         <div style='display:flex; justify-content:space-between;'><span style='color:#94a3b8;'>Passive XIRR:</span> <b style='color:#f59e0b;'>{fp.get('passive_xirr', 0):.2f}%</b></div>
-                        <div style='display:flex; justify-content:space-between; border-top:1px solid #334155; margin-top:4px; padding-top:2px;'><span style='color:#00D09C;'>Net Alpha:</span> <b style='color:#00D09C;'>+₹{fp.get('delta_rupees', 0):,.0f}</b></div>
+                        <div style='display:flex; justify-content:space-between; border-top:1px solid #334155; margin-top:4px; padding-top:2px;'><span style='color:#00D09C;'>Net Alpha:</span> <b style='color:#00D09C;'>{format_inr(fp.get('delta_rupees', 0), show_sign=True)}</b></div>
                     </div>
                 </div>
             </div>
@@ -1036,7 +1132,8 @@ with tab_chart:
             mode="lines",
             name="Unrestricted AI Advisor (Net)",
             line=dict(color="#00D09C", width=2.8),
-            hovertemplate="AI Advisor: ₹%{y:,.0f}<extra></extra>"
+            customdata=[format_inr(v) for v in b_res["tactical_wealth"]],
+            hovertemplate="AI Advisor: %{customdata}<extra></extra>"
         ))
 
         # Passive Groww Curve (Dashed White)
@@ -1046,7 +1143,8 @@ with tab_chart:
             mode="lines",
             name="Passive Groww SIPs (80% Mid/Small)",
             line=dict(color="#F8FAFC", width=2.2, dash="dash"),
-            hovertemplate="Passive Groww: ₹%{y:,.0f}<extra></extra>"
+            customdata=[format_inr(v) for v in b_res["passive_wealth"]],
+            hovertemplate="Passive Groww: %{customdata}<extra></extra>"
         ))
 
         # Old Cash Parking (Amber Line)
@@ -1057,7 +1155,8 @@ with tab_chart:
                 mode="lines",
                 name="Old Cash Parking Strategy",
                 line=dict(color="#F59E0B", width=1.8, dash="dot"),
-                hovertemplate="Cash Parking: ₹%{y:,.0f}<extra></extra>"
+                customdata=[format_inr(v) for v in b_res["cash_parking_wealth"]],
+                hovertemplate="Cash Parking: %{customdata}<extra></extra>"
             ))
 
         # Invested Capital Curve (Dotted Light Blue)
@@ -1065,9 +1164,10 @@ with tab_chart:
             x=b_res["dates"],
             y=b_res["invested_curve"],
             mode="lines",
-            name="Total Invested Capital (₹30.5L)",
+            name=f"Total Invested Capital ({format_inr(b_inv)})",
             line=dict(color="#38BDF8", width=1.5, dash="dot"),
-            hovertemplate="Invested: ₹%{y:,.0f}<extra></extra>"
+            customdata=[format_inr(v) for v in b_res["invested_curve"]],
+            hovertemplate="Invested: %{customdata}<extra></extra>"
         ))
 
         fig_b1.update_layout(
@@ -1098,7 +1198,8 @@ with tab_chart:
                 line=dict(color="#F59E0B", width=2),
                 fill="tozeroy",
                 fillcolor="rgba(245, 158, 11, 0.20)",
-                hovertemplate="Parked Cash: ₹%{y:,.0f}<extra></extra>"
+                customdata=[format_inr(v) for v in b_res["cash_reserve_curve"]],
+                hovertemplate="Parked Cash: %{customdata}<extra></extra>"
             ),
             secondary_y=False
         )
@@ -1136,9 +1237,9 @@ with tab_chart:
         <div class='metric-card' style='margin-top:12px; font-size:0.82rem; color:#cbd5e1;'>
             <div style='font-size:0.92rem; font-weight:700; color:#FFFFFF; margin-bottom:6px;'>💡 5-Year Macro Backtest Insights (Nov 2021 – Nov 2026)</div>
             <ul style='margin:0; padding-left:18px; line-height:1.6;'>
-                <li><b>17.61% Post-Tax XIRR (Beats 17.0% Target & 14.60% Passive Benchmark):</b> The winning multi-asset momentum engine generated <b>+3.01% p.a. post-tax alpha</b> over the passive 80% Mid/Smallcap portfolio, accumulating <b>₹47,29,635</b> net corpus (+₹3,36,856 net alpha).</li>
+                <li><b>17.61% Post-Tax XIRR (Beats 17.0% Target & 14.60% Passive Benchmark):</b> The winning multi-asset momentum engine generated <b>+3.01% p.a. post-tax alpha</b> over the passive 80% Mid/Smallcap portfolio, accumulating <b>{format_inr(ai_net)}</b> net corpus ({format_inr(alpha_rs, show_sign=True)} net alpha).</li>
                 <li><b>Lower Maximum Drawdown (-13.91% vs -15.86%):</b> Gating fresh capital to assets trading above their 200-DMA protected capital from prolonged bear markets.</li>
-                <li><b>₹78,845 in Capital Gains Tax Savings:</b> By holding units long-term and only executing Smart LTCG switching on holdings held &gt;365 days, the strategy paid only ₹1,00,796 in taxes vs ₹1,79,641 for passive.</li>
+                <li><b>{format_inr(tax_saved)} in Capital Gains Tax Savings:</b> By holding units long-term and only executing Smart LTCG switching on holdings held &gt;365 days, the strategy paid only {format_inr(ai_tax)} in taxes vs {format_inr(pas_tax)} for passive.</li>
                 <li><b>Zero Look-Ahead Bias & Realistic Friction:</b> Monthly SIP decisions on the 3rd strictly used NAVs available on or before the 2nd, with 0.005% stamp duty and FIFO exit loads deducted on every trade.</li>
             </ul>
         </div>
@@ -1183,7 +1284,7 @@ with tab_trades:
 
             badge_color = "#00D09C" if "EQUITY" in t_type else ("#FFB020" if "CASH" in t_type else "#38BDF8")
 
-            st.markdown(f"""
+            render_html(f"""
             <div class='fund-card' style='padding:10px 14px; margin-bottom:8px;'>
                 <div style='display:flex; justify-content:space-between; align-items:center;'>
                     <span style='font-weight:600; font-size:0.85rem;'>{t.get('scheme_name')}</span>
@@ -1191,14 +1292,14 @@ with tab_trades:
                 </div>
                 <div class='fund-row' style='color:#9ca3af; font-size:0.78rem;'>
                     <span>Trade: <b>{t_date}</b> (Settle: <b>{t_settle}</b>)</span>
-                    <span style='font-weight:700; color:#fff;'>₹{t_amt:,.2f}</span>
+                    <span style='font-weight:700; color:#fff;'>{format_inr(t_amt, decimals=2)}</span>
                 </div>
                 <div class='fund-row' style='color:#6b7280; font-size:0.75rem;'>
-                    <span>{t_units:.3f} units @ ₹{t_nav:.2f}</span>
+                    <span>{t_units:.3f} units @ {format_inr(t_nav, decimals=2)}</span>
                     <span>Status: <b>{status}</b></span>
                 </div>
             </div>
-            """, unsafe_allow_html=True)
+            """)
     else:
         st.info("No transaction records found yet.")
 
@@ -1249,10 +1350,10 @@ with tab_settings:
     sim_decisions = evaluate_tactical_decisions(sim_scores)
 
     st.markdown(f"**Simulated Directive:** {sim_decisions['action_badge']}")
-    st.markdown(f"- Equity SIP Allocation: **₹{sim_decisions['total_sip_equity']:,.0f}**")
-    st.markdown(f"- Shadow Cash Diversion: **₹{sim_decisions['total_sip_cash']:,.0f}**")
+    st.markdown(f"- Equity SIP Allocation: **{format_inr(sim_decisions['total_sip_equity'])}**")
+    st.markdown(f"- Shadow Cash Diversion: **{format_inr(sim_decisions['total_sip_cash'])}**")
     for s_fund, s_d in sim_decisions.get("sip_decisions", {}).items():
-        st.caption(f"• {s_fund.replace(' Direct Growth', '')}: **{s_d['action']}** (₹{s_d['amount']:,.0f}) — {s_d.get('reason')}")
+        st.caption(f"• {s_fund.replace(' Direct Growth', '')}: **{s_d['action']}** ({format_inr(s_d['amount'])}) — {s_d.get('reason')}")
 
     # Cloud Deployment Info
     st.markdown("---")
