@@ -13,7 +13,7 @@ from plotly.subplots import make_subplots
 from datetime import datetime, date
 from src.db import get_db
 from src.regime_engine import update_all_regimes, SLEEVE_CONFIG
-from src.paper_ledger import evaluate_tactical_decisions, calculate_friction_and_drag
+from src.paper_ledger import evaluate_tactical_decisions, calculate_friction_and_drag, get_dual_ledger_holdings
 from src.telegram_bot import format_tactical_alert, send_telegram_alert
 
 # Streamlit Page Config - Centered layout is optimal for mobile viewports
@@ -403,80 +403,216 @@ with tab_regimes:
         """)
 
 # ==========================================
-# TAB 2: ACTIVE TRADABLE HOLDINGS
+# TAB 2: SIDE-BY-SIDE HOLDINGS COMPARISON
 # ==========================================
 with tab_holdings:
-    st.markdown("#### Active Tradable Universe (4 Funds)")
-    st.caption("Locked ELSS holdings excluded from tactical switching.")
+    st.markdown("#### 💼 Side-by-Side Holdings Comparison")
+    st.caption("Active Tradable Universe (4 Funds) • Tactical Engine (Ledger A) vs. Passive Buy & Hold (Ledger B)")
 
-    for h in active_holdings:
-        name = h.get("scheme_name", "")
-        units = float(h.get("units", 0))
-        nav = float(h.get("current_nav", 0))
-        curr_val = float(h.get("current_value", 0))
-        inv_val = float(h.get("invested_value", 0))
-        gain = curr_val - inv_val
-        gain_pct = (gain / inv_val * 100.0) if inv_val > 0 else 0.0
-        sip_amt = float(h.get("sip_amount", 0))
+    dual_data = get_dual_ledger_holdings(db)
+    tac_eq = dual_data["tactical_equity_total"]
+    tac_cash = dual_data["tactical_cash_total"]
+    tac_grand = dual_data["tactical_grand_total"]
+    pas_grand = dual_data["passive_grand_total"]
+    alpha_rs = dual_data["alpha_rupees"]
+    alpha_pct = dual_data["alpha_pct"]
 
-        friction = calculate_friction_and_drag(name, units, nav, inv_val, holding_days=380)
+    alpha_color = "#00D09C" if alpha_rs >= 0 else "#FF5252"
+    alpha_sign = "+" if alpha_rs >= 0 else ""
 
-        gain_color = "text-green" if gain >= 0 else "text-red"
-        gain_sign = "+" if gain >= 0 else ""
+    # High-level comparison summary banner
+    st.markdown(f"""
+    <div style='background:linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border:1px solid #334155; border-radius:10px; padding:12px 14px; margin-bottom:14px;'>
+        <div style='font-size:0.75rem; text-transform:uppercase; color:#94a3b8; font-weight:700; letter-spacing:0.5px;'>Portfolio Allocation Comparison</div>
+        <div style='display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:8px;'>
+            <div style='background:rgba(0, 208, 156, 0.08); border:1px solid rgba(0, 208, 156, 0.25); border-radius:8px; padding:8px 10px;'>
+                <div style='font-size:0.72rem; color:#00D09C; font-weight:700;'>🛡️ TACTICAL ENGINE (A)</div>
+                <div style='font-size:1.15rem; font-weight:700; color:#FFFFFF; margin-top:2px;'>₹{tac_grand:,.0f}</div>
+                <div style='font-size:0.72rem; color:#94a3b8;'>Equity: ₹{tac_eq:,.0f} • <span style='color:#f59e0b; font-weight:600;'>Cash: ₹{tac_cash:,.0f}</span></div>
+            </div>
+            <div style='background:rgba(245, 158, 11, 0.08); border:1px solid rgba(245, 158, 11, 0.25); border-radius:8px; padding:8px 10px;'>
+                <div style='font-size:0.72rem; color:#f59e0b; font-weight:700;'>📦 PASSIVE BUY & HOLD (B)</div>
+                <div style='font-size:1.15rem; font-weight:700; color:#FFFFFF; margin-top:2px;'>₹{pas_grand:,.0f}</div>
+                <div style='font-size:0.72rem; color:#94a3b8;'>Equity: ₹{pas_grand:,.0f} • Cash: ₹0</div>
+            </div>
+        </div>
+        <div style='margin-top:8px; display:flex; justify-content:space-between; align-items:center; font-size:0.78rem; border-top:1px solid #1e293b; padding-top:6px;'>
+            <span style='color:#cbd5e1;'>Net Alpha: <b style='color:{alpha_color};'>{alpha_sign}₹{alpha_rs:,.2f} ({alpha_sign}{alpha_pct:.2f}%)</b></span>
+            <span style='color:#cbd5e1;'>Shadow Cash Yield: <b style='color:#38bdf8;'>6.5% p.a. (Liquid)</b></span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 4 Active Fund Cards
+    table_rows = []
+    for item in dual_data["items"]:
+        name = item["scheme_name"]
+        t_units = item["tactical_units"]
+        t_val = item["tactical_value"]
+        p_units = item["passive_units"]
+        p_val = item["passive_value"]
+        diff_u = item["unit_variance"]
+        diff_v = item["rupee_variance"]
+        nav = item["current_nav"]
+        sip_amt = item["sip_amount"]
+        friction = item["friction"]
+
+        diff_color = "#f59e0b" if diff_v < 0 else ("#00D09C" if diff_v > 0 else "#94a3b8")
+        diff_sign = "+" if diff_v > 0 else ""
+
+        table_rows.append({
+            "Fund": name.replace(" Direct Growth", "").replace(" Fund", ""),
+            "Sleeve": item["sleeve"],
+            "NAV": f"₹{nav:.2f}",
+            "Tactical Units": f"{t_units:,.3f}",
+            "Tactical Value": f"₹{t_val:,.0f}",
+            "Passive Units": f"{p_units:,.3f}",
+            "Passive Value": f"₹{p_val:,.0f}",
+            "Unit Diff": f"{diff_u:+,.3f}" if diff_u != 0 else "0.000",
+            "Value Diff": f"{diff_sign}₹{diff_v:,.0f}" if diff_v != 0 else "₹0",
+            "Tactical Status": item["status_badge"]
+        })
 
         st.markdown(f"""
         <div class='fund-card'>
             <div style='display:flex; justify-content:space-between; align-items:flex-start;'>
                 <div>
                     <div class='fund-title'>{name}</div>
-                    <span class='badge badge-sleeve'>{h.get('sleeve')}</span>
-                    <span class='badge' style='background:#1e293b; color:#cbd5e1;'>Folio: {h.get('folio_no')}</span>
+                    <span class='badge badge-sleeve'>{item['sleeve']}</span>
+                    <span class='badge' style='background:#1e293b; color:#cbd5e1;'>Folio: {item['folio_no']}</span>
                 </div>
                 <div style='text-align:right;'>
-                    <div style='font-size:1.1rem; font-weight:700;'>₹{curr_val:,.2f}</div>
-                    <div class='{gain_color}' style='font-size:0.82rem;'>{gain_sign}₹{gain:,.2f} ({gain_sign}{gain_pct:.1f}%)</div>
+                    <div style='font-size:0.92rem; font-weight:700; color:#38bdf8;'>NAV: ₹{nav:.2f}</div>
+                    <span class='badge' style='background:{item['status_badge_color']}22; color:{item['status_badge_color']}; border:1px solid {item['status_badge_color']}; margin-top:2px;'>
+                        {item['status_badge']}
+                    </span>
                 </div>
             </div>
-            <div style='margin-top:10px; border-top:1px solid #2D3546; padding-top:8px;'>
-                <div class='fund-row'>
-                    <span style='color:#9ca3af;'>Units & NAV:</span>
-                    <span><b>{units:,.3f}</b> @ <b>₹{nav:.2f}</b></span>
+
+            <!-- Side-by-side Units & Value Grid -->
+            <div style='display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:10px; background:rgba(0,0,0,0.25); padding:10px 12px; border-radius:8px; border:1px solid #2d3748;'>
+                <div style='border-right:1px solid #334155; padding-right:8px;'>
+                    <div style='font-size:0.70rem; color:#00D09C; font-weight:700; text-transform:uppercase;'>🛡️ Tactical (Ledger A)</div>
+                    <div style='font-size:1.15rem; font-weight:700; color:#FFFFFF; margin-top:2px;'>₹{t_val:,.2f}</div>
+                    <div style='font-size:0.80rem; color:#cbd5e1;'><b>{t_units:,.3f}</b> units</div>
                 </div>
-                <div class='fund-row'>
-                    <span style='color:#9ca3af;'>Invested Value:</span>
-                    <span>₹{inv_val:,.2f}</span>
+                <div style='padding-left:4px;'>
+                    <div style='font-size:0.70rem; color:#f59e0b; font-weight:700; text-transform:uppercase;'>📦 Passive (Ledger B)</div>
+                    <div style='font-size:1.15rem; font-weight:700; color:#FFFFFF; margin-top:2px;'>₹{p_val:,.2f}</div>
+                    <div style='font-size:0.80rem; color:#cbd5e1;'><b>{p_units:,.3f}</b> units</div>
                 </div>
-                <div class='fund-row'>
-                    <span style='color:#9ca3af;'>Monthly SIP (3rd):</span>
-                    <span><b>{"₹{:,.0f}".format(sip_amt) if sip_amt > 0 else "None (Hold Only)"}</b></span>
+            </div>
+
+            <!-- Variance Row -->
+            <div style='background:rgba(255,255,255,0.03); border-radius:6px; padding:6px 10px; margin-top:8px; display:flex; justify-content:space-between; align-items:center; font-size:0.82rem;'>
+                <span style='color:#94a3b8;'>Variance (Tactical vs. Passive):</span>
+                <span style='font-weight:700; color:{diff_color};'>
+                    {'+' if diff_v > 0 else ''}₹{diff_v:,.2f} ({'+' if diff_u > 0 else ''}{diff_u:,.3f} units)
+                </span>
+            </div>
+
+            <!-- Strategy & Friction Details -->
+            <div style='margin-top:8px; font-size:0.78rem; color:#9ca3af; border-top:1px solid #2D3546; padding-top:6px;'>
+                <div style='display:flex; justify-content:space-between;'>
+                    <span>Monthly SIP: <b>{"₹{:,.0f}".format(sip_amt) if sip_amt > 0 else "None (Hold Only)"}</b></span>
+                    <span>Load: <b>{friction['load_pct']}%</b> | Tax Drag: <b>₹{friction['stcg_tax'] + friction['ltcg_tax']:,.0f}</b> ({friction['friction_drag_pct']:.1f}%)</span>
                 </div>
-                <div class='fund-row'>
-                    <span style='color:#9ca3af;'>Exit Load & Tax Drag:</span>
-                    <span>Load: <b>{friction['load_pct']}%</b> | Tax: <b>₹{friction['stcg_tax'] + friction['ltcg_tax']:,.0f}</b> ({friction['friction_drag_pct']:.1f}%)</span>
+                <div style='color:#64748b; font-size:0.74rem; margin-top:3px;'>
+                    💡 {item['status_note']}
                 </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
+    # Shadow Cash Reserve Card
+    st.markdown(f"""
+    <div class='fund-card' style='border-left: 4px solid #38bdf8;'>
+        <div style='display:flex; justify-content:space-between; align-items:flex-start;'>
+            <div>
+                <div class='fund-title'>🛡️ Tactical Shadow Cash Reserve</div>
+                <span class='badge' style='background:#0369a1; color:#e0f2fe;'>Liquid Arbitrage / Overnight</span>
+                <span class='badge' style='background:#1e293b; color:#cbd5e1;'>6.5% Annualized Yield</span>
+            </div>
+            <div style='text-align:right;'>
+                <div style='font-size:1.15rem; font-weight:700; color:#38bdf8;'>₹{tac_cash:,.2f}</div>
+                <span class='badge' style='background:rgba(56, 189, 248, 0.15); color:#38bdf8; border:1px solid #0284c7;'>Protected Dry Powder</span>
+            </div>
+        </div>
+        <div style='margin-top:10px; border-top:1px solid #2D3546; padding-top:8px; font-size:0.80rem; color:#94a3b8;'>
+            <div style='display:flex; justify-content:space-between;'>
+                <span>Tactical Engine (Ledger A):</span>
+                <span style='color:#38bdf8; font-weight:600;'>₹{tac_cash:,.2f}</span>
+            </div>
+            <div style='display:flex; justify-content:space-between; margin-top:3px;'>
+                <span>Passive Buy & Hold (Ledger B):</span>
+                <span>₹0.00 (100% Equity, zero cash buffer)</span>
+            </div>
+            <div style='display:flex; justify-content:space-between; margin-top:3px; color:#00D09C;'>
+                <span>Cash Buffer Advantage:</span>
+                <span style='font-weight:700;'>+₹{tac_cash:,.2f}</span>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Compact Tabular View in Expander
+    with st.expander("📊 View Full Comparative Balance Sheet Table", expanded=False):
+        table_rows.append({
+            "Fund": "🛡️ Shadow Cash (6.5% Yield)",
+            "Sleeve": "LIQUID_CASH",
+            "NAV": "₹1.00",
+            "Tactical Units": f"{tac_cash:,.2f}",
+            "Tactical Value": f"₹{tac_cash:,.0f}",
+            "Passive Units": "0.000",
+            "Passive Value": "₹0",
+            "Unit Diff": f"+{tac_cash:,.2f}",
+            "Value Diff": f"+₹{tac_cash:,.0f}",
+            "Tactical Status": "Dry Powder"
+        })
+        table_rows.append({
+            "Fund": "📊 TOTAL PORTFOLIO",
+            "Sleeve": "ALL",
+            "NAV": "—",
+            "Tactical Units": "—",
+            "Tactical Value": f"₹{tac_grand:,.0f}",
+            "Passive Units": "—",
+            "Passive Value": f"₹{pas_grand:,.0f}",
+            "Unit Diff": "—",
+            "Value Diff": f"{alpha_sign}₹{alpha_rs:,.0f}",
+            "Tactical Status": f"Alpha: {alpha_sign}{alpha_pct:.2f}%"
+        })
+        st.dataframe(pd.DataFrame(table_rows), use_container_width=True, hide_index=True)
+
     # Excluded Locked Funds Section
     if locked_holdings:
-        st.markdown("#### 🔒 Excluded Locked Holdings")
+        st.markdown("#### 🔒 Excluded Locked Holdings (2 Funds)")
         st.caption("Preserved in portfolio view, strictly excluded from tactical allocation & de-risking.")
         for l in locked_holdings:
             l_curr = float(l.get("current_value", 0))
             l_inv = float(l.get("invested_value", 0))
             l_units = float(l.get("units", 0))
+            l_nav = float(l.get("current_nav", 0))
+            l_gain = l_curr - l_inv
+            l_gain_pct = (l_gain / l_inv * 100.0) if l_inv > 0 else 0.0
+            l_color = "text-green" if l_gain >= 0 else "text-red"
+            l_sign = "+" if l_gain >= 0 else ""
+
             st.markdown(f"""
-            <div class='fund-card' style='opacity:0.8; background:#181c24;'>
+            <div class='fund-card' style='opacity:0.85; background:#181c24; border:1px solid #334155;'>
                 <div style='display:flex; justify-content:space-between; align-items:center;'>
                     <div>
                         <div style='font-weight:600; font-size:0.9rem;'>🔒 {l.get('scheme_name')}</div>
                         <span class='badge badge-locked'>ELSS 3-Year Lock-in</span>
+                        <span class='badge' style='background:#1e293b; color:#cbd5e1;'>Folio: {l.get('folio_no')}</span>
                     </div>
                     <div style='text-align:right;'>
                         <div style='font-weight:700;'>₹{l_curr:,.2f}</div>
-                        <div style='font-size:0.78rem; color:#9ca3af;'>{l_units:,.2f} Units</div>
+                        <div class='{l_color}' style='font-size:0.78rem;'>{l_sign}₹{l_gain:,.2f} ({l_sign}{l_gain_pct:.1f}%)</div>
                     </div>
+                </div>
+                <div style='margin-top:8px; border-top:1px solid #2D3546; padding-top:6px; font-size:0.78rem; color:#9ca3af; display:flex; justify-content:space-between;'>
+                    <span>Units: <b>{l_units:,.3f}</b> @ <b>₹{l_nav:.2f}</b></span>
+                    <span>Invested: <b>₹{l_inv:,.2f}</b></span>
                 </div>
             </div>
             """, unsafe_allow_html=True)

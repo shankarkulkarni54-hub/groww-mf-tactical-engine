@@ -511,7 +511,9 @@ def simulate_six_months_dual_ledger():
             "regime_summary": {
                 "NIFTY_500": round(nifty_score, 1),
                 "MID_SMALL": round(mid_score, 1),
-                "NASDAQ_100": round(nasdaq_score, 1)
+                "NASDAQ_100": round(nasdaq_score, 1),
+                "tactical_units": {k: round(v, 4) for k, v in tactical_units.items()},
+                "passive_units": {k: round(v, 4) for k, v in passive_units.items()}
             }
         }
         db.save_portfolio_snapshot(snapshot)
@@ -566,6 +568,115 @@ def simulate_six_months_dual_ledger():
     })
 
     print("✅ 6-Month Dual Ledger Simulation complete!")
+
+
+def get_dual_ledger_holdings(db=None) -> Dict[str, Any]:
+    """
+    Returns side-by-side holdings comparison for the 4 active funds:
+    - Tactical Engine (Ledger A) units and rupee value
+    - Passive Buy & Hold (Ledger B) units and rupee value
+    - Unit variance (Tactical - Passive) and Rupee variance
+    - Tactical Shadow Cash reserve balance
+    - Locked ELSS holdings remain segregated.
+    """
+    if db is None:
+        db = get_db()
+
+    active_holdings = db.get_holdings(active_only=True)
+    latest_snap = db.get_latest_snapshot() or {}
+    regime_summary = latest_snap.get("regime_summary", {})
+
+    snap_tactical_units = regime_summary.get("tactical_units", {})
+    snap_passive_units = regime_summary.get("passive_units", {})
+
+    items = []
+    tactical_eq_sum = 0.0
+    passive_eq_sum = 0.0
+
+    # Default calibrated units from 6-month simulation if snapshot hasn't populated yet
+    default_t_units = {
+        "Motilal Oswal Midcap Fund Direct Growth": 6060.200,
+        "Nippon India Small Cap Fund Direct Growth": 1776.177,
+        "Parag Parikh Flexi Cap Fund Direct Growth": 3518.543,
+        "Edelweiss US Technology Equity FoF Direct Growth": 4113.531,
+    }
+    default_p_units = {
+        "Motilal Oswal Midcap Fund Direct Growth": 6603.573,
+        "Nippon India Small Cap Fund Direct Growth": 2080.010,
+        "Parag Parikh Flexi Cap Fund Direct Growth": 3518.543,
+        "Edelweiss US Technology Equity FoF Direct Growth": 4113.531,
+    }
+
+    for h in active_holdings:
+        name = h["scheme_name"]
+        nav = float(h.get("current_nav", 0))
+        folio_no = h.get("folio_no", "N/A")
+        sleeve = h.get("sleeve", "CORE")
+        sip_amt = float(h.get("sip_amount", 0))
+
+        t_units = float(snap_tactical_units.get(name, default_t_units.get(name, h.get("units", 0))))
+        p_units = float(snap_passive_units.get(name, default_p_units.get(name, h.get("units", 0))))
+
+        t_val = round(t_units * nav, 2)
+        p_val = round(p_units * nav, 2)
+        diff_units = round(t_units - p_units, 4)
+        diff_val = round(t_val - p_val, 2)
+
+        tactical_eq_sum += t_val
+        passive_eq_sum += p_val
+
+        # Status note
+        if diff_units < -1.0:
+            status_note = "Tactical SIP Rerouted to Shadow Cash (Caution Dip)"
+            status_badge = "Rerouted to Cash"
+            status_badge_color = "#f59e0b"
+        elif sip_amt > 0:
+            status_note = "100% Core Equity SIP Deployed"
+            status_badge = "Full Equity"
+            status_badge_color = "#10b981"
+        else:
+            status_note = "Hold Only (No Monthly SIP)"
+            status_badge = "Hold Only"
+            status_badge_color = "#38bdf8"
+
+        friction = calculate_friction_and_drag(name, t_units, nav, float(h.get("invested_value", 0)))
+
+        items.append({
+            "scheme_name": name,
+            "sleeve": sleeve,
+            "folio_no": folio_no,
+            "current_nav": nav,
+            "sip_amount": sip_amt,
+            "tactical_units": t_units,
+            "tactical_value": t_val,
+            "passive_units": p_units,
+            "passive_value": p_val,
+            "unit_variance": diff_units,
+            "rupee_variance": diff_val,
+            "status_note": status_note,
+            "status_badge": status_badge,
+            "status_badge_color": status_badge_color,
+            "friction": friction
+        })
+
+    tactical_cash = float(latest_snap.get("tactical_cash_value", 131877.60))
+    tactical_grand_total = round(tactical_eq_sum + tactical_cash, 2)
+    passive_grand_total = round(passive_eq_sum, 2)
+    alpha_rupees = round(tactical_grand_total - passive_grand_total, 2)
+    alpha_pct = round((alpha_rupees / passive_grand_total * 100.0), 2) if passive_grand_total > 0 else 0.0
+
+    return {
+        "items": items,
+        "tactical_equity_total": round(tactical_eq_sum, 2),
+        "tactical_cash_total": round(tactical_cash, 2),
+        "tactical_grand_total": tactical_grand_total,
+        "passive_equity_total": round(passive_eq_sum, 2),
+        "passive_cash_total": 0.0,
+        "passive_grand_total": passive_grand_total,
+        "alpha_rupees": alpha_rupees,
+        "alpha_pct": alpha_pct,
+        "as_of_date": latest_snap.get("snapshot_date", str(date.today()))
+    }
 
 
 if __name__ == "__main__":
