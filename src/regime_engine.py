@@ -118,6 +118,17 @@ UNRESTRICTED_UNIVERSE: Dict[str, Dict[str, Any]] = {
         "exit_load_pct": 0.0,
         "tax_category": "DOMESTIC_EQUITY"
     },
+    "MO_NIFTY500": {
+        "name": "Motilal Oswal Nifty 500 Index Fund Direct Growth",
+        "short_name": "Motilal Nifty 500 Index",
+        "amfi_code": 147625,
+        "category": "EQUITY",
+        "sub_category": "Core Broad Market",
+        "benchmark": "^CRSLDX",
+        "exit_load_days": 15,
+        "exit_load_pct": 1.0,
+        "tax_category": "DOMESTIC_EQUITY"
+    },
     "PPFC": {
         "name": "Parag Parikh Flexi Cap Fund Direct Growth",
         "short_name": "Parag Parikh Flexi Cap",

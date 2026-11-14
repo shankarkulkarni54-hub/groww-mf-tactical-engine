@@ -699,6 +699,24 @@ def get_live_forward_challenge(as_of_date: Optional[date] = None) -> Dict[str, A
             "thesis": pick["thesis"]
         })
 
+    # Strategy C: True Passive Nifty 50 Index SIP
+    nifty50_plan = {
+        "name": "UTI Nifty 50 Index Fund Direct Growth",
+        "short_name": "UTI Nifty 50 Index",
+        "amount": 50000.0,
+        "category": "Core Large Cap Index",
+        "amfi_code": 120716
+    }
+
+    # Strategy D: True Passive Nifty 500 Broad Market SIP
+    nifty500_plan = {
+        "name": "Motilal Oswal Nifty 500 Index Fund Direct Growth",
+        "short_name": "Motilal Nifty 500 Index",
+        "amount": 50000.0,
+        "category": "Core Broad Market Index",
+        "amfi_code": 147625
+    }
+
     # 3. Transparent Friction & Tax Drag Breakdown
     friction_breakdown = {
         "monthly_sip": 50000.0,
@@ -739,6 +757,8 @@ def get_live_forward_challenge(as_of_date: Optional[date] = None) -> Dict[str, A
         "total_planned_capital": 600000.0,
         "passive_plan": passive_plan,
         "ai_plan": ai_plan,
+        "nifty50_plan": nifty50_plan,
+        "nifty500_plan": nifty500_plan,
         "ai_thesis_summary": thesis_summary,
         "top_picks": top_picks,
         "ranked_funds": ai_score_report.get("ranked_funds", []),

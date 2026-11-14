@@ -147,14 +147,19 @@ def run_five_year_backtest(force_refresh: bool = False) -> Dict[str, Any]:
         try:
             with open(CACHE_FILE_PATH, "r", encoding="utf-8") as f:
                 cached = json.load(f)
-                if cached.get("total_invested", 0) > 0 and "ai_net_corpus" in cached:
+                if (
+                    cached.get("total_invested", 0) > 0
+                    and "ai_net_corpus" in cached
+                    and "nifty50_net_corpus" in cached
+                    and "nifty500_net_corpus" in cached
+                ):
                     return cached
         except Exception as e:
             print(f"[Backtester] Cache read error ({e}), recomputing backtest...")
 
     print("🚀 Starting 5-Year Historical Backtest (Nov 2021 - Nov 2026)...")
 
-    # Fetch daily NAVs for all 13 universe funds
+    # Fetch daily NAVs for all universe funds
     navs_dict = fetch_universe_navs(force_refresh=force_refresh)
 
     start_date = date(2021, 11, 1)
@@ -174,6 +179,14 @@ def run_five_year_backtest(force_refresh: bool = False) -> Dict[str, Any]:
     cp_cash = 0.0
     cp_cfs: List[Tuple[date, float]] = []
 
+    # Benchmark 1: True Nifty 50 Index SIP
+    n50_lots: Dict[str, List[TaxLot]] = {"UTI_NIFTY50": []}
+    n50_cfs: List[Tuple[date, float]] = []
+
+    # Benchmark 2: True Nifty 500 Broad Market SIP
+    n500_lots: Dict[str, List[TaxLot]] = {"MO_NIFTY500": []}
+    n500_cfs: List[Tuple[date, float]] = []
+
     total_invested = 0.0
     monthly_sip_amount = 50000.0
     stamp_duty_pct = 0.00005  # 0.005% Indian MF Stamp Duty
@@ -185,12 +198,44 @@ def run_five_year_backtest(force_refresh: bool = False) -> Dict[str, Any]:
     daily_records: List[Dict[str, Any]] = []
 
     while curr_date <= end_date:
-        # On the 3rd of every month: Execute ₹50,000 SIP across all 3 strategies
+        # On the 3rd of every month: Execute ₹50,000 SIP across all strategies & benchmarks
         if curr_date.day == 3:
             total_invested += monthly_sip_amount
             ai_cfs.append((curr_date, -monthly_sip_amount))
             p_cfs.append((curr_date, -monthly_sip_amount))
             cp_cfs.append((curr_date, -monthly_sip_amount))
+            n50_cfs.append((curr_date, -monthly_sip_amount))
+            n500_cfs.append((curr_date, -monthly_sip_amount))
+
+            # --- BENCHMARK 1: PASSIVE NIFTY 50 INDEX SIP (UTI NIFTY 50 DIRECT) ---
+            n50_nav = get_universe_nav_on(navs_dict.get("UTI_NIFTY50", {}), curr_date)
+            n50_meta = UNRESTRICTED_UNIVERSE["UTI_NIFTY50"]
+            n50_lots["UTI_NIFTY50"].append(TaxLot(
+                purchase_date=curr_date,
+                units=net_sip_invested / n50_nav,
+                purchase_nav=n50_nav,
+                category=n50_meta["category"],
+                exit_days=n50_meta["exit_load_days"],
+                exit_pct=n50_meta["exit_load_pct"],
+                scheme_key="UTI_NIFTY50",
+                invested_amount=net_sip_invested
+            ))
+
+            # --- BENCHMARK 2: PASSIVE NIFTY 500 BROAD MARKET SIP (MOTILAL NIFTY 500 DIRECT) ---
+            n500_nav = get_universe_nav_on(navs_dict.get("MO_NIFTY500", {}), curr_date)
+            n500_meta = UNRESTRICTED_UNIVERSE.get("MO_NIFTY500", {
+                "category": "EQUITY", "exit_load_days": 15, "exit_load_pct": 1.0
+            })
+            n500_lots["MO_NIFTY500"].append(TaxLot(
+                purchase_date=curr_date,
+                units=net_sip_invested / n500_nav,
+                purchase_nav=n500_nav,
+                category=n500_meta["category"],
+                exit_days=n500_meta["exit_load_days"],
+                exit_pct=n500_meta["exit_load_pct"],
+                scheme_key="MO_NIFTY500",
+                invested_amount=net_sip_invested
+            ))
 
             # --- STRATEGY 2: PASSIVE GROWW SIPS ---
             # ₹10k PPFC, ₹20k MOMC, ₹20k NISC
@@ -327,6 +372,8 @@ def run_five_year_backtest(force_refresh: bool = False) -> Dict[str, Any]:
         ai_g, ai_n, ai_t, ai_e = compute_portfolio_tax_and_friction(ai_lots, navs_dict, curr_date)
         p_g, p_n, p_t, p_e = compute_portfolio_tax_and_friction(p_lots, navs_dict, curr_date)
         cp_g, cp_n, cp_t, cp_e = compute_portfolio_tax_and_friction(cp_lots, navs_dict, curr_date)
+        n50_g, n50_n, n50_t, n50_e = compute_portfolio_tax_and_friction(n50_lots, navs_dict, curr_date)
+        n500_g, n500_n, n500_t, n500_e = compute_portfolio_tax_and_friction(n500_lots, navs_dict, curr_date)
         cp_total_n = cp_n + cp_cash
 
         daily_records.append({
@@ -335,7 +382,9 @@ def run_five_year_backtest(force_refresh: bool = False) -> Dict[str, Any]:
             "ai_net": ai_n,
             "passive_net": p_n,
             "cash_parking_net": cp_total_n,
-            "cash_parking_cash": cp_cash
+            "cash_parking_cash": cp_cash,
+            "nifty50_net": n50_n,
+            "nifty500_net": n500_n
         })
 
         curr_date += timedelta(days=1)
@@ -344,16 +393,22 @@ def run_five_year_backtest(force_refresh: bool = False) -> Dict[str, Any]:
     ai_final_g, ai_final_n, ai_final_tax, ai_final_exit = compute_portfolio_tax_and_friction(ai_lots, navs_dict, end_date)
     p_final_g, p_final_n, p_final_tax, p_final_exit = compute_portfolio_tax_and_friction(p_lots, navs_dict, end_date)
     cp_final_g, cp_final_n, cp_final_tax, cp_final_exit = compute_portfolio_tax_and_friction(cp_lots, navs_dict, end_date)
+    n50_final_g, n50_final_n, n50_final_tax, n50_final_exit = compute_portfolio_tax_and_friction(n50_lots, navs_dict, end_date)
+    n500_final_g, n500_final_n, n500_final_tax, n500_final_exit = compute_portfolio_tax_and_friction(n500_lots, navs_dict, end_date)
     cp_final_total_n = cp_final_n + cp_cash
 
     # Append terminal values for XIRR
     ai_cfs.append((end_date, ai_final_n))
     p_cfs.append((end_date, p_final_n))
     cp_cfs.append((end_date, cp_final_total_n))
+    n50_cfs.append((end_date, n50_final_n))
+    n500_cfs.append((end_date, n500_final_n))
 
     ai_xirr = calculate_xirr(ai_cfs)
     p_xirr = calculate_xirr(p_cfs)
     cp_xirr = calculate_xirr(cp_cfs)
+    n50_xirr = calculate_xirr(n50_cfs)
+    n500_xirr = calculate_xirr(n500_cfs)
 
     # --- DRAWDOWN CALCULATIONS ---
     df_daily = pd.DataFrame(daily_records)
@@ -366,9 +421,17 @@ def run_five_year_backtest(force_refresh: bool = False) -> Dict[str, Any]:
     df_daily["cp_peak"] = df_daily["cash_parking_net"].cummax()
     df_daily["cp_dd"] = (df_daily["cash_parking_net"] - df_daily["cp_peak"]) / df_daily["cp_peak"].replace(0, 1) * 100.0
 
+    df_daily["n50_peak"] = df_daily["nifty50_net"].cummax()
+    df_daily["n50_dd"] = (df_daily["nifty50_net"] - df_daily["n50_peak"]) / df_daily["n50_peak"].replace(0, 1) * 100.0
+
+    df_daily["n500_peak"] = df_daily["nifty500_net"].cummax()
+    df_daily["n500_dd"] = (df_daily["nifty500_net"] - df_daily["n500_peak"]) / df_daily["n500_peak"].replace(0, 1) * 100.0
+
     ai_max_dd = round(float(df_daily["ai_dd"].min()), 2)
     p_max_dd = round(float(df_daily["p_dd"].min()), 2)
     cp_max_dd = round(float(df_daily["cp_dd"].min()), 2)
+    n50_max_dd = round(float(df_daily["n50_dd"].min()), 2)
+    n500_max_dd = round(float(df_daily["n500_dd"].min()), 2)
 
     # Alpha calculations
     alpha_rupees = round(ai_final_n - p_final_n, 2)
@@ -381,6 +444,8 @@ def run_five_year_backtest(force_refresh: bool = False) -> Dict[str, Any]:
     ds_ai = [round(float(v), 2) for v in df_daily["ai_net"].iloc[::step]]
     ds_p = [round(float(v), 2) for v in df_daily["passive_net"].iloc[::step]]
     ds_cp = [round(float(v), 2) for v in df_daily["cash_parking_net"].iloc[::step]]
+    ds_n50 = [round(float(v), 2) for v in df_daily["nifty50_net"].iloc[::step]]
+    ds_n500 = [round(float(v), 2) for v in df_daily["nifty500_net"].iloc[::step]]
     ds_inv = [round(float(v), 2) for v in df_daily["invested"].iloc[::step]]
     ds_cash = [round(float(v), 2) for v in df_daily["cash_parking_cash"].iloc[::step]]
 
@@ -389,6 +454,8 @@ def run_five_year_backtest(force_refresh: bool = False) -> Dict[str, Any]:
         ds_ai.append(round(float(df_daily["ai_net"].iloc[-1]), 2))
         ds_p.append(round(float(df_daily["passive_net"].iloc[-1]), 2))
         ds_cp.append(round(float(df_daily["cash_parking_net"].iloc[-1]), 2))
+        ds_n50.append(round(float(df_daily["nifty50_net"].iloc[-1]), 2))
+        ds_n500.append(round(float(df_daily["nifty500_net"].iloc[-1]), 2))
         ds_inv.append(round(float(df_daily["invested"].iloc[-1]), 2))
         ds_cash.append(round(float(df_daily["cash_parking_cash"].iloc[-1]), 2))
 
@@ -421,11 +488,33 @@ def run_five_year_backtest(force_refresh: bool = False) -> Dict[str, Any]:
         "cash_parking_xirr": cp_xirr,
         "cash_parking_max_dd": cp_max_dd,
 
+        # Benchmark 1: True Passive Nifty 50 Index SIP (UTI Nifty 50 Direct)
+        "nifty50_net_corpus": round(n50_final_n, 2),
+        "nifty50_gross_corpus": round(n50_final_g, 2),
+        "nifty50_xirr": n50_xirr,
+        "nifty50_max_dd": n50_max_dd,
+        "nifty50_tax_paid": round(n50_final_tax, 2),
+        "nifty50_wealth": ds_n50,
+
+        # Benchmark 2: True Passive Nifty 500 Broad Market SIP (Motilal Nifty 500 Direct)
+        "nifty500_net_corpus": round(n500_final_n, 2),
+        "nifty500_gross_corpus": round(n500_final_g, 2),
+        "nifty500_xirr": n500_xirr,
+        "nifty500_max_dd": n500_max_dd,
+        "nifty500_tax_paid": round(n500_final_tax, 2),
+        "nifty500_wealth": ds_n500,
+
         # Net Alpha Metrics (AI Advisor vs Passive Groww)
         "alpha_rupees": alpha_rupees,
         "alpha_percent": round((alpha_rupees / p_final_n * 100.0), 2) if p_final_n > 0 else 0.0,
         "alpha_xirr": alpha_xirr,
         "dd_cushion": dd_cushion,
+
+        # Net Alpha Metrics vs Broad-Market Benchmarks
+        "alpha_rupees_vs_nifty500": round(ai_final_n - n500_final_n, 2),
+        "alpha_xirr_vs_nifty500": round(ai_xirr - n500_xirr, 2),
+        "alpha_rupees_vs_nifty50": round(ai_final_n - n50_final_n, 2),
+        "alpha_xirr_vs_nifty50": round(ai_xirr - n50_xirr, 2),
 
         # Backwards-compatible keys for existing views
         "tactical_final_corpus": round(ai_final_n, 2),
@@ -466,6 +555,22 @@ def run_five_year_backtest(force_refresh: bool = False) -> Dict[str, Any]:
                 "max_dd": -12.07,
                 "taxes_paid": 180314.0,
                 "rule": "50% #1 + 50% #2 momentum leaders above 200-DMA; 0% sales of existing units"
+            },
+            {
+                "candidate": "Passive Nifty 50 Index (UTI Nifty 50 Direct)",
+                "net_corpus": round(n50_final_n, 2),
+                "xirr": n50_xirr,
+                "max_dd": n50_max_dd,
+                "taxes_paid": round(n50_final_tax, 2),
+                "rule": "100% blind ₹50k/mo SIP into UTI Nifty 50 Direct"
+            },
+            {
+                "candidate": "Passive Nifty 500 Broad Market (Motilal Nifty 500 Direct)",
+                "net_corpus": round(n500_final_n, 2),
+                "xirr": n500_xirr,
+                "max_dd": n500_max_dd,
+                "taxes_paid": round(n500_final_tax, 2),
+                "rule": "100% blind ₹50k/mo SIP into Motilal Oswal Nifty 500 Direct"
             },
             {
                 "candidate": "Candidate 2A (Dual Sharpe Momentum 100% #1)",
@@ -572,7 +677,9 @@ if __name__ == "__main__":
     print(f"Total Invested:        ₹{res['total_invested']:,.0f} ({res['months_count']} months @ ₹50,000/mo)")
     print(f"1. Unrestricted AI:    Net: ₹{res['ai_net_corpus']:,.0f} | Post-Tax XIRR: {res['ai_xirr']:.2f}% | Max DD: {res['ai_max_dd']:.2f}%")
     print(f"2. Passive Groww SIP:  Net: ₹{res['passive_net_corpus']:,.0f} | Post-Tax XIRR: {res['passive_xirr']:.2f}% | Max DD: {res['passive_max_dd']:.2f}%")
-    print(f"3. Old Cash Parking:   Net: ₹{res['cash_parking_net_corpus']:,.0f} | Post-Tax XIRR: {res['cash_parking_xirr']:.2f}% | Max DD: {res['cash_parking_max_dd']:.2f}%")
+    print(f"3. Nifty 500 SIP:      Net: ₹{res['nifty500_net_corpus']:,.0f} | Post-Tax XIRR: {res['nifty500_xirr']:.2f}% | Max DD: {res['nifty500_max_dd']:.2f}%")
+    print(f"4. Nifty 50 Index SIP: Net: ₹{res['nifty50_net_corpus']:,.0f} | Post-Tax XIRR: {res['nifty50_xirr']:.2f}% | Max DD: {res['nifty50_max_dd']:.2f}%")
+    print(f"5. Old Cash Parking:   Net: ₹{res['cash_parking_net_corpus']:,.0f} | Post-Tax XIRR: {res['cash_parking_xirr']:.2f}% | Max DD: {res['cash_parking_max_dd']:.2f}%")
     print("-" * 65)
     print(f"Post-Tax Rupee Alpha:  ₹{res['alpha_rupees']:+,.0f} ({res['alpha_percent']:+.2f}%)")
     print(f"Post-Tax XIRR Alpha:   {res['alpha_xirr']:+.2f}% p.a.")

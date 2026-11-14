@@ -754,33 +754,9 @@ with tab_chart:
 
         render_html(f"""
         <div style='display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:12px;'>
-            <!-- Column 1: Passive Groww SIPs -->
-            <div style='background:#181c24; border:1px solid rgba(245, 158, 11, 0.35); border-radius:10px; padding:12px;'>
-                <div style='font-size:0.75rem; font-weight:700; color:#f59e0b; text-transform:uppercase;'>📦 Passive Groww Plan (₹50,000)</div>
-                <div style='font-size:0.72rem; color:#94a3b8; margin-bottom:8px;'>Fixed 3-Fund Direct Portfolio</div>
-                
-                <div style='border-top:1px solid #2d3748; padding-top:6px; font-size:0.78rem;'>
-                    <div style='display:flex; justify-content:space-between; margin-bottom:4px;'>
-                        <span style='color:#e2e8f0;'>Parag Parikh Flexi</span>
-                        <b style='color:#FFFFFF;'>₹10,000</b>
-                    </div>
-                    <div style='display:flex; justify-content:space-between; margin-bottom:4px;'>
-                        <span style='color:#e2e8f0;'>Motilal Midcap</span>
-                        <b style='color:#FFFFFF;'>₹20,000</b>
-                    </div>
-                    <div style='display:flex; justify-content:space-between;'>
-                        <span style='color:#e2e8f0;'>Nippon Small Cap</span>
-                        <b style='color:#FFFFFF;'>₹20,000</b>
-                    </div>
-                </div>
-                <div style='margin-top:8px; font-size:0.70rem; color:#64748b; border-top:1px solid #2d3748; padding-top:4px;'>
-                    Allocation: 80% Mid/Small + 20% Flexi
-                </div>
-            </div>
-
-            <!-- Column 2: Unrestricted AI Advisor -->
+            <!-- Column 1: Unrestricted AI Advisor -->
             <div style='background:#181c24; border:1px solid rgba(0, 208, 156, 0.45); border-radius:10px; padding:12px;'>
-                <div style='font-size:0.75rem; font-weight:700; color:#00D09C; text-transform:uppercase;'>🏆 AI Advisor Directive (₹50,000)</div>
+                <div style='font-size:0.75rem; font-weight:700; color:#00D09C; text-transform:uppercase;'>🏆 AI Advisor Directive ({format_inr(50000)})</div>
                 <div style='font-size:0.72rem; color:#94a3b8; margin-bottom:8px;'>Dynamic Cross-Sector Leadership</div>
 
                 <div style='border-top:1px solid #2d3748; padding-top:6px; font-size:0.78rem;'>
@@ -798,6 +774,66 @@ with tab_chart:
                 </div>
                 <div style='margin-top:8px; font-size:0.70rem; color:#38bdf8; border-top:1px solid #2d3748; padding-top:4px;'>
                     🛡️ Zero Exit Load • Fresh SIP Routing
+                </div>
+            </div>
+
+            <!-- Column 2: Passive Groww SIPs -->
+            <div style='background:#181c24; border:1px solid rgba(245, 158, 11, 0.35); border-radius:10px; padding:12px;'>
+                <div style='font-size:0.75rem; font-weight:700; color:#f59e0b; text-transform:uppercase;'>📦 Passive Groww Plan ({format_inr(50000)})</div>
+                <div style='font-size:0.72rem; color:#94a3b8; margin-bottom:8px;'>Fixed 3-Fund Direct Portfolio</div>
+                
+                <div style='border-top:1px solid #2d3748; padding-top:6px; font-size:0.78rem;'>
+                    <div style='display:flex; justify-content:space-between; margin-bottom:4px;'>
+                        <span style='color:#e2e8f0;'>Parag Parikh Flexi</span>
+                        <b style='color:#FFFFFF;'>{format_inr(10000)}</b>
+                    </div>
+                    <div style='display:flex; justify-content:space-between; margin-bottom:4px;'>
+                        <span style='color:#e2e8f0;'>Motilal Midcap</span>
+                        <b style='color:#FFFFFF;'>{format_inr(20000)}</b>
+                    </div>
+                    <div style='display:flex; justify-content:space-between;'>
+                        <span style='color:#e2e8f0;'>Nippon Small Cap</span>
+                        <b style='color:#FFFFFF;'>{format_inr(20000)}</b>
+                    </div>
+                </div>
+                <div style='margin-top:8px; font-size:0.70rem; color:#64748b; border-top:1px solid #2d3748; padding-top:4px;'>
+                    Allocation: 80% Mid/Small + 20% Flexi
+                </div>
+            </div>
+
+            <!-- Column 3: Nifty 500 Broad Market Index -->
+            <div style='background:#181c24; border:1px solid rgba(56, 189, 248, 0.35); border-radius:10px; padding:12px;'>
+                <div style='font-size:0.75rem; font-weight:700; color:#38bdf8; text-transform:uppercase;'>🌐 Nifty 500 Index ({format_inr(50000)})</div>
+                <div style='font-size:0.72rem; color:#94a3b8; margin-bottom:8px;'>Motilal Oswal Nifty 500 Direct</div>
+
+                <div style='border-top:1px solid #2d3748; padding-top:6px; font-size:0.78rem;'>
+                    <div style='display:flex; justify-content:space-between; margin-bottom:4px;'>
+                        <span style='color:#e2e8f0;'>Motilal Nifty 500</span>
+                        <b style='color:#38bdf8;'>{format_inr(50000)}</b>
+                    </div>
+                    <div style='font-size:0.68rem; color:#94a3b8; margin-bottom:4px;'>100% Broad Indian Equity Market</div>
+                    <div style='font-size:0.68rem; color:#64748b;'>5-Yr Post-Tax: 9.27% XIRR • -11.21% DD</div>
+                </div>
+                <div style='margin-top:8px; font-size:0.70rem; color:#38bdf8; border-top:1px solid #2d3748; padding-top:4px;'>
+                    True Broad-Market Benchmark
+                </div>
+            </div>
+
+            <!-- Column 4: Nifty 50 Large Cap Index -->
+            <div style='background:#181c24; border:1px solid rgba(168, 85, 247, 0.35); border-radius:10px; padding:12px;'>
+                <div style='font-size:0.75rem; font-weight:700; color:#a855f7; text-transform:uppercase;'>🇮🇳 Nifty 50 Index ({format_inr(50000)})</div>
+                <div style='font-size:0.72rem; color:#94a3b8; margin-bottom:8px;'>UTI Nifty 50 Index Direct</div>
+
+                <div style='border-top:1px solid #2d3748; padding-top:6px; font-size:0.78rem;'>
+                    <div style='display:flex; justify-content:space-between; margin-bottom:4px;'>
+                        <span style='color:#e2e8f0;'>UTI Nifty 50 Index</span>
+                        <b style='color:#a855f7;'>{format_inr(50000)}</b>
+                    </div>
+                    <div style='font-size:0.68rem; color:#94a3b8; margin-bottom:4px;'>100% Bluechip Large Caps</div>
+                    <div style='font-size:0.68rem; color:#64748b;'>5-Yr Post-Tax: 7.49% XIRR • -11.41% DD</div>
+                </div>
+                <div style='margin-top:8px; font-size:0.70rem; color:#a855f7; border-top:1px solid #2d3748; padding-top:4px;'>
+                    Core Indian Bluechip Benchmark
                 </div>
             </div>
         </div>
@@ -970,6 +1006,18 @@ with tab_chart:
         cp_xirr = b_res.get("cash_parking_xirr", 12.91)
         cp_dd = b_res.get("cash_parking_max_dd", -13.78)
 
+        # Benchmark 1: True Nifty 50 Index SIP
+        n50_net = b_res.get("nifty50_net_corpus", 3682575.86)
+        n50_xirr = b_res.get("nifty50_xirr", 7.49)
+        n50_dd = b_res.get("nifty50_max_dd", -11.41)
+        n50_tax = b_res.get("nifty50_tax_paid", 75579.95)
+
+        # Benchmark 2: True Nifty 500 Broad Market SIP
+        n500_net = b_res.get("nifty500_net_corpus", 3849783.96)
+        n500_xirr = b_res.get("nifty500_xirr", 9.27)
+        n500_dd = b_res.get("nifty500_max_dd", -11.21)
+        n500_tax = b_res.get("nifty500_tax_paid", 98768.04)
+
         # Alpha & Cushion
         alpha_rs = b_res.get("alpha_rupees", ai_net - pas_net)
         alpha_pct = b_res.get("alpha_percent", ((alpha_rs / pas_net) * 100.0) if pas_net > 0 else 0.0)
@@ -977,11 +1025,16 @@ with tab_chart:
         b_cushion = b_res.get("dd_cushion", 1.95)
         tax_saved = max(0.0, pas_tax - ai_tax)
 
+        alpha_vs_n500 = ai_net - n500_net
+        alpha_xirr_vs_n500 = ai_xirr - n500_xirr
+        alpha_vs_n50 = ai_net - n50_net
+        alpha_xirr_vs_n50 = ai_xirr - n50_xirr
+
         # -------------------------------------------------------------
-        # 3-WAY COMPARATIVE SCORECARD
+        # 4-WAY COMPARATIVE SCORECARD & BROAD-MARKET BENCHMARKS
         # -------------------------------------------------------------
         render_html(f"""
-        <div style='display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:12px;'>
+        <div style='display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:10px;'>
             <!-- Card 1: Winning AI Advisor -->
             <div class='metric-card' style='padding:12px; border-left:3px solid #00D09C;'>
                 <div class='metric-title' style='color:#00D09C;'>🏆 Winning AI Engine</div>
@@ -996,7 +1049,7 @@ with tab_chart:
 
             <!-- Card 2: Passive Groww SIP -->
             <div class='metric-card' style='padding:12px; border-left:3px solid #f59e0b;'>
-                <div class='metric-title' style='color:#f59e0b;'>📦 Passive Groww SIP (Blind 80% Mid/Small)</div>
+                <div class='metric-title' style='color:#f59e0b;'>📦 My Passive Groww SIP (80% Mid/Small)</div>
                 <div style='font-size:1.18rem; font-weight:700; color:#FFFFFF;'>{format_inr(pas_net)}</div>
                 <div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>
                     Post-Tax XIRR: <span style='color:#f59e0b; font-weight:700;'>{pas_xirr:.2f}% p.a.</span>
@@ -1006,28 +1059,52 @@ with tab_chart:
                 </div>
             </div>
 
-            <!-- Card 3: Net Alpha -->
+            <!-- Card 3: Nifty 500 Broad Market Index -->
             <div class='metric-card' style='padding:12px; border-left:3px solid #38bdf8;'>
-                <div class='metric-title' style='color:#38bdf8;'>🚀 Net Post-Tax Alpha</div>
-                <div style='font-size:1.18rem; font-weight:700; color:#38bdf8;'>{format_inr(alpha_rs, show_sign=True)}</div>
+                <div class='metric-title' style='color:#38bdf8;'>🌐 Nifty 500 Broad Market SIP (Motilal Direct)</div>
+                <div style='font-size:1.18rem; font-weight:700; color:#FFFFFF;'>{format_inr(n500_net)}</div>
                 <div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>
-                    Post-Tax XIRR Alpha: <span style='color:#34d399; font-weight:700;'>+{alpha_xirr:.2f}% p.a.</span>
+                    Post-Tax XIRR: <span style='color:#38bdf8; font-weight:700;'>{n500_xirr:.2f}% p.a.</span>
                 </div>
                 <div style='font-size:0.68rem; color:#64748b; margin-top:3px;'>
-                    Tax Savings: <b>{format_inr(tax_saved)}</b> vs Passive
+                    Max DD: <b style='color:#cbd5e1;'>{n500_dd:.2f}%</b> • Taxes: {format_inr(n500_tax)}
                 </div>
             </div>
 
-            <!-- Card 4: Drawdown Cushion & Capital Preservation -->
+            <!-- Card 4: Nifty 50 Large Cap Index -->
             <div class='metric-card' style='padding:12px; border-left:3px solid #a855f7;'>
-                <div class='metric-title' style='color:#a855f7;'>🛡️ Downside Cushion & Capital</div>
-                <div style='font-size:1.18rem; font-weight:700; color:#a855f7;'>+{b_cushion:.2f}%</div>
+                <div class='metric-title' style='color:#a855f7;'>🇮🇳 Nifty 50 Index SIP (UTI Direct)</div>
+                <div style='font-size:1.18rem; font-weight:700; color:#FFFFFF;'>{format_inr(n50_net)}</div>
                 <div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>
-                    AI Max DD: <span style='color:#34d399; font-weight:600;'>{ai_dd:.2f}%</span> vs <span style='color:#f87171;'>{pas_dd:.2f}%</span>
+                    Post-Tax XIRR: <span style='color:#a855f7; font-weight:700;'>{n50_xirr:.2f}% p.a.</span>
                 </div>
                 <div style='font-size:0.68rem; color:#64748b; margin-top:3px;'>
-                    Invested: {format_inr(b_inv)} ({b_months} mos @ {format_inr(50000)})
+                    Max DD: <b style='color:#cbd5e1;'>{n50_dd:.2f}%</b> • Taxes: {format_inr(n50_tax)}
                 </div>
+            </div>
+        </div>
+
+        <!-- Alpha Outperformance Row -->
+        <div style='display:grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap:8px; margin-bottom:12px;'>
+            <div class='metric-card' style='padding:10px;'>
+                <div style='font-size:0.70rem; color:#94a3b8; font-weight:700;'>AI vs. Nifty 500</div>
+                <div style='font-size:1.05rem; font-weight:700; color:#00D09C; margin-top:2px;'>{format_inr(alpha_vs_n500, show_sign=True)}</div>
+                <div style='font-size:0.70rem; color:#cbd5e1;'><b>+{alpha_xirr_vs_n500:.2f}% p.a.</b> XIRR</div>
+            </div>
+            <div class='metric-card' style='padding:10px;'>
+                <div style='font-size:0.70rem; color:#94a3b8; font-weight:700;'>AI vs. Passive Groww</div>
+                <div style='font-size:1.05rem; font-weight:700; color:#00D09C; margin-top:2px;'>{format_inr(alpha_rs, show_sign=True)}</div>
+                <div style='font-size:0.70rem; color:#cbd5e1;'><b>+{alpha_xirr:.2f}% p.a.</b> XIRR</div>
+            </div>
+            <div class='metric-card' style='padding:10px;'>
+                <div style='font-size:0.70rem; color:#94a3b8; font-weight:700;'>AI vs. Nifty 50</div>
+                <div style='font-size:1.05rem; font-weight:700; color:#00D09C; margin-top:2px;'>{format_inr(alpha_vs_n50, show_sign=True)}</div>
+                <div style='font-size:0.70rem; color:#cbd5e1;'><b>+{alpha_xirr_vs_n50:.2f}% p.a.</b> XIRR</div>
+            </div>
+            <div class='metric-card' style='padding:10px;'>
+                <div style='font-size:0.70rem; color:#94a3b8; font-weight:700;'>Tax Savings vs Passive</div>
+                <div style='font-size:1.05rem; font-weight:700; color:#38bdf8; margin-top:2px;'>{format_inr(tax_saved)}</div>
+                <div style='font-size:0.70rem; color:#cbd5e1;'>Invested: {format_inr(b_inv)}</div>
             </div>
         </div>
         """)
@@ -1120,9 +1197,9 @@ with tab_chart:
             """)
 
         # -------------------------------------------------------------
-        # 5-YEAR CHART 1: WEALTH GROWTH COMPARISON (3 WAYS)
+        # 5-YEAR CHART 1: WEALTH GROWTH COMPARISON (WITH BROAD-MARKET BENCHMARKS)
         # -------------------------------------------------------------
-        st.markdown("<div style='font-size:0.92rem; font-weight:700; color:#E2E8F0; margin-top:10px; margin-bottom:4px;'>📈 1. 5-Year Wealth Growth: AI Advisor vs. Passive Groww vs. Cash Parking</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:0.92rem; font-weight:700; color:#E2E8F0; margin-top:10px; margin-bottom:4px;'>📈 1. 5-Year Wealth Growth: AI Advisor vs. Passive Groww vs. Nifty 500 vs. Nifty 50</div>", unsafe_allow_html=True)
         fig_b1 = go.Figure()
 
         # Unrestricted AI Advisor Curve (Solid Green)
@@ -1130,7 +1207,7 @@ with tab_chart:
             x=b_res["dates"],
             y=b_res["tactical_wealth"],
             mode="lines",
-            name="Unrestricted AI Advisor (Net)",
+            name="🏆 AI Advisor (17.55% XIRR)",
             line=dict(color="#00D09C", width=2.8),
             customdata=[format_inr(v) for v in b_res["tactical_wealth"]],
             hovertemplate="AI Advisor: %{customdata}<extra></extra>"
@@ -1141,11 +1218,35 @@ with tab_chart:
             x=b_res["dates"],
             y=b_res["passive_wealth"],
             mode="lines",
-            name="Passive Groww SIPs (80% Mid/Small)",
+            name="📦 Passive Groww (14.60% XIRR)",
             line=dict(color="#F8FAFC", width=2.2, dash="dash"),
             customdata=[format_inr(v) for v in b_res["passive_wealth"]],
             hovertemplate="Passive Groww: %{customdata}<extra></extra>"
         ))
+
+        # Nifty 500 Broad Market Curve (Dashed Cyan)
+        if "nifty500_wealth" in b_res:
+            fig_b1.add_trace(go.Scatter(
+                x=b_res["dates"],
+                y=b_res["nifty500_wealth"],
+                mode="lines",
+                name="🌐 Nifty 500 SIP (9.27% XIRR)",
+                line=dict(color="#38BDF8", width=2.0, dash="dashdot"),
+                customdata=[format_inr(v) for v in b_res["nifty500_wealth"]],
+                hovertemplate="Nifty 500: %{customdata}<extra></extra>"
+            ))
+
+        # Nifty 50 Index Curve (Dotted Purple)
+        if "nifty50_wealth" in b_res:
+            fig_b1.add_trace(go.Scatter(
+                x=b_res["dates"],
+                y=b_res["nifty50_wealth"],
+                mode="lines",
+                name="🇮🇳 Nifty 50 Index SIP (7.49% XIRR)",
+                line=dict(color="#A855F7", width=2.0, dash="dot"),
+                customdata=[format_inr(v) for v in b_res["nifty50_wealth"]],
+                hovertemplate="Nifty 50: %{customdata}<extra></extra>"
+            ))
 
         # Old Cash Parking (Amber Line)
         if "cash_parking_wealth" in b_res:
@@ -1153,19 +1254,19 @@ with tab_chart:
                 x=b_res["dates"],
                 y=b_res["cash_parking_wealth"],
                 mode="lines",
-                name="Old Cash Parking Strategy",
-                line=dict(color="#F59E0B", width=1.8, dash="dot"),
+                name="Old Cash Parking (12.91%)",
+                line=dict(color="#F59E0B", width=1.5, dash="dot"),
                 customdata=[format_inr(v) for v in b_res["cash_parking_wealth"]],
                 hovertemplate="Cash Parking: %{customdata}<extra></extra>"
             ))
 
-        # Invested Capital Curve (Dotted Light Blue)
+        # Invested Capital Curve (Dotted Grey)
         fig_b1.add_trace(go.Scatter(
             x=b_res["dates"],
             y=b_res["invested_curve"],
             mode="lines",
-            name=f"Total Invested Capital ({format_inr(b_inv)})",
-            line=dict(color="#38BDF8", width=1.5, dash="dot"),
+            name=f"Invested ({format_inr(b_inv)})",
+            line=dict(color="#64748B", width=1.5, dash="dot"),
             customdata=[format_inr(v) for v in b_res["invested_curve"]],
             hovertemplate="Invested: %{customdata}<extra></extra>"
         ))
@@ -1237,9 +1338,10 @@ with tab_chart:
         <div class='metric-card' style='margin-top:12px; font-size:0.82rem; color:#cbd5e1;'>
             <div style='font-size:0.92rem; font-weight:700; color:#FFFFFF; margin-bottom:6px;'>💡 5-Year Macro Backtest Insights (Nov 2021 – Nov 2026)</div>
             <ul style='margin:0; padding-left:18px; line-height:1.6;'>
-                <li><b>17.61% Post-Tax XIRR (Beats 17.0% Target & 14.60% Passive Benchmark):</b> The winning multi-asset momentum engine generated <b>+3.01% p.a. post-tax alpha</b> over the passive 80% Mid/Smallcap portfolio, accumulating <b>{format_inr(ai_net)}</b> net corpus ({format_inr(alpha_rs, show_sign=True)} net alpha).</li>
-                <li><b>Lower Maximum Drawdown (-13.91% vs -15.86%):</b> Gating fresh capital to assets trading above their 200-DMA protected capital from prolonged bear markets.</li>
-                <li><b>{format_inr(tax_saved)} in Capital Gains Tax Savings:</b> By holding units long-term and only executing Smart LTCG switching on holdings held &gt;365 days, the strategy paid only {format_inr(ai_tax)} in taxes vs {format_inr(pas_tax)} for passive.</li>
+                <li><b>17.55% Post-Tax XIRR Crushes Broad Market Benchmarks:</b> The winning multi-asset momentum engine generated <b>+8.28% p.a. alpha over Nifty 500 ({format_inr(alpha_vs_n500, show_sign=True)})</b>, <b>+10.06% p.a. alpha over Nifty 50 ({format_inr(alpha_vs_n50, show_sign=True)})</b>, and <b>+2.95% p.a. alpha over the passive 80% Mid/Smallcap portfolio ({format_inr(alpha_rs, show_sign=True)})</b>, accumulating <b>{format_inr(ai_net)}</b> net corpus.</li>
+                <li><b>True Broad-Market Context:</b> A standard passive SIP in Nifty 500 Direct grew to {format_inr(n500_net)} (9.27% XIRR), and Nifty 50 Direct grew to {format_inr(n50_net)} (7.49% XIRR). Our AI Engine's rotational framework more than doubled large-cap returns.</li>
+                <li><b>Controlled Drawdown Profile (-13.91% vs -15.86% for Passive):</b> 200-DMA trend gating protected capital from secular bear periods while capturing outsized multi-quarter runs in midcap, pharma, and thematic leaders.</li>
+                <li><b>Tax Efficiency via Smart LTCG Switching:</b> By holding winning positions and switching only lots held &gt;365 days breaking &gt;8% below 200-DMA, the engine paid only {format_inr(ai_tax)} in taxes vs {format_inr(pas_tax)} for passive.</li>
                 <li><b>Zero Look-Ahead Bias & Realistic Friction:</b> Monthly SIP decisions on the 3rd strictly used NAVs available on or before the 2nd, with 0.005% stamp duty and FIFO exit loads deducted on every trade.</li>
             </ul>
         </div>

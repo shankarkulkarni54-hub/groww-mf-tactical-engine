@@ -141,7 +141,9 @@ def format_tactical_alert(
         msg.append(f"• <b>Daily Status:</b> Outside the monthly SIP window. All active units held safely.")
         msg.append(f"• <b>Next Action Window:</b> {decisions.get('window_status_label')}")
         if ai_picks and len(ai_picks) >= 2:
-            msg.append(f"• <i>Winning AI Directive:</i> {format_inr(ai_picks[0]['allocation_amount'])} {ai_picks[0]['short_name']} + {format_inr(ai_picks[1]['allocation_amount'])} {ai_picks[1]['short_name']}")
+            msg.append(f"• <b>Winning 17.55% AI Directive:</b> {format_inr(ai_picks[0]['allocation_amount'])} {ai_picks[0]['short_name']} + {format_inr(ai_picks[1]['allocation_amount'])} {ai_picks[1]['short_name']}")
+            msg.append(f"  └ <i>1. {ai_picks[0]['short_name']}:</i> {ai_picks[0].get('thesis', '')}")
+            msg.append(f"  └ <i>2. {ai_picks[1]['short_name']}:</i> {ai_picks[1].get('thesis', '')}")
 
     # Smart LTCG Switches & Emergency alerts
     if smart_alerts:
