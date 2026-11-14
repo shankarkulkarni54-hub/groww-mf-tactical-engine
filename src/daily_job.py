@@ -187,13 +187,14 @@ def run_daily_cycle(force_send_telegram: bool = True) -> Dict[str, Any]:
     dashboard_url = os.getenv("DASHBOARD_URL", "https://groww-mf-tactical-engine.streamlit.app")
     alert_text = format_tactical_alert(regime_scores, decisions, today_snapshot, dashboard_url=dashboard_url)
 
+    headline_text = decisions.get("action_badge", decisions.get("overall_status", "INFO_ONLY"))
     telegram_res = None
     if force_send_telegram:
         telegram_res = send_telegram_alert(alert_text)
         db.record_alert({
             "alert_date": today.isoformat(),
             "alert_type": "PRE_CUTOFF_DAILY",
-            "headline": f"Daily Pre-Cut-off Directive: {decisions.get('overall_status')}",
+            "headline": f"Pre-Cut-off: {headline_text}",
             "message": alert_text,
             "telegram_sent": bool(telegram_res and telegram_res.get("ok")),
             "telegram_message_id": str(telegram_res.get("result", {}).get("message_id", "")) if telegram_res else ""
@@ -207,7 +208,7 @@ def run_daily_cycle(force_send_telegram: bool = True) -> Dict[str, Any]:
         "status": "SUCCESS",
         "date": today.isoformat(),
         "scores": decisions.get("scores"),
-        "directive": decisions.get("action_banner"),
+        "directive": headline_text,
         "snapshot": today_snapshot,
         "telegram_delivery": telegram_res
     }

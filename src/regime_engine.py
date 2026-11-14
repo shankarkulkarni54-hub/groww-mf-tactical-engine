@@ -311,9 +311,12 @@ def compute_sleeve_regime(sleeve_key: str, as_of_date: date = None) -> Dict[str,
             "score_date": str(as_of_date),
             "sleeve": sleeve_key,
             "composite_score": 60.0,
+            "spot_score": 60.0,
+            "rolling_avg_score": 60.0,
             "technical_score": 60.0,
             "fundamental_score": 60.0,
             "regime_status": "BULLISH",
+            "rolling_status": "BULLISH",
             "dma_200": 0.0,
             "ema_50": 0.0,
             "price": 0.0,
@@ -327,7 +330,13 @@ def compute_sleeve_regime(sleeve_key: str, as_of_date: date = None) -> Dict[str,
             "earnings_yield": 4.5,
             "bond_yield": conf["benchmark_10y_yield"],
             "yield_spread": -2.3,
-            "details": {"ticker": "FALLBACK_BASELINE", "mode": "emergency"}
+            "details": {
+                "ticker": "FALLBACK_BASELINE",
+                "mode": "emergency",
+                "spot_score": 60.0,
+                "rolling_avg_score": 60.0,
+                "rolling_status": "BULLISH"
+            }
         }
 
     # Fetch VIX
@@ -360,24 +369,34 @@ def compute_sleeve_regime(sleeve_key: str, as_of_date: date = None) -> Dict[str,
         bond_yield=conf["benchmark_10y_yield"]
     )
 
-    # Composite Score: 50% Technicals + 50% Fundamentals
-    composite = round(0.50 * tech["technical_score"] + 0.50 * fund["fundamental_score"], 2)
+    # Spot Composite Score: 50% Technicals + 50% Fundamentals
+    spot_score = round(0.50 * tech["technical_score"] + 0.50 * fund["fundamental_score"], 2)
+
+    # 30-Day Rolling Average Score across last 22 trading days (~30 calendar days)
+    rolling_window = min(22, len(df))
+    rolling_scores = []
+    for i in range(len(df) - rolling_window, len(df)):
+        sub_df = df.iloc[: i + 1]
+        sub_tech = calculate_technical_score(sub_df, vix_val)
+        sub_comp = round(0.50 * sub_tech["technical_score"] + 0.50 * fund["fundamental_score"], 2)
+        rolling_scores.append(sub_comp)
+
+    rolling_avg = round(float(np.mean(rolling_scores)), 2) if rolling_scores else spot_score
 
     # Classify Regime Status
-    if composite >= 60.0:
-        regime_status = "BULLISH"
-    elif composite >= 40.0:
-        regime_status = "CAUTION"
-    else:
-        regime_status = "DEFENSIVE"
+    regime_status = "BULLISH" if spot_score >= 60.0 else ("CAUTION" if spot_score >= 40.0 else "DEFENSIVE")
+    rolling_status = "BULLISH" if rolling_avg >= 60.0 else ("CAUTION" if rolling_avg >= 40.0 else "DEFENSIVE")
 
     return {
         "score_date": str(as_of_date),
         "sleeve": sleeve_key,
-        "composite_score": composite,
+        "composite_score": spot_score,
+        "spot_score": spot_score,
+        "rolling_avg_score": rolling_avg,
         "technical_score": tech["technical_score"],
         "fundamental_score": fund["fundamental_score"],
         "regime_status": regime_status,
+        "rolling_status": rolling_status,
         "dma_200": tech["dma_200"],
         "ema_50": tech["ema_50"],
         "price": tech["last_price"],
@@ -392,6 +411,10 @@ def compute_sleeve_regime(sleeve_key: str, as_of_date: date = None) -> Dict[str,
         "bond_yield": fund["bond_yield"],
         "yield_spread": fund["yield_spread"],
         "details": {
+            "spot_score": spot_score,
+            "rolling_avg_score": rolling_avg,
+            "rolling_status": rolling_status,
+            "rolling_window_days": rolling_window,
             "active_ticker": active_ticker,
             "dma_dist_pct": tech["dma_dist_pct"],
             "ema_dist_pct": tech["ema_dist_pct"],
@@ -426,6 +449,6 @@ if __name__ == "__main__":
     print("=" * 60)
     print("MULTI-REGIME SCORE REPORT:")
     for k, s in scores.items():
-        print(f"[{k}] Composite: {s['composite_score']}/100 | Tech: {s['technical_score']} | Fund: {s['fundamental_score']} | Status: {s['regime_status']}")
-        print(f"       Price: {s['price']} | 50-EMA: {s['ema_50']} | 200-DMA: {s['dma_200']} | RSI: {s['rsi_weekly']} | VIX: {s['vix']}")
+        print(f"[{k}] Spot: {s['spot_score']}/100 ({s['regime_status']}) | 30-Day Avg: {s['rolling_avg_score']}/100 ({s['rolling_status']})")
+        print(f"       Tech: {s['technical_score']} | Fund: {s['fundamental_score']} | Price: {s['price']} | 50-EMA: {s['ema_50']} | 200-DMA: {s['dma_200']}")
     print("=" * 60)

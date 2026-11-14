@@ -64,9 +64,28 @@ class SupabaseDB:
         return res.data or []
 
     def record_regime_scores(self, scores: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        allowed_cols = {
+            "score_date", "sleeve", "composite_score", "technical_score", "fundamental_score",
+            "regime_status", "dma_200", "ema_50", "price", "rsi_weekly", "atr", "vix",
+            "pe_ratio", "pe_zscore", "pb_ratio", "pb_percentile", "earnings_yield",
+            "bond_yield", "yield_spread", "details"
+        }
         cleaned_scores = []
         for s in scores:
-            item = dict(s)
+            details = s.get("details", {})
+            if isinstance(details, dict):
+                details = dict(details)
+            else:
+                details = {}
+            if "spot_score" in s:
+                details["spot_score"] = s["spot_score"]
+            if "rolling_avg_score" in s:
+                details["rolling_avg_score"] = s["rolling_avg_score"]
+            if "rolling_status" in s:
+                details["rolling_status"] = s["rolling_status"]
+
+            item = {k: v for k, v in s.items() if k in allowed_cols}
+            item["details"] = details
             item.pop("id", None)
             item.pop("created_at", None)
             cleaned_scores.append(item)
@@ -80,6 +99,15 @@ class SupabaseDB:
         for row in data:
             sleeve = row.get("sleeve")
             if sleeve and sleeve not in latest_by_sleeve:
+                details = row.get("details", {})
+                if isinstance(details, dict):
+                    row["spot_score"] = float(details.get("spot_score", row.get("composite_score", 50.0)))
+                    row["rolling_avg_score"] = float(details.get("rolling_avg_score", row.get("composite_score", 50.0)))
+                    row["rolling_status"] = details.get("rolling_status", row.get("regime_status", "NEUTRAL"))
+                else:
+                    row["spot_score"] = float(row.get("composite_score", 50.0))
+                    row["rolling_avg_score"] = float(row.get("composite_score", 50.0))
+                    row["rolling_status"] = row.get("regime_status", "NEUTRAL")
                 latest_by_sleeve[sleeve] = row
         return latest_by_sleeve
 
@@ -386,6 +414,15 @@ class SQLiteFallbackDB:
                             r["details"] = json.loads(r["details"])
                         except Exception:
                             pass
+                    details = r.get("details", {})
+                    if isinstance(details, dict):
+                        r["spot_score"] = float(details.get("spot_score", r.get("composite_score", 50.0)))
+                        r["rolling_avg_score"] = float(details.get("rolling_avg_score", r.get("composite_score", 50.0)))
+                        r["rolling_status"] = details.get("rolling_status", r.get("regime_status", "NEUTRAL"))
+                    else:
+                        r["spot_score"] = float(r.get("composite_score", 50.0))
+                        r["rolling_avg_score"] = float(r.get("composite_score", 50.0))
+                        r["rolling_status"] = r.get("regime_status", "NEUTRAL")
                     latest[sleeve] = r
             return latest
 

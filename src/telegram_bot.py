@@ -35,18 +35,33 @@ def format_tactical_alert(
     dashboard_url: str = "https://share.streamlit.io"
 ) -> str:
     """Formats an executive, mobile-friendly Telegram alert with HTML tags."""
-    now_ist = datetime.now().strftime("%d %b %Y | %I:%M %p IST")
+    now = datetime.now()
+    now_ist = now.strftime("%d %b %Y | %I:%M %p IST")
+    day_of_month = now.day
 
-    # Header
+    has_emergency_switch = any(s.get("action") == "SWITCH_TO_CASH" for s in decisions.get("switch_signals", []))
+    is_action_window = day_of_month in [1, 2]
+    is_execution_day = day_of_month == 3
+
+    # Header category banner
+    if has_emergency_switch:
+        header_banner = "🚨 <b>[EMERGENCY ACTION REQUIRED - Crash Alert]</b>"
+    elif is_action_window:
+        header_banner = "⚡ <b>[ACTIONABLE SIP DIRECTIVE - Window Open]</b>"
+    elif is_execution_day:
+        header_banner = "📅 <b>[SIP EXECUTION DAY - 3rd of Month]</b>"
+    else:
+        header_banner = "ℹ️ <b>[INFO ONLY - No Action Today]</b>"
+
     msg = [
-        "⚡ <b>GROWW TACTICAL ENGINE ALERT</b>",
+        "🛡️ <b>GROWW TACTICAL ENGINE</b>",
+        header_banner,
         f"📅 <i>{now_ist}</i>",
-        "⏰ <b>30-MIN PRE-CUT-OFF WARNING (Cut-off: 3:00 PM IST)</b>",
+        "⏰ <b>30-MIN PRE-CUT-OFF (Cut-off: 3:00 PM IST)</b>",
         "━━━━━━━━━━━━━━━━━━━━━",
-        "🎯 <b>MARKET REGIME SCORES (0-100)</b>:"
+        "🎯 <b>REGIME SCORES (Spot vs 30-Day Avg)</b>:"
     ]
 
-    # Sleeve scores
     emojis = {"BULLISH": "🟢", "CAUTION": "🟡", "DEFENSIVE": "🔴"}
 
     for sleeve, label in [
@@ -55,8 +70,10 @@ def format_tactical_alert(
         ("NASDAQ_100", "NASDAQ 100 (US Tech)")
     ]:
         s = regime_scores.get(sleeve, {})
-        comp = s.get("composite_score", 50.0)
+        spot = float(s.get("spot_score", s.get("composite_score", 50.0)))
+        rolling = float(s.get("rolling_avg_score", s.get("composite_score", 50.0)))
         status = s.get("regime_status", "NEUTRAL")
+        rolling_status = s.get("rolling_status", "NEUTRAL")
         emoji = emojis.get(status, "⚪")
         rsi = s.get("rsi_weekly", 50.0)
         vix = s.get("vix", 15.0)
@@ -64,32 +81,42 @@ def format_tactical_alert(
         dist_sign = "+" if dma_dist >= 0 else ""
 
         msg.append(
-            f"{emoji} <b>{label}</b>: <b>{comp:.1f}</b>/100 ({status})\n"
+            f"{emoji} <b>{label}</b>:\n"
+            f"   • <b>Spot Score: {spot:.1f}</b>/100 ({status})\n"
+            f"   • <b>30-Day Avg: {rolling:.1f}</b>/100 ({rolling_status}) [Governs 3rd SIP]\n"
             f"   └ 200-DMA: {dist_sign}{dma_dist:.1f}% | RSI: {rsi:.1f} | VIX: {vix:.1f}"
         )
 
     msg.append("━━━━━━━━━━━━━━━━━━━━━")
-    msg.append("📌 <b>TODAY'S TACTICAL DIRECTIVE</b>:")
-    msg.append(f"<b>{decisions.get('action_banner', 'Normal Allocation')}</b>\n")
+    msg.append("📌 <b>ACTION DIRECTIVE & GUIDANCE</b>:")
+    msg.append(f"<b>{decisions.get('action_badge', 'No Action Required Today')}</b>\n")
 
-    # SIP Actions
+    # Detail based on window
     total_cash_sip = decisions.get("total_sip_cash", 0.0)
     total_eq_sip = decisions.get("total_sip_equity", 50000.0)
 
-    if total_cash_sip > 0:
-        msg.append(f"• <b>SIP Rerouting</b>: ₹{total_cash_sip:,.0f} diverted to Shadow Cash (6.5% p.a.).")
-        msg.append(f"• <b>Equity SIP</b>: ₹{total_eq_sip:,.0f} continues into Core Equity.")
+    if is_action_window:
+        msg.append(f"⚡ <b>ACTION REQUIRED ON GROWW (For 3rd SIP)</b>:")
+        msg.append(f"• <b>Equity SIPs:</b> ₹{total_eq_sip:,.0f}")
+        msg.append(f"• <b>Liquid / Shadow Cash:</b> ₹{total_cash_sip:,.0f}")
+        for f_name, d_info in decisions.get("sip_decisions", {}).items():
+            short_name = f_name.replace(" Direct Growth", "")
+            msg.append(f"  └ {short_name}: <b>{d_info['action']}</b> (₹{d_info['amount']:,.0f})")
+    elif is_execution_day:
+        msg.append(f"• Auto-debit executing today: ₹{total_eq_sip:,.0f} Equity | ₹{total_cash_sip:,.0f} Shadow Cash.")
     else:
-        msg.append("• <b>SIP Schedule</b>: Full ₹50,000 active in equity mutual funds.")
+        msg.append(f"• <b>Daily Status:</b> Outside the monthly SIP window. All active units held.")
+        msg.append(f"• <b>Next Action Window:</b> {decisions.get('window_status_label')}")
+        msg.append(f"• <i>Current 30-Day Preview:</i> ₹{total_eq_sip:,.0f} Equity | ₹{total_cash_sip:,.0f} Cash")
 
-    # Corpus Switch checks
+    # Emergency switches
     switches = decisions.get("switch_signals", [])
     if switches:
         for sw in switches:
             if sw.get("action") == "SWITCH_TO_CASH":
-                msg.append(f"🚨 <b>SWITCH TRIGGERED</b>: {sw['scheme_name']} -> Cash (Expected DD > Friction).")
+                msg.append(f"\n🚨 <b>EMERGENCY SWITCH TRIGGERED:</b> {sw['scheme_name']} -> Cash (Expected DD > Friction).")
             else:
-                msg.append(f"🛡️ <b>HOLD CONFIRMED</b>: {sw['scheme_name']} retained (Friction drag exceeds expected drawdown).")
+                msg.append(f"\n🛡️ <b>HOLD CONFIRMED:</b> {sw['scheme_name']} retained (Friction drag exceeds expected drawdown).")
 
     # Valuation & Alpha
     if snapshot:
@@ -101,13 +128,15 @@ def format_tactical_alert(
 
         msg.append("━━━━━━━━━━━━━━━━━━━━━")
         msg.append("📊 <b>PORTFOLIO PERFORMANCE</b>:")
-        msg.append(f"• <b>Tactical Ledger A</b>: ₹{tac_val:,.2f}")
+        msg.append(f"• <b>Tactical Ledger A:</b> ₹{tac_val:,.2f}")
         msg.append(f"  └ Equity: ₹{tac_val - tac_cash:,.2f} | Cash: ₹{tac_cash:,.2f}")
-        msg.append(f"• <b>Passive Ledger B</b>:  ₹{pas_val:,.2f}")
-        msg.append(f"• <b>Tactical Alpha</b>:    <b>{alpha_sign}₹{alpha_rs:,.2f}</b> ({snapshot.get('alpha_percent', 0.0):+.2f}%)")
+        msg.append(f"• <b>Passive Ledger B:</b>  ₹{pas_val:,.2f}")
+        msg.append(f"• <b>Tactical Alpha:</b>    <b>{alpha_sign}₹{alpha_rs:,.2f}</b> ({snapshot.get('alpha_percent', 0.0):+.2f}%)")
 
     msg.append("━━━━━━━━━━━━━━━━━━━━━")
     msg.append(f"📱 <a href='{dashboard_url}'>Open Mobile Web Dashboard</a>")
+
+    return "\n".join(msg)
 
     return "\n".join(msg)
 

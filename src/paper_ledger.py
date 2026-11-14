@@ -137,68 +137,142 @@ def evaluate_tactical_decisions(
     current_date: date = None
 ) -> Dict[str, Any]:
     """
-    Evaluates Tier 1 (SIP rerouting) and Tier 2 (Corpus Switch / Re-entry) actions.
+    Evaluates Tier 1 (3rd-of-Month SIP Allocation) using 30-Day Rolling Score (with spot < 40 crash override)
+    and Tier 2 (Emergency Corpus Switch < 30) using Spot Score.
     """
     if current_date is None:
         current_date = date.today()
 
-    score_nifty500 = regime_scores.get("NIFTY_500", {}).get("composite_score", 60.0)
-    score_midsmall = regime_scores.get("MID_SMALL", {}).get("composite_score", 60.0)
-    score_nasdaq = regime_scores.get("NASDAQ_100", {}).get("composite_score", 60.0)
+    def _get_scores(sleeve_key: str):
+        data = regime_scores.get(sleeve_key, {})
+        spot = float(data.get("spot_score", data.get("composite_score", 50.0)))
+        rolling = float(data.get("rolling_avg_score", data.get("composite_score", 50.0)))
+        return spot, rolling
+
+    spot_nifty, rolling_nifty = _get_scores("NIFTY_500")
+    spot_mid, rolling_mid = _get_scores("MID_SMALL")
+    spot_nasdaq, rolling_nasdaq = _get_scores("NASDAQ_100")
 
     # -------------------------------------------------------------
-    # TIER 1: SIP REROUTING LOGIC (₹50k/month scheduled on the 3rd)
+    # ACTION WINDOW TIMING (1st-2nd is Action Window for 3rd SIP)
     # -------------------------------------------------------------
-    # - Score >= 60: Normal ₹50k equity SIPs
-    # - Score 40-59: Divert ₹20k Mid/Small SIPs to Shadow Cash
-    # - Score < 40: Divert all ₹50k SIPs to Shadow Cash
-    # -------------------------------------------------------------
-    is_sip_execution_window = current_date.day in [1, 2, 3, 4]
+    is_sip_action_window = current_date.day in [1, 2]
+    is_sip_execution_day = current_date.day == 3
+    is_outside_sip_window = not (is_sip_action_window or is_sip_execution_day)
 
+    if is_sip_action_window:
+        target_sip_date = current_date.replace(day=3)
+        window_status_label = f"ACTIVE NOW: 1st–2nd {current_date.strftime('%b')} (for 3rd {current_date.strftime('%b')} SIP)"
+    elif is_sip_execution_day:
+        target_sip_date = current_date
+        window_status_label = f"TODAY: 3rd {current_date.strftime('%b')} (SIP Execution Day)"
+    else:
+        # Next upcoming month
+        if current_date.month == 12:
+            next_m = 1
+            next_y = current_date.year + 1
+        else:
+            next_m = current_date.month + 1
+            next_y = current_date.year
+        target_sip_date = date(next_y, next_m, 3)
+        window_status_label = f"1st–2nd {target_sip_date.strftime('%b %Y')} (for 3rd {target_sip_date.strftime('%b')} SIP)"
+
+    # -------------------------------------------------------------
+    # TIER 1: SIP ALLOCATION ON 30-DAY ROLLING SCORE
+    # (With Spot < 40 Sharp Crash Override)
+    # -------------------------------------------------------------
     sip_decisions = {}
     total_sip_equity = 0.0
     total_sip_cash = 0.0
 
-    # Motilal Oswal Midcap (₹20,000)
-    if score_midsmall >= 60.0:
-        sip_decisions["Motilal Oswal Midcap Fund Direct Growth"] = {"action": "EQUITY", "amount": 20000.0}
-        total_sip_equity += 20000.0
-    elif score_midsmall >= 40.0:
-        sip_decisions["Motilal Oswal Midcap Fund Direct Growth"] = {"action": "SHADOW_CASH", "amount": 20000.0, "reason": "Mid/Small score in caution band (40-59)"}
-        total_sip_cash += 20000.0
-    else:
-        sip_decisions["Motilal Oswal Midcap Fund Direct Growth"] = {"action": "SHADOW_CASH", "amount": 20000.0, "reason": "Mid/Small score defensive (<40)"}
-        total_sip_cash += 20000.0
-
-    # Nippon India Small Cap (₹20,000)
-    if score_midsmall >= 60.0:
-        sip_decisions["Nippon India Small Cap Fund Direct Growth"] = {"action": "EQUITY", "amount": 20000.0}
-        total_sip_equity += 20000.0
-    elif score_midsmall >= 40.0:
-        sip_decisions["Nippon India Small Cap Fund Direct Growth"] = {"action": "SHADOW_CASH", "amount": 20000.0, "reason": "Mid/Small score in caution band (40-59)"}
-        total_sip_cash += 20000.0
-    else:
-        sip_decisions["Nippon India Small Cap Fund Direct Growth"] = {"action": "SHADOW_CASH", "amount": 20000.0, "reason": "Mid/Small score defensive (<40)"}
-        total_sip_cash += 20000.0
-
-    # Parag Parikh Flexi Cap (₹10,000)
-    if score_nifty500 >= 60.0:
-        sip_decisions["Parag Parikh Flexi Cap Fund Direct Growth"] = {"action": "EQUITY", "amount": 10000.0}
+    # 1. Parag Parikh Flexi Cap (₹10,000, Nifty 500 Sleeve)
+    if spot_nifty < 40.0:
+        sip_decisions["Parag Parikh Flexi Cap Fund Direct Growth"] = {
+            "action": "SHADOW_CASH",
+            "amount": 10000.0,
+            "reason": f"Crash Override: Spot score ({spot_nifty:.1f}) dropped sharply below 40."
+        }
+        total_sip_cash += 10000.0
+    elif rolling_nifty >= 60.0:
+        sip_decisions["Parag Parikh Flexi Cap Fund Direct Growth"] = {
+            "action": "EQUITY",
+            "amount": 10000.0,
+            "reason": f"Normal Equity SIP: 30-Day Rolling Score ({rolling_nifty:.1f}) is Bullish (>= 60)."
+        }
         total_sip_equity += 10000.0
-    elif score_nifty500 >= 40.0:
-        # User prompt: "Score 40-59 divert ₹20k Mid/Small SIPs to Shadow Cash; Score < 40 divert all ₹50k SIPs to Shadow Cash"
-        sip_decisions["Parag Parikh Flexi Cap Fund Direct Growth"] = {"action": "EQUITY", "amount": 10000.0, "reason": "Nifty 500 core holding continues during mild Mid/Small caution"}
+    elif rolling_nifty >= 40.0:
+        sip_decisions["Parag Parikh Flexi Cap Fund Direct Growth"] = {
+            "action": "EQUITY",
+            "amount": 10000.0,
+            "reason": f"Core Flexi Cap Equity SIP continues in Caution band (30-Day Avg: {rolling_nifty:.1f})."
+        }
         total_sip_equity += 10000.0
     else:
-        sip_decisions["Parag Parikh Flexi Cap Fund Direct Growth"] = {"action": "SHADOW_CASH", "amount": 10000.0, "reason": "Nifty 500 score defensive (<40)"}
+        sip_decisions["Parag Parikh Flexi Cap Fund Direct Growth"] = {
+            "action": "SHADOW_CASH",
+            "amount": 10000.0,
+            "reason": f"Diverted to Shadow Cash: 30-Day Rolling Score ({rolling_nifty:.1f}) < 40."
+        }
         total_sip_cash += 10000.0
 
+    # 2. Motilal Oswal Midcap Fund Direct Growth (₹20,000, Mid/Small Sleeve)
+    # 3. Nippon India Small Cap Fund Direct Growth (₹20,000, Mid/Small Sleeve)
+    if spot_mid < 40.0:
+        # Crash override: both diverted to cash immediately
+        sip_decisions["Motilal Oswal Midcap Fund Direct Growth"] = {
+            "action": "SHADOW_CASH",
+            "amount": 20000.0,
+            "reason": f"Crash Override: Mid/Small Spot Score ({spot_mid:.1f}) dropped sharply below 40."
+        }
+        sip_decisions["Nippon India Small Cap Fund Direct Growth"] = {
+            "action": "SHADOW_CASH",
+            "amount": 20000.0,
+            "reason": f"Crash Override: Mid/Small Spot Score ({spot_mid:.1f}) dropped sharply below 40."
+        }
+        total_sip_cash += 40000.0
+    elif rolling_mid >= 60.0:
+        # Bullish 30-day average: full equity
+        sip_decisions["Motilal Oswal Midcap Fund Direct Growth"] = {
+            "action": "EQUITY",
+            "amount": 20000.0,
+            "reason": f"Normal Equity SIP: 30-Day Rolling Score ({rolling_mid:.1f}) is Bullish (>= 60)."
+        }
+        sip_decisions["Nippon India Small Cap Fund Direct Growth"] = {
+            "action": "EQUITY",
+            "amount": 20000.0,
+            "reason": f"Normal Equity SIP: 30-Day Rolling Score ({rolling_mid:.1f}) is Bullish (>= 60)."
+        }
+        total_sip_equity += 40000.0
+    elif rolling_mid >= 40.0:
+        # Caution 40-59 band: Divert ₹20,000 Mid/Small SIP to Shadow Cash, keep ₹20k Midcap
+        sip_decisions["Motilal Oswal Midcap Fund Direct Growth"] = {
+            "action": "EQUITY",
+            "amount": 20000.0,
+            "reason": f"Midcap SIP continues in Equity (30-Day Avg: {rolling_mid:.1f} >= 40)."
+        }
+        sip_decisions["Nippon India Small Cap Fund Direct Growth"] = {
+            "action": "SHADOW_CASH",
+            "amount": 20000.0,
+            "reason": f"Smallcap ₹20,000 diverted to Shadow Cash (30-Day Avg: {rolling_mid:.1f} in Caution 40-59)."
+        }
+        total_sip_equity += 20000.0
+        total_sip_cash += 20000.0
+    else:
+        # Defensive < 40: Both Mid and Small diverted to cash
+        sip_decisions["Motilal Oswal Midcap Fund Direct Growth"] = {
+            "action": "SHADOW_CASH",
+            "amount": 20000.0,
+            "reason": f"Diverted to Shadow Cash: 30-Day Rolling Score ({rolling_mid:.1f}) < 40."
+        }
+        sip_decisions["Nippon India Small Cap Fund Direct Growth"] = {
+            "action": "SHADOW_CASH",
+            "amount": 20000.0,
+            "reason": f"Diverted to Shadow Cash: 30-Day Rolling Score ({rolling_mid:.1f}) < 40."
+        }
+        total_sip_cash += 40000.0
+
     # -------------------------------------------------------------
-    # TIER 2: CORPUS SWITCH & RE-ENTRY LOGIC
-    # -------------------------------------------------------------
-    # Switch existing units to Cash only if:
-    # 1. Composite Score < 30 AND
-    # 2. Expected drawdown > Exit Load + STCG/LTCG tax drag
+    # TIER 2: EMERGENCY CORPUS SWITCH (< 30 SPOT SCORE)
     # -------------------------------------------------------------
     db = get_db()
     holdings = db.get_holdings(active_only=True)
@@ -208,8 +282,9 @@ def evaluate_tactical_decisions(
     for h in holdings:
         s_name = h["scheme_name"]
         sleeve = h["sleeve"]
-        sleeve_score = regime_scores.get(sleeve, {}).get("composite_score", 50.0)
         sleeve_data = regime_scores.get(sleeve, {})
+        spot_score = float(sleeve_data.get("spot_score", sleeve_data.get("composite_score", 50.0)))
+        rolling_score = float(sleeve_data.get("rolling_avg_score", sleeve_data.get("composite_score", 50.0)))
 
         current_val = float(h.get("current_value", 0))
         invested_val = float(h.get("invested_value", 0))
@@ -221,15 +296,15 @@ def evaluate_tactical_decisions(
 
         # Expected drawdown estimation from technicals
         dma_dist = sleeve_data.get("details", {}).get("dma_dist_pct", 0.0)
-        # In a severe breakdown, distance to support or 2x ATR indicates 12% to 22% expected drawdown
         expected_drawdown_pct = max(12.0, abs(dma_dist) + 5.0)
 
-        if sleeve_score < 30.0:
+        # Emergency Corpus Switch: Evaluated on SPOT SCORE (< 30) so genuine crashes aren't delayed
+        if spot_score < 30.0:
             if expected_drawdown_pct > friction["friction_drag_pct"]:
                 switch_signals.append({
                     "scheme_name": s_name,
                     "action": "SWITCH_TO_CASH",
-                    "reason": f"Regime score {sleeve_score:.1f} < 30 and expected drawdown ({expected_drawdown_pct:.1f}%) > friction drag ({friction['friction_drag_pct']:.1f}%)",
+                    "reason": f"CRASH ALERT: Spot score {spot_score:.1f} < 30 and expected drawdown ({expected_drawdown_pct:.1f}%) > friction drag ({friction['friction_drag_pct']:.1f}%)",
                     "friction": friction,
                     "expected_drawdown_pct": expected_drawdown_pct
                 })
@@ -237,42 +312,71 @@ def evaluate_tactical_decisions(
                 switch_signals.append({
                     "scheme_name": s_name,
                     "action": "HOLD_IN_EQUITY",
-                    "reason": f"Regime score {sleeve_score:.1f} < 30 BUT friction drag ({friction['friction_drag_pct']:.1f}%) >= expected drawdown ({expected_drawdown_pct:.1f}%). De-risking skipped to save tax/load drag.",
+                    "reason": f"Spot score {spot_score:.1f} < 30 BUT friction drag ({friction['friction_drag_pct']:.1f}%) >= expected drawdown ({expected_drawdown_pct:.1f}%). De-risking skipped to save tax/load churn.",
                     "friction": friction
                 })
 
-        # Re-entry Tranches check:
-        # Re-entry triggers when price reclaims 50-EMA or 200-DMA
+        # Re-entry check: requires 30-Day Average Score >= 60 PLUS technical reclaim
         ema_dist = sleeve_data.get("details", {}).get("ema_dist_pct", 0.0)
-        if sleeve_score >= 60.0 and ema_dist >= 0.0:
+        technical_reclaimed = ema_dist >= 0.0 or dma_dist >= 0.0
+
+        if rolling_score >= 60.0 and technical_reclaimed:
             reentry_signals.append({
                 "scheme_name": s_name,
-                "action": "FULL_EQUITY_DEPLOYED",
-                "status": "Healthy bull regime"
+                "action": "REENTRY_CONFIRMED",
+                "status": f"Re-entry Unlocked: 30-Day Avg ({rolling_score:.1f} >= 60) + Technical Reclaim confirmed."
+            })
+        elif technical_reclaimed:
+            reentry_signals.append({
+                "scheme_name": s_name,
+                "action": "WAITING_CONFIRMATION",
+                "status": f"Technical reclaimed but 30-Day Avg ({rolling_score:.1f}) is < 60. Cash remains safely parked."
             })
 
-    # Overall Summary Signal
-    if total_sip_cash == 50000.0 or any(s["action"] == "SWITCH_TO_CASH" for s in switch_signals):
+    # Action Badges and Guidance
+    has_emergency_switch = any(s.get("action") == "SWITCH_TO_CASH" for s in switch_signals)
+    has_confirmed_reentry = any(r.get("action") == "REENTRY_CONFIRMED" for r in reentry_signals)
+
+    if has_emergency_switch:
         overall_status = "DEFENSIVE"
-        action_banner = "🔴 DEFENSIVE REGIME: All SIPs routed to Shadow Cash. Friction-checked corpus de-risking active."
-    elif total_sip_cash > 0.0:
-        overall_status = "CAUTION"
-        action_banner = f"🟡 CAUTION REGIME: ₹{total_sip_cash:,.0f} Mid/Small SIPs routed to Shadow Cash | ₹{total_sip_equity:,.0f} Core Flexi Cap running."
+        action_badge = "🚨 EMERGENCY ACTION REQUIRED: Corpus Switch Triggered"
+        action_banner = "🔴 EMERGENCY CRASH: Spot score < 30 breakdown. Friction-checked corpus de-risking active."
+    elif is_sip_action_window:
+        overall_status = "CAUTION" if total_sip_cash > 0 else "BULLISH"
+        action_badge = "⚡ SIP ACTION WINDOW OPEN: Set Groww SIP for the 3rd"
+        action_banner = f"⚡ ACTION WINDOW OPEN (1st–2nd): Configure 3rd SIP on Groww $\\rightarrow$ ₹{total_sip_equity:,.0f} Equity | ₹{total_sip_cash:,.0f} Shadow Cash"
+    elif is_sip_execution_day:
+        overall_status = "CAUTION" if total_sip_cash > 0 else "BULLISH"
+        action_badge = "📅 SIP EXECUTION DAY: Auto-debit on Groww"
+        action_banner = f"📅 SIP EXECUTION DAY (3rd): Auto-debit scheduled for ₹{total_sip_equity:,.0f} Equity | ₹{total_sip_cash:,.0f} Shadow Cash"
     else:
-        overall_status = "BULLISH"
-        action_banner = "🟢 BULLISH REGIME: 100% Equity Allocation. Normal ₹50,000 monthly SIP active."
+        overall_status = "HOLD_STEADY"
+        action_badge = "🛡️ NO ACTION REQUIRED TODAY — Hold Existing Units"
+        action_banner = f"🛡️ NO ACTION REQUIRED TODAY: Outside SIP window. All 4 active holdings held securely."
 
     return {
         "as_of_date": str(current_date),
         "overall_status": overall_status,
+        "action_badge": action_badge,
         "action_banner": action_banner,
-        "is_sip_execution_window": is_sip_execution_window,
+        "is_sip_action_window": is_sip_action_window,
+        "is_sip_execution_day": is_sip_execution_day,
+        "is_outside_sip_window": is_outside_sip_window,
+        "window_status_label": window_status_label,
+        "target_sip_date": str(target_sip_date),
         "total_sip_equity": total_sip_equity,
         "total_sip_cash": total_sip_cash,
         "sip_decisions": sip_decisions,
         "switch_signals": switch_signals,
         "reentry_signals": reentry_signals,
-        "scores": {k: v.get("composite_score") for k, v in regime_scores.items()}
+        "scores": {
+            k: {
+                "spot_score": v.get("spot_score", v.get("composite_score")),
+                "rolling_avg_score": v.get("rolling_avg_score", v.get("composite_score")),
+                "composite_score": v.get("composite_score")
+            }
+            for k, v in regime_scores.items()
+        }
     }
 
 

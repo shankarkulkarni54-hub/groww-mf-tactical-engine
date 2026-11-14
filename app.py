@@ -182,15 +182,99 @@ with col_head2:
     else:
         st.markdown("<span class='badge' style='background:#2a2e39; color:#9ca3af;'>Settled Today</span>", unsafe_allow_html=True)
 
-# --- ACTION BANNER (Green / Amber / Red) ---
-overall_status = decisions.get("overall_status", "BULLISH")
-banner_class = "banner-green" if overall_status == "BULLISH" else ("banner-amber" if overall_status == "CAUTION" else "banner-red")
-banner_emoji = "🟢" if overall_status == "BULLISH" else ("🟡" if overall_status == "CAUTION" else "🔴")
+# --- MONTHLY SIP ACTION GUIDE (3rd of Month) ---
+is_outside_window = decisions.get("is_outside_sip_window", True)
+has_emergency_switch = any(s.get("action") == "SWITCH_TO_CASH" for s in decisions.get("switch_signals", []))
+is_action_window = decisions.get("is_sip_action_window", False)
+is_execution_day = decisions.get("is_sip_execution_day", False)
+
+if has_emergency_switch:
+    badge_bg = "rgba(239, 68, 68, 0.18)"
+    badge_fg = "#fca5a5"
+    badge_border = "#ef4444"
+    guide_border = "#ef4444"
+    badge_text = "🚨 EMERGENCY ACTION REQUIRED: Corpus Switch Triggered"
+elif is_action_window:
+    badge_bg = "rgba(16, 185, 129, 0.18)"
+    badge_fg = "#6ee7b7"
+    badge_border = "#10b981"
+    guide_border = "#10b981"
+    badge_text = "⚡ ACTION WINDOW OPEN — Set Groww SIP Allocation for the 3rd"
+elif is_execution_day:
+    badge_bg = "rgba(245, 158, 11, 0.18)"
+    badge_fg = "#fcd34d"
+    badge_border = "#f59e0b"
+    guide_border = "#f59e0b"
+    badge_text = "📅 SIP EXECUTION DAY — Auto-debit Active on Groww"
+else:
+    badge_bg = "rgba(59, 130, 246, 0.15)"
+    badge_fg = "#93c5fd"
+    badge_border = "#3b82f6"
+    guide_border = "#2563eb"
+    badge_text = "🛡️ NO ACTION REQUIRED TODAY — Hold Existing Units"
+
+tot_eq = decisions.get("total_sip_equity", 30000.0)
+tot_cash = decisions.get("total_sip_cash", 20000.0)
+sip_decs = decisions.get("sip_decisions", {})
 
 st.markdown(f"""
-<div class='{banner_class}'>
-    <div style='font-size:0.95rem; font-weight:700;'>{banner_emoji} TODAY'S TACTICAL ALLOCATION DIRECTIVE</div>
-    <div style='font-size:0.88rem; margin-top:4px;'>{decisions.get('action_banner')}</div>
+<div class='metric-card' style='border: 1px solid {guide_border}; background: linear-gradient(135deg, #131d34 0%, #1a2544 100%); padding: 16px 18px; margin-bottom: 16px;'>
+    <div style='display:flex; justify-content:space-between; align-items:center;'>
+        <div style='font-size:1.02rem; font-weight:700; color:#FFFFFF;'>📅 Monthly SIP Action Guide (3rd of Month)</div>
+        <span class='badge' style='background:#1e3a8a; color:#bfdbfe; font-size:0.75rem;'>₹50,000/Mo Total</span>
+    </div>
+    
+    <div style='margin-top:10px; margin-bottom:12px;'>
+        <div style='display:inline-block; background:{badge_bg}; color:{badge_fg}; border:1px solid {badge_border}; font-size:0.84rem; padding:5px 12px; border-radius:6px; font-weight:700;'>
+            {badge_text}
+        </div>
+    </div>
+
+    <div style='background:rgba(15, 23, 42, 0.65); border:1px solid #334155; border-radius:8px; padding:10px 12px; margin-bottom:12px;'>
+        <div style='font-size:0.72rem; text-transform:uppercase; color:#94a3b8; font-weight:600; letter-spacing:0.5px;'>Next Action Window (Review & Set on Groww)</div>
+        <div style='font-size:0.92rem; font-weight:600; color:#38bdf8; margin-top:2px;'>
+            🗓️ {decisions.get('window_status_label')}
+        </div>
+    </div>
+
+    <div>
+        <div style='font-size:0.72rem; text-transform:uppercase; color:#94a3b8; font-weight:600; margin-bottom:8px;'>₹50k Allocation Split (Governed by 30-Day Rolling Score)</div>
+        
+        <div style='background:rgba(255,255,255,0.03); border-radius:6px; padding:8px 10px; margin-bottom:6px;'>
+            <div style='display:flex; justify-content:space-between; font-size:0.86rem;'>
+                <span><b>Parag Parikh Flexi Cap</b> (₹10k)</span>
+                <span class='badge' style='background:{"#065f46" if sip_decs.get("Parag Parikh Flexi Cap Fund Direct Growth", {}).get("action") == "EQUITY" else "#78350f"}; color:{"#a7f3d0" if sip_decs.get("Parag Parikh Flexi Cap Fund Direct Growth", {}).get("action") == "EQUITY" else "#fde68a"};'>
+                    {sip_decs.get("Parag Parikh Flexi Cap Fund Direct Growth", {}).get("action")} • ₹{sip_decs.get("Parag Parikh Flexi Cap Fund Direct Growth", {}).get("amount", 10000):,.0f}
+                </span>
+            </div>
+            <div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>{sip_decs.get("Parag Parikh Flexi Cap Fund Direct Growth", {}).get("reason", "")}</div>
+        </div>
+
+        <div style='background:rgba(255,255,255,0.03); border-radius:6px; padding:8px 10px; margin-bottom:6px;'>
+            <div style='display:flex; justify-content:space-between; font-size:0.86rem;'>
+                <span><b>Motilal Oswal Midcap</b> (₹20k)</span>
+                <span class='badge' style='background:{"#065f46" if sip_decs.get("Motilal Oswal Midcap Fund Direct Growth", {}).get("action") == "EQUITY" else "#78350f"}; color:{"#a7f3d0" if sip_decs.get("Motilal Oswal Midcap Fund Direct Growth", {}).get("action") == "EQUITY" else "#fde68a"};'>
+                    {sip_decs.get("Motilal Oswal Midcap Fund Direct Growth", {}).get("action")} • ₹{sip_decs.get("Motilal Oswal Midcap Fund Direct Growth", {}).get("amount", 20000):,.0f}
+                </span>
+            </div>
+            <div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>{sip_decs.get("Motilal Oswal Midcap Fund Direct Growth", {}).get("reason", "")}</div>
+        </div>
+
+        <div style='background:rgba(255,255,255,0.03); border-radius:6px; padding:8px 10px; margin-bottom:6px;'>
+            <div style='display:flex; justify-content:space-between; font-size:0.86rem;'>
+                <span><b>Nippon India Small Cap</b> (₹20k)</span>
+                <span class='badge' style='background:{"#065f46" if sip_decs.get("Nippon India Small Cap Fund Direct Growth", {}).get("action") == "EQUITY" else "#78350f"}; color:{"#a7f3d0" if sip_decs.get("Nippon India Small Cap Fund Direct Growth", {}).get("action") == "EQUITY" else "#fde68a"};'>
+                    {sip_decs.get("Nippon India Small Cap Fund Direct Growth", {}).get("action")} • ₹{sip_decs.get("Nippon India Small Cap Fund Direct Growth", {}).get("amount", 20000):,.0f}
+                </span>
+            </div>
+            <div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>{sip_decs.get("Nippon India Small Cap Fund Direct Growth", {}).get("reason", "")}</div>
+        </div>
+
+        <div style='display:flex; justify-content:space-between; font-weight:700; font-size:0.86rem; margin-top:10px; padding-top:8px; border-top:1px solid #334155;'>
+            <span class='text-green'>🟢 Equity SIP: ₹{tot_eq:,.0f}</span>
+            <span class='text-amber'>🟡 Liquid / Shadow Cash: ₹{tot_cash:,.0f}</span>
+        </div>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -249,12 +333,15 @@ with tab_regimes:
         ("NASDAQ_100", "NASDAQ 100 (Edelweiss US Tech)")
     ]:
         s = scores.get(sleeve_key, {})
-        comp = float(s.get("composite_score", 50.0))
+        spot = float(s.get("spot_score", s.get("composite_score", 50.0)))
+        rolling = float(s.get("rolling_avg_score", s.get("composite_score", 50.0)))
         tech = float(s.get("technical_score", 50.0))
         fund = float(s.get("fundamental_score", 50.0))
-        status = s.get("regime_status", "NEUTRAL")
+        spot_status = s.get("regime_status", "NEUTRAL")
+        rolling_status = s.get("rolling_status", "NEUTRAL")
 
-        badge_color = "#00D09C" if status == "BULLISH" else ("#FFB020" if status == "CAUTION" else "#FF5252")
+        badge_color = "#00D09C" if rolling_status == "BULLISH" else ("#FFB020" if rolling_status == "CAUTION" else "#FF5252")
+        spot_color = "#00D09C" if spot_status == "BULLISH" else ("#FFB020" if spot_status == "CAUTION" else "#FF5252")
         dma_dist = s.get("details", {}).get("dma_dist_pct", 0.0)
         rsi = s.get("rsi_weekly", 50.0)
         vix = s.get("vix", 15.0)
@@ -264,18 +351,32 @@ with tab_regimes:
         <div class='fund-card' style='border-left: 4px solid {badge_color};'>
             <div style='display:flex; justify-content:space-between; align-items:center;'>
                 <span class='fund-title'>{label}</span>
-                <span class='badge' style='background:{badge_color}; color:#111;'>{comp:.1f}/100 • {status}</span>
+                <span class='badge' style='background:{badge_color}; color:#111;'>30-Day Avg: {rolling:.1f} • {rolling_status}</span>
             </div>
+            
+            <div style='display:grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top:10px; background:rgba(0,0,0,0.22); padding:8px 10px; border-radius:6px; border:1px solid #2d3748;'>
+                <div>
+                    <div style='font-size:0.70rem; color:#94a3b8; text-transform:uppercase; font-weight:600;'>30-Day Rolling Avg</div>
+                    <div style='font-size:1.15rem; font-weight:700; color:{badge_color};'>{rolling:.1f}/100</div>
+                    <div style='font-size:0.68rem; color:#cbd5e1;'>Governs 3rd SIP Decision</div>
+                </div>
+                <div style='border-left:1px solid #334155; padding-left:10px;'>
+                    <div style='font-size:0.70rem; color:#94a3b8; text-transform:uppercase; font-weight:600;'>Today's Spot Score</div>
+                    <div style='font-size:1.15rem; font-weight:700; color:{spot_color};'>{spot:.1f}/100</div>
+                    <div style='font-size:0.68rem; color:#cbd5e1;'>Governs Crash De-risking</div>
+                </div>
+            </div>
+
             <div style='margin-top:8px;'>
-                <div style='display:flex; justify-content:space-between; font-size:0.8rem; color:#9AA0A6;'>
+                <div style='display:flex; justify-content:space-between; font-size:0.78rem; color:#9AA0A6;'>
                     <span>Technical Score: <b>{tech:.1f}</b></span>
                     <span>Fundamental Score: <b>{fund:.1f}</b></span>
                 </div>
-                <div style='background:#2D3546; border-radius:4px; height:6px; margin:6px 0; overflow:hidden;'>
-                    <div style='background:{badge_color}; width:{min(100.0, max(0.0, comp))}%; height:100%;'></div>
+                <div style='background:#2D3546; border-radius:4px; height:5px; margin:5px 0; overflow:hidden;'>
+                    <div style='background:{badge_color}; width:{min(100.0, max(0.0, rolling))}%; height:100%;'></div>
                 </div>
             </div>
-            <div class='fund-row' style='color:#bdc1c6; font-size:0.8rem; margin-top:6px;'>
+            <div class='fund-row' style='color:#bdc1c6; font-size:0.78rem; margin-top:4px;'>
                 <span>200-DMA: <b>{dma_dist:+.1f}%</b></span>
                 <span>RSI (W): <b>{rsi:.1f}</b></span>
                 <span>VIX: <b>{vix:.1f}</b></span>
@@ -287,16 +388,17 @@ with tab_regimes:
     # Tactical Rules Reference Card
     with st.expander("ℹ️ Tactical Friction & Re-entry Rules", expanded=False):
         st.markdown("""
-        - **Tier 1 (SIP Rerouting on 3rd of month)**:
-          * **Score >= 60**: Full ₹50k equity SIPs.
-          * **Score 40-59**: Divert ₹20k Mid/Small SIPs to Shadow Cash (~6.5% p.a.).
-          * **Score < 40**: Divert all ₹50k SIPs to Shadow Cash.
-        - **Tier 2 (Corpus Switch)**:
-          * Switch to Cash **ONLY** if Score < 30 **AND** Expected Drawdown > Exit Load + STCG/LTCG Tax.
+        - **Tier 1 (3rd-of-Month SIP Allocation)**:
+          * Based on **30-Day Rolling Average Score** (buffers against daily whipsaws).
+          * **30-Day Avg >= 60**: Full ₹50k equity SIPs.
+          * **30-Day Avg 40-59**: Divert ₹20k Smallcap SIP to Shadow Cash (~6.5% p.a.); Flexi Cap and Midcap continue in equity.
+          * **30-Day Avg < 40**: Divert all ₹50k SIPs to Shadow Cash.
+          * **Crash Override**: If today's Spot Score drops sharply below 40, immediately route to Shadow Cash.
+        - **Tier 2 (Emergency Corpus Switch < 30)**:
+          * Evaluated on **Spot Score** so genuine crashes aren't delayed.
+          * Switch to Cash **ONLY** if Spot Score < 30 **AND** Expected Drawdown > Exit Load + STCG/LTCG Tax.
         - **Re-entry in 3 Tranches**:
-          * Tranche 1 (33%): On 50-EMA reclaim.
-          * Tranche 2 (33%): On 200-DMA reclaim.
-          * Tranche 3 (34%): On confirmation / Score >= 60.
+          * Deploying parked cash tranches requires **30-Day Average Score >= 60** PLUS technical reclaim (Price > 50-EMA / 200-DMA).
         """)
 
 # ==========================================
@@ -534,18 +636,26 @@ with tab_settings:
     st.markdown("##### 🎛️ Tactical Stress-Test Simulator")
     st.caption("Adjust simulated Mid/Smallcap regime score to verify Tier 1 SIP rerouting and Tier 2 friction checks in real-time.")
 
-    test_score = st.slider("Simulated Mid/Smallcap Score", min_value=15.0, max_value=90.0, value=55.0, step=1.0)
+    test_rolling = st.slider("Simulated Mid/Smallcap 30-Day Rolling Avg (Governs SIP)", min_value=15.0, max_value=90.0, value=52.0, step=1.0)
+    test_spot = st.slider("Simulated Mid/Smallcap Today's Spot Score (Crash Override)", min_value=15.0, max_value=90.0, value=60.0, step=1.0)
 
     sim_scores = {
         "NIFTY_500": scores.get("NIFTY_500", {}),
-        "MID_SMALL": {"composite_score": test_score, "details": {"dma_dist_pct": -8.0 if test_score < 40 else 2.0}},
+        "MID_SMALL": {
+            "spot_score": test_spot,
+            "rolling_avg_score": test_rolling,
+            "composite_score": test_spot,
+            "details": {"dma_dist_pct": -8.0 if test_spot < 40 else 2.0}
+        },
         "NASDAQ_100": scores.get("NASDAQ_100", {})
     }
     sim_decisions = evaluate_tactical_decisions(sim_scores)
 
-    st.markdown(f"**Simulated Directive:** {sim_decisions['action_banner']}")
+    st.markdown(f"**Simulated Directive:** {sim_decisions['action_badge']}")
     st.markdown(f"- Equity SIP Allocation: **₹{sim_decisions['total_sip_equity']:,.0f}**")
     st.markdown(f"- Shadow Cash Diversion: **₹{sim_decisions['total_sip_cash']:,.0f}**")
+    for s_fund, s_d in sim_decisions.get("sip_decisions", {}).items():
+        st.caption(f"• {s_fund.replace(' Direct Growth', '')}: **{s_d['action']}** (₹{s_d['amount']:,.0f}) — {s_d.get('reason')}")
 
     # Cloud Deployment Info
     st.markdown("---")
