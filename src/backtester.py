@@ -17,12 +17,20 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
-from src.regime_engine import (
-    UNRESTRICTED_UNIVERSE,
-    fetch_universe_navs,
-    get_universe_nav_on,
-    score_unrestricted_universe
-)
+try:
+    from src.regime_engine import (
+        UNRESTRICTED_UNIVERSE,
+        fetch_universe_navs,
+        get_universe_nav_on,
+        score_unrestricted_universe
+    )
+except ImportError:
+    from src import (
+        UNRESTRICTED_UNIVERSE,
+        fetch_universe_navs,
+        get_universe_nav_on,
+        score_unrestricted_universe
+    )
 
 CACHE_FILE_PATH = os.path.join(REPO_ROOT, "data", "backtest_5yr_results.json")
 

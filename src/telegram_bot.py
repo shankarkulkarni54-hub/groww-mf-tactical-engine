@@ -15,7 +15,10 @@ from src.db import get_db
 try:
     from src.regime_engine import score_unrestricted_universe
 except Exception:
-    score_unrestricted_universe = None
+    try:
+        from src import score_unrestricted_universe
+    except Exception:
+        score_unrestricted_universe = None
 
 load_dotenv()
 

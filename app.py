@@ -13,7 +13,17 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime, date
 from src.db import get_db
-from src.regime_engine import update_all_regimes, SLEEVE_CONFIG, UNRESTRICTED_UNIVERSE, score_unrestricted_universe
+try:
+    from src.regime_engine import update_all_regimes, SLEEVE_CONFIG, UNRESTRICTED_UNIVERSE, score_unrestricted_universe
+except ImportError:
+    try:
+        from src import update_all_regimes, SLEEVE_CONFIG, UNRESTRICTED_UNIVERSE, score_unrestricted_universe
+    except ImportError:
+        import src.regime_engine as _re
+        update_all_regimes = getattr(_re, "update_all_regimes", None)
+        SLEEVE_CONFIG = getattr(_re, "SLEEVE_CONFIG", {})
+        UNRESTRICTED_UNIVERSE = getattr(_re, "UNRESTRICTED_UNIVERSE", {})
+        score_unrestricted_universe = getattr(_re, "score_unrestricted_universe", None)
 from src.paper_ledger import evaluate_tactical_decisions, calculate_friction_and_drag, get_dual_ledger_holdings, get_live_forward_challenge
 from src.telegram_bot import format_tactical_alert, send_telegram_alert
 from src.backtester import run_five_year_backtest

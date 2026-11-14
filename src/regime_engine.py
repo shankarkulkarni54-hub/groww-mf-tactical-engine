@@ -57,6 +57,371 @@ SLEEVE_CONFIG = {
 }
 
 
+__all__ = [
+    "SLEEVE_CONFIG",
+    "UNRESTRICTED_UNIVERSE",
+    "fetch_universe_navs",
+    "get_universe_nav_on",
+    "score_unrestricted_universe",
+    "compute_sleeve_regime",
+    "update_all_regimes"
+]
+
+# =====================================================================
+# UNRESTRICTED INDIAN DIRECT MUTUAL FUND UNIVERSE & AI ADVISOR
+# =====================================================================
+
+UNRESTRICTED_UNIVERSE: Dict[str, Dict[str, Any]] = {
+    "UTI_NIFTY50": {
+        "name": "UTI Nifty 50 Index Fund Direct Growth",
+        "short_name": "UTI Nifty 50 Index",
+        "amfi_code": 120716,
+        "category": "EQUITY",
+        "sub_category": "Core Large Cap",
+        "benchmark": "^NSEI",
+        "exit_load_days": 0,
+        "exit_load_pct": 0.0,
+        "tax_category": "DOMESTIC_EQUITY"
+    },
+    "PPFC": {
+        "name": "Parag Parikh Flexi Cap Fund Direct Growth",
+        "short_name": "Parag Parikh Flexi Cap",
+        "amfi_code": 122639,
+        "category": "EQUITY",
+        "sub_category": "Core Flexi Cap",
+        "benchmark": "^CRSLDX",
+        "exit_load_days": 365,
+        "exit_load_pct": 2.0,
+        "tax_category": "DOMESTIC_EQUITY"
+    },
+    "MOMC": {
+        "name": "Motilal Oswal Midcap Fund Direct Growth",
+        "short_name": "Motilal Oswal Midcap",
+        "amfi_code": 127042,
+        "category": "EQUITY",
+        "sub_category": "Cap Midcap",
+        "benchmark": "^NSEMDCP50",
+        "exit_load_days": 365,
+        "exit_load_pct": 1.0,
+        "tax_category": "DOMESTIC_EQUITY"
+    },
+    "NISC": {
+        "name": "Nippon India Small Cap Fund Direct Growth",
+        "short_name": "Nippon India Small Cap",
+        "amfi_code": 118778,
+        "category": "EQUITY",
+        "sub_category": "Cap Smallcap",
+        "benchmark": "^CNXSC",
+        "exit_load_days": 365,
+        "exit_load_pct": 1.0,
+        "tax_category": "DOMESTIC_EQUITY"
+    },
+    "TATA_TECH": {
+        "name": "Tata Digital India Fund Direct Growth",
+        "short_name": "Tata Digital India (IT)",
+        "amfi_code": 135800,
+        "category": "EQUITY",
+        "sub_category": "Sector IT / Tech",
+        "benchmark": "^CNXIT",
+        "exit_load_days": 30,
+        "exit_load_pct": 0.25,
+        "tax_category": "DOMESTIC_EQUITY"
+    },
+    "NIPPON_PHARMA": {
+        "name": "Nippon India Pharma Fund Direct Growth",
+        "short_name": "Nippon India Pharma",
+        "amfi_code": 118759,
+        "category": "EQUITY",
+        "sub_category": "Sector Healthcare / Pharma",
+        "benchmark": "^CNXPHARMA",
+        "exit_load_days": 30,
+        "exit_load_pct": 0.25,
+        "tax_category": "DOMESTIC_EQUITY"
+    },
+    "NIPPON_BANK": {
+        "name": "Nippon India Banking & Financial Services Direct Growth",
+        "short_name": "Nippon Banking & Fin",
+        "amfi_code": 118589,
+        "category": "EQUITY",
+        "sub_category": "Sector Banking & Fin",
+        "benchmark": "^NSEBANK",
+        "exit_load_days": 30,
+        "exit_load_pct": 0.25,
+        "tax_category": "DOMESTIC_EQUITY"
+    },
+    "UTI_AUTO": {
+        "name": "UTI Transportation and Logistics Fund Direct Growth",
+        "short_name": "UTI Transportation & Auto",
+        "amfi_code": 120731,
+        "category": "EQUITY",
+        "sub_category": "Sector Auto & Mobility",
+        "benchmark": "^CNXAUTO",
+        "exit_load_days": 30,
+        "exit_load_pct": 0.50,
+        "tax_category": "DOMESTIC_EQUITY"
+    },
+    "ICICI_FMCG": {
+        "name": "ICICI Prudential FMCG Fund Direct Growth",
+        "short_name": "ICICI Prudential FMCG",
+        "amfi_code": 120587,
+        "category": "EQUITY",
+        "sub_category": "Sector FMCG & Consumption",
+        "benchmark": "^CNXFMCG",
+        "exit_load_days": 15,
+        "exit_load_pct": 1.0,
+        "tax_category": "DOMESTIC_EQUITY"
+    },
+    "ICICI_INFRA": {
+        "name": "ICICI Prudential Infrastructure Fund Direct Growth",
+        "short_name": "ICICI Prudential Infrastructure",
+        "amfi_code": 120621,
+        "category": "EQUITY",
+        "sub_category": "Sector Infra / Capital Goods",
+        "benchmark": "^CNXINFRA",
+        "exit_load_days": 15,
+        "exit_load_pct": 1.0,
+        "tax_category": "DOMESTIC_EQUITY"
+    },
+    "SBI_GOLD": {
+        "name": "SBI Gold Fund Direct Growth",
+        "short_name": "SBI Gold Fund",
+        "amfi_code": 119788,
+        "category": "COMMODITY",
+        "sub_category": "Precious Metals (Gold)",
+        "benchmark": "GC=F",
+        "exit_load_days": 15,
+        "exit_load_pct": 1.0,
+        "tax_category": "OTHER_COMMODITY"
+    },
+    "EDEL_USTECH": {
+        "name": "Edelweiss US Technology Equity FoF Direct Growth",
+        "short_name": "Edelweiss US Tech FoF",
+        "amfi_code": 148063,
+        "category": "INTERNATIONAL",
+        "sub_category": "Global Tech (US NDX)",
+        "benchmark": "^NDX",
+        "exit_load_days": 30,
+        "exit_load_pct": 1.0,
+        "tax_category": "FOREIGN_EQUITY_FOF"
+    },
+    "NIPPON_LIQUID": {
+        "name": "Nippon India Liquid Fund Direct Growth",
+        "short_name": "Nippon India Liquid (Cash)",
+        "amfi_code": 118701,
+        "category": "CASH",
+        "sub_category": "Defensive Cash Reserve",
+        "benchmark": "TREPS",
+        "exit_load_days": 7,
+        "exit_load_pct": 0.005,
+        "tax_category": "DEBT_LIQUID"
+    }
+}
+
+_UNRESTRICTED_NAV_CACHE: Dict[int, Dict[str, float]] = {}
+
+
+def fetch_universe_navs(force_refresh: bool = False) -> Dict[str, Dict[str, float]]:
+    """Fetches daily NAVs for all 13 universe funds from mfapi.in."""
+    global _UNRESTRICTED_NAV_CACHE
+    result = {}
+    for key, meta in UNRESTRICTED_UNIVERSE.items():
+        code = meta["amfi_code"]
+        if not force_refresh and code in _UNRESTRICTED_NAV_CACHE:
+            result[key] = _UNRESTRICTED_NAV_CACHE[code]
+            continue
+        try:
+            r = requests.get(f"https://api.mfapi.in/mf/{code}", timeout=10)
+            data = r.json().get("data", [])
+            d_dict = {}
+            for item in data:
+                pts = item.get("date", "").split("-")
+                if len(pts) == 3:
+                    iso = f"{pts[2]}-{pts[1]}-{pts[0]}"
+                    val = float(item.get("nav", 0))
+                    if val > 0:
+                        d_dict[iso] = val
+            _UNRESTRICTED_NAV_CACHE[code] = d_dict
+            result[key] = d_dict
+        except Exception as e:
+            print(f"[RegimeEngine] Warning: Could not fetch NAV for {key} ({code}): {e}")
+            result[key] = _UNRESTRICTED_NAV_CACHE.get(code, {})
+    return result
+
+
+def get_universe_nav_on(nav_dict: Dict[str, float], target_date: date) -> float:
+    """Gets NAV on or before target date."""
+    curr = target_date
+    for _ in range(12):
+        iso = curr.isoformat()
+        if iso in nav_dict:
+            return nav_dict[iso]
+        curr -= timedelta(days=1)
+    if nav_dict:
+        sorted_keys = sorted(nav_dict.keys())
+        if target_date.isoformat() < sorted_keys[0]:
+            return nav_dict[sorted_keys[0]]
+        return nav_dict[sorted_keys[-1]]
+    return 100.0
+
+
+def score_unrestricted_universe(
+    as_of_date: Optional[date] = None,
+    navs_dict: Optional[Dict[str, Dict[str, float]]] = None
+) -> Dict[str, Any]:
+    """
+    Evaluates and ranks all 13 funds in the Unrestricted Direct MF Universe.
+    Computes 30-day relative strength vs Nifty 50, 90-day momentum, 200-DMA trend,
+    and generates plain-English AI theses for monthly SIP allocation.
+    """
+    if as_of_date is None:
+        as_of_date = date.today()
+    if navs_dict is None:
+        navs_dict = fetch_universe_navs()
+
+    # Nifty 50 benchmark
+    nifty_now = get_universe_nav_on(navs_dict.get("UTI_NIFTY50", {}), as_of_date)
+    nifty_30 = get_universe_nav_on(navs_dict.get("UTI_NIFTY50", {}), as_of_date - timedelta(days=30))
+    nifty_90 = get_universe_nav_on(navs_dict.get("UTI_NIFTY50", {}), as_of_date - timedelta(days=90))
+    nifty_200 = get_universe_nav_on(navs_dict.get("UTI_NIFTY50", {}), as_of_date - timedelta(days=200))
+
+    nifty_mom30 = ((nifty_now - nifty_30) / nifty_30 * 100.0) if nifty_30 > 0 else 0.0
+    nifty_mom90 = ((nifty_now - nifty_90) / nifty_90 * 100.0) if nifty_90 > 0 else 0.0
+    nifty_dma_dist = ((nifty_now - nifty_200) / nifty_200 * 100.0) if nifty_200 > 0 else 0.0
+
+    fund_evaluations = {}
+
+    for key, meta in UNRESTRICTED_UNIVERSE.items():
+        if key == "NIPPON_LIQUID":
+            fund_evaluations[key] = {
+                "key": key,
+                "name": meta["name"],
+                "short_name": meta["short_name"],
+                "category": meta["category"],
+                "sub_category": meta["sub_category"],
+                "score": 30.0,
+                "mom_30": 0.53,  # ~6.5% annualized
+                "mom_90": 1.60,
+                "dma_dist": 0.0,
+                "rs_30": round(0.53 - nifty_mom30, 2),
+                "rs_90": round(1.60 - nifty_mom90, 2),
+                "current_nav": get_universe_nav_on(navs_dict.get(key, {}), as_of_date),
+                "status": "DEFENSIVE_CASH",
+                "thesis": "Protected liquid yield (~6.5% p.a.). Zero equity volatility, deployed during severe market drawdowns."
+            }
+            continue
+
+        f_navs = navs_dict.get(key, {})
+        n_now = get_universe_nav_on(f_navs, as_of_date)
+        n_30 = get_universe_nav_on(f_navs, as_of_date - timedelta(days=30))
+        n_90 = get_universe_nav_on(f_navs, as_of_date - timedelta(days=90))
+        n_200 = get_universe_nav_on(f_navs, as_of_date - timedelta(days=200))
+
+        mom_30 = ((n_now - n_30) / n_30 * 100.0) if n_30 > 0 else 0.0
+        mom_90 = ((n_now - n_90) / n_90 * 100.0) if n_90 > 0 else 0.0
+        dma_dist = ((n_now - n_200) / n_200 * 100.0) if n_200 > 0 else 0.0
+
+        rs_30 = mom_30 - nifty_mom30
+        rs_90 = mom_90 - nifty_mom90
+
+        trend_bonus = 10.0 if dma_dist > 0 else -15.0
+        raw_score = 50.0 + (mom_90 * 1.5) + (rs_30 * 2.0) + trend_bonus
+        final_score = max(5.0, min(98.0, round(raw_score, 1)))
+
+        status = "BULLISH" if final_score >= 60.0 else ("CAUTION" if final_score >= 40.0 else "DEFENSIVE")
+
+        # Synthesize plain-English AI thesis
+        cat = meta["sub_category"]
+        if dma_dist > 5.0 and rs_30 >= 0:
+            thesis = f"Strong leadership in {cat}. 30d RS vs Nifty: {rs_30:+.1f}%, 90d momentum: {mom_90:+.1f}%, trading {dma_dist:+.1f}% above 200-DMA."
+        elif dma_dist > 0:
+            thesis = f"Healthy uptrend in {cat} above 200-DMA ({dma_dist:+.1f}%). 90d gain: {mom_90:+.1f}%, 30d RS: {rs_30:+.1f}%."
+        elif key == "SBI_GOLD" and mom_90 > 5.0:
+            thesis = f"Precious metals showing robust hedge momentum (+{mom_90:.1f}% in 90d). Strong safe-haven demand."
+        else:
+            thesis = f"Consolidating/lagging in {cat} ({dma_dist:+.1f}% vs 200-DMA). 30d RS: {rs_30:+.1f}%, 90d momentum: {mom_90:+.1f}%."
+
+        fund_evaluations[key] = {
+            "key": key,
+            "name": meta["name"],
+            "short_name": meta["short_name"],
+            "category": meta["category"],
+            "sub_category": meta["sub_category"],
+            "score": final_score,
+            "mom_30": round(mom_30, 2),
+            "mom_90": round(mom_90, 2),
+            "dma_dist": round(dma_dist, 2),
+            "rs_30": round(rs_30, 2),
+            "rs_90": round(rs_90, 2),
+            "current_nav": round(n_now, 2),
+            "status": status,
+            "thesis": thesis
+        }
+
+    # Rank funds descending by score
+    ranked_keys = sorted(fund_evaluations.keys(), key=lambda k: fund_evaluations[k]["score"], reverse=True)
+
+    top1_key = ranked_keys[0]
+    top2_key = ranked_keys[1]
+
+    # Market crash check: if Nifty < 200-DMA by -5% and top equity score < 35
+    if nifty_dma_dist < -5.0 and fund_evaluations[top1_key]["score"] < 35.0:
+        top1_key = "SBI_GOLD" if fund_evaluations["SBI_GOLD"]["score"] >= 40.0 else "NIPPON_LIQUID"
+        top2_key = "NIPPON_LIQUID"
+        allocation_mode = "DEFENSIVE_CASH_OR_GOLD"
+    else:
+        allocation_mode = "EQUITY_MOMENTUM_LEADERSHIP"
+
+    top_picks = [
+        {
+            "fund_key": top1_key,
+            "name": fund_evaluations[top1_key]["name"],
+            "short_name": fund_evaluations[top1_key]["short_name"],
+            "allocation_amount": 25000.0,
+            "score": fund_evaluations[top1_key]["score"],
+            "category": fund_evaluations[top1_key]["category"],
+            "sub_category": fund_evaluations[top1_key]["sub_category"],
+            "thesis": fund_evaluations[top1_key]["thesis"]
+        },
+        {
+            "fund_key": top2_key,
+            "name": fund_evaluations[top2_key]["name"],
+            "short_name": fund_evaluations[top2_key]["short_name"],
+            "allocation_amount": 25000.0,
+            "score": fund_evaluations[top2_key]["score"],
+            "category": fund_evaluations[top2_key]["category"],
+            "sub_category": fund_evaluations[top2_key]["sub_category"],
+            "thesis": fund_evaluations[top2_key]["thesis"]
+        }
+    ]
+
+    p1 = top_picks[0]
+    p2 = top_picks[1]
+    thesis_summary = (
+        f"AI Advisor deploys ₹50k monthly SIP into top momentum leaders: "
+        f"₹25k in {p1['short_name']} (Score {p1['score']:.0f}) and ₹25k in {p2['short_name']} (Score {p2['score']:.0f}). "
+        f"{p1['short_name']} shows {p1['sub_category']} strength ({fund_evaluations[top1_key]['thesis']}), "
+        f"while {p2['short_name']} leads in {p2['sub_category']} ({fund_evaluations[top2_key]['thesis']})."
+    )
+
+    return {
+        "as_of_date": str(as_of_date),
+        "allocation_mode": allocation_mode,
+        "nifty_benchmark": {
+            "current_nav": round(nifty_now, 2),
+            "mom_30": round(nifty_mom30, 2),
+            "mom_90": round(nifty_mom90, 2),
+            "dma_200_dist": round(nifty_dma_dist, 2)
+        },
+        "top_picks": top_picks,
+        "thesis_summary": thesis_summary,
+        "ranked_funds": [fund_evaluations[k] for k in ranked_keys]
+    }
+
+
+
+
+
+
 def fetch_ticker_data_with_fallbacks(tickers: List[str], period: str = "2y") -> Tuple[Optional[pd.DataFrame], Optional[str]]:
     """Fetches price history from primary ticker or fallbacks if primary is empty."""
     for t in tickers:
@@ -443,357 +808,6 @@ def update_all_regimes(as_of_date: date = None) -> Dict[str, Dict[str, Any]]:
 
     db.record_regime_scores(records_to_save)
     return results
-
-
-# =====================================================================
-# UNRESTRICTED INDIAN DIRECT MUTUAL FUND UNIVERSE & AI ADVISOR
-# =====================================================================
-
-UNRESTRICTED_UNIVERSE: Dict[str, Dict[str, Any]] = {
-    "UTI_NIFTY50": {
-        "name": "UTI Nifty 50 Index Fund Direct Growth",
-        "short_name": "UTI Nifty 50 Index",
-        "amfi_code": 120716,
-        "category": "EQUITY",
-        "sub_category": "Core Large Cap",
-        "benchmark": "^NSEI",
-        "exit_load_days": 0,
-        "exit_load_pct": 0.0,
-        "tax_category": "DOMESTIC_EQUITY"
-    },
-    "PPFC": {
-        "name": "Parag Parikh Flexi Cap Fund Direct Growth",
-        "short_name": "Parag Parikh Flexi Cap",
-        "amfi_code": 122639,
-        "category": "EQUITY",
-        "sub_category": "Core Flexi Cap",
-        "benchmark": "^CRSLDX",
-        "exit_load_days": 365,
-        "exit_load_pct": 2.0,
-        "tax_category": "DOMESTIC_EQUITY"
-    },
-    "MOMC": {
-        "name": "Motilal Oswal Midcap Fund Direct Growth",
-        "short_name": "Motilal Oswal Midcap",
-        "amfi_code": 127042,
-        "category": "EQUITY",
-        "sub_category": "Cap Midcap",
-        "benchmark": "^NSEMDCP50",
-        "exit_load_days": 365,
-        "exit_load_pct": 1.0,
-        "tax_category": "DOMESTIC_EQUITY"
-    },
-    "NISC": {
-        "name": "Nippon India Small Cap Fund Direct Growth",
-        "short_name": "Nippon India Small Cap",
-        "amfi_code": 118778,
-        "category": "EQUITY",
-        "sub_category": "Cap Smallcap",
-        "benchmark": "^CNXSC",
-        "exit_load_days": 365,
-        "exit_load_pct": 1.0,
-        "tax_category": "DOMESTIC_EQUITY"
-    },
-    "TATA_TECH": {
-        "name": "Tata Digital India Fund Direct Growth",
-        "short_name": "Tata Digital India (IT)",
-        "amfi_code": 135800,
-        "category": "EQUITY",
-        "sub_category": "Sector IT / Tech",
-        "benchmark": "^CNXIT",
-        "exit_load_days": 30,
-        "exit_load_pct": 0.25,
-        "tax_category": "DOMESTIC_EQUITY"
-    },
-    "NIPPON_PHARMA": {
-        "name": "Nippon India Pharma Fund Direct Growth",
-        "short_name": "Nippon India Pharma",
-        "amfi_code": 118759,
-        "category": "EQUITY",
-        "sub_category": "Sector Healthcare / Pharma",
-        "benchmark": "^CNXPHARMA",
-        "exit_load_days": 30,
-        "exit_load_pct": 0.25,
-        "tax_category": "DOMESTIC_EQUITY"
-    },
-    "NIPPON_BANK": {
-        "name": "Nippon India Banking & Financial Services Direct Growth",
-        "short_name": "Nippon Banking & Fin",
-        "amfi_code": 118589,
-        "category": "EQUITY",
-        "sub_category": "Sector Banking & Fin",
-        "benchmark": "^NSEBANK",
-        "exit_load_days": 30,
-        "exit_load_pct": 0.25,
-        "tax_category": "DOMESTIC_EQUITY"
-    },
-    "UTI_AUTO": {
-        "name": "UTI Transportation and Logistics Fund Direct Growth",
-        "short_name": "UTI Transportation & Auto",
-        "amfi_code": 120731,
-        "category": "EQUITY",
-        "sub_category": "Sector Auto & Mobility",
-        "benchmark": "^CNXAUTO",
-        "exit_load_days": 30,
-        "exit_load_pct": 0.50,
-        "tax_category": "DOMESTIC_EQUITY"
-    },
-    "ICICI_FMCG": {
-        "name": "ICICI Prudential FMCG Fund Direct Growth",
-        "short_name": "ICICI Prudential FMCG",
-        "amfi_code": 120587,
-        "category": "EQUITY",
-        "sub_category": "Sector FMCG & Consumption",
-        "benchmark": "^CNXFMCG",
-        "exit_load_days": 15,
-        "exit_load_pct": 1.0,
-        "tax_category": "DOMESTIC_EQUITY"
-    },
-    "ICICI_INFRA": {
-        "name": "ICICI Prudential Infrastructure Fund Direct Growth",
-        "short_name": "ICICI Prudential Infrastructure",
-        "amfi_code": 120621,
-        "category": "EQUITY",
-        "sub_category": "Sector Infra / Capital Goods",
-        "benchmark": "^CNXINFRA",
-        "exit_load_days": 15,
-        "exit_load_pct": 1.0,
-        "tax_category": "DOMESTIC_EQUITY"
-    },
-    "SBI_GOLD": {
-        "name": "SBI Gold Fund Direct Growth",
-        "short_name": "SBI Gold Fund",
-        "amfi_code": 119788,
-        "category": "COMMODITY",
-        "sub_category": "Precious Metals (Gold)",
-        "benchmark": "GC=F",
-        "exit_load_days": 15,
-        "exit_load_pct": 1.0,
-        "tax_category": "OTHER_COMMODITY"
-    },
-    "EDEL_USTECH": {
-        "name": "Edelweiss US Technology Equity FoF Direct Growth",
-        "short_name": "Edelweiss US Tech FoF",
-        "amfi_code": 148063,
-        "category": "INTERNATIONAL",
-        "sub_category": "Global Tech (US NDX)",
-        "benchmark": "^NDX",
-        "exit_load_days": 30,
-        "exit_load_pct": 1.0,
-        "tax_category": "FOREIGN_EQUITY_FOF"
-    },
-    "NIPPON_LIQUID": {
-        "name": "Nippon India Liquid Fund Direct Growth",
-        "short_name": "Nippon India Liquid (Cash)",
-        "amfi_code": 118701,
-        "category": "CASH",
-        "sub_category": "Defensive Cash Reserve",
-        "benchmark": "TREPS",
-        "exit_load_days": 7,
-        "exit_load_pct": 0.005,
-        "tax_category": "DEBT_LIQUID"
-    }
-}
-
-_UNRESTRICTED_NAV_CACHE: Dict[int, Dict[str, float]] = {}
-
-
-def fetch_universe_navs(force_refresh: bool = False) -> Dict[str, Dict[str, float]]:
-    """Fetches daily NAVs for all 13 universe funds from mfapi.in."""
-    global _UNRESTRICTED_NAV_CACHE
-    result = {}
-    for key, meta in UNRESTRICTED_UNIVERSE.items():
-        code = meta["amfi_code"]
-        if not force_refresh and code in _UNRESTRICTED_NAV_CACHE:
-            result[key] = _UNRESTRICTED_NAV_CACHE[code]
-            continue
-        try:
-            r = requests.get(f"https://api.mfapi.in/mf/{code}", timeout=10)
-            data = r.json().get("data", [])
-            d_dict = {}
-            for item in data:
-                pts = item.get("date", "").split("-")
-                if len(pts) == 3:
-                    iso = f"{pts[2]}-{pts[1]}-{pts[0]}"
-                    val = float(item.get("nav", 0))
-                    if val > 0:
-                        d_dict[iso] = val
-            _UNRESTRICTED_NAV_CACHE[code] = d_dict
-            result[key] = d_dict
-        except Exception as e:
-            print(f"[RegimeEngine] Warning: Could not fetch NAV for {key} ({code}): {e}")
-            result[key] = _UNRESTRICTED_NAV_CACHE.get(code, {})
-    return result
-
-
-def get_universe_nav_on(nav_dict: Dict[str, float], target_date: date) -> float:
-    """Gets NAV on or before target date."""
-    curr = target_date
-    for _ in range(12):
-        iso = curr.isoformat()
-        if iso in nav_dict:
-            return nav_dict[iso]
-        curr -= timedelta(days=1)
-    if nav_dict:
-        sorted_keys = sorted(nav_dict.keys())
-        if target_date.isoformat() < sorted_keys[0]:
-            return nav_dict[sorted_keys[0]]
-        return nav_dict[sorted_keys[-1]]
-    return 100.0
-
-
-def score_unrestricted_universe(
-    as_of_date: Optional[date] = None,
-    navs_dict: Optional[Dict[str, Dict[str, float]]] = None
-) -> Dict[str, Any]:
-    """
-    Evaluates and ranks all 13 funds in the Unrestricted Direct MF Universe.
-    Computes 30-day relative strength vs Nifty 50, 90-day momentum, 200-DMA trend,
-    and generates plain-English AI theses for monthly SIP allocation.
-    """
-    if as_of_date is None:
-        as_of_date = date.today()
-    if navs_dict is None:
-        navs_dict = fetch_universe_navs()
-
-    # Nifty 50 benchmark
-    nifty_now = get_universe_nav_on(navs_dict.get("UTI_NIFTY50", {}), as_of_date)
-    nifty_30 = get_universe_nav_on(navs_dict.get("UTI_NIFTY50", {}), as_of_date - timedelta(days=30))
-    nifty_90 = get_universe_nav_on(navs_dict.get("UTI_NIFTY50", {}), as_of_date - timedelta(days=90))
-    nifty_200 = get_universe_nav_on(navs_dict.get("UTI_NIFTY50", {}), as_of_date - timedelta(days=200))
-
-    nifty_mom30 = ((nifty_now - nifty_30) / nifty_30 * 100.0) if nifty_30 > 0 else 0.0
-    nifty_mom90 = ((nifty_now - nifty_90) / nifty_90 * 100.0) if nifty_90 > 0 else 0.0
-    nifty_dma_dist = ((nifty_now - nifty_200) / nifty_200 * 100.0) if nifty_200 > 0 else 0.0
-
-    fund_evaluations = {}
-
-    for key, meta in UNRESTRICTED_UNIVERSE.items():
-        if key == "NIPPON_LIQUID":
-            fund_evaluations[key] = {
-                "key": key,
-                "name": meta["name"],
-                "short_name": meta["short_name"],
-                "category": meta["category"],
-                "sub_category": meta["sub_category"],
-                "score": 30.0,
-                "mom_30": 0.53,  # ~6.5% annualized
-                "mom_90": 1.60,
-                "dma_dist": 0.0,
-                "rs_30": round(0.53 - nifty_mom30, 2),
-                "rs_90": round(1.60 - nifty_mom90, 2),
-                "current_nav": get_universe_nav_on(navs_dict.get(key, {}), as_of_date),
-                "status": "DEFENSIVE_CASH",
-                "thesis": "Protected liquid yield (~6.5% p.a.). Zero equity volatility, deployed during severe market drawdowns."
-            }
-            continue
-
-        f_navs = navs_dict.get(key, {})
-        n_now = get_universe_nav_on(f_navs, as_of_date)
-        n_30 = get_universe_nav_on(f_navs, as_of_date - timedelta(days=30))
-        n_90 = get_universe_nav_on(f_navs, as_of_date - timedelta(days=90))
-        n_200 = get_universe_nav_on(f_navs, as_of_date - timedelta(days=200))
-
-        mom_30 = ((n_now - n_30) / n_30 * 100.0) if n_30 > 0 else 0.0
-        mom_90 = ((n_now - n_90) / n_90 * 100.0) if n_90 > 0 else 0.0
-        dma_dist = ((n_now - n_200) / n_200 * 100.0) if n_200 > 0 else 0.0
-
-        rs_30 = mom_30 - nifty_mom30
-        rs_90 = mom_90 - nifty_mom90
-
-        trend_bonus = 10.0 if dma_dist > 0 else -15.0
-        raw_score = 50.0 + (mom_90 * 1.5) + (rs_30 * 2.0) + trend_bonus
-        final_score = max(5.0, min(98.0, round(raw_score, 1)))
-
-        status = "BULLISH" if final_score >= 60.0 else ("CAUTION" if final_score >= 40.0 else "DEFENSIVE")
-
-        # Synthesize plain-English AI thesis
-        cat = meta["sub_category"]
-        if dma_dist > 5.0 and rs_30 >= 0:
-            thesis = f"Strong leadership in {cat}. 30d RS vs Nifty: {rs_30:+.1f}%, 90d momentum: {mom_90:+.1f}%, trading {dma_dist:+.1f}% above 200-DMA."
-        elif dma_dist > 0:
-            thesis = f"Healthy uptrend in {cat} above 200-DMA ({dma_dist:+.1f}%). 90d gain: {mom_90:+.1f}%, 30d RS: {rs_30:+.1f}%."
-        elif key == "SBI_GOLD" and mom_90 > 5.0:
-            thesis = f"Precious metals showing robust hedge momentum (+{mom_90:.1f}% in 90d). Strong safe-haven demand."
-        else:
-            thesis = f"Consolidating/lagging in {cat} ({dma_dist:+.1f}% vs 200-DMA). 30d RS: {rs_30:+.1f}%, 90d momentum: {mom_90:+.1f}%."
-
-        fund_evaluations[key] = {
-            "key": key,
-            "name": meta["name"],
-            "short_name": meta["short_name"],
-            "category": meta["category"],
-            "sub_category": meta["sub_category"],
-            "score": final_score,
-            "mom_30": round(mom_30, 2),
-            "mom_90": round(mom_90, 2),
-            "dma_dist": round(dma_dist, 2),
-            "rs_30": round(rs_30, 2),
-            "rs_90": round(rs_90, 2),
-            "current_nav": round(n_now, 2),
-            "status": status,
-            "thesis": thesis
-        }
-
-    # Rank funds descending by score
-    ranked_keys = sorted(fund_evaluations.keys(), key=lambda k: fund_evaluations[k]["score"], reverse=True)
-
-    top1_key = ranked_keys[0]
-    top2_key = ranked_keys[1]
-
-    # Market crash check: if Nifty < 200-DMA by -5% and top equity score < 35
-    if nifty_dma_dist < -5.0 and fund_evaluations[top1_key]["score"] < 35.0:
-        top1_key = "SBI_GOLD" if fund_evaluations["SBI_GOLD"]["score"] >= 40.0 else "NIPPON_LIQUID"
-        top2_key = "NIPPON_LIQUID"
-        allocation_mode = "DEFENSIVE_CASH_OR_GOLD"
-    else:
-        allocation_mode = "EQUITY_MOMENTUM_LEADERSHIP"
-
-    top_picks = [
-        {
-            "fund_key": top1_key,
-            "name": fund_evaluations[top1_key]["name"],
-            "short_name": fund_evaluations[top1_key]["short_name"],
-            "allocation_amount": 25000.0,
-            "score": fund_evaluations[top1_key]["score"],
-            "category": fund_evaluations[top1_key]["category"],
-            "sub_category": fund_evaluations[top1_key]["sub_category"],
-            "thesis": fund_evaluations[top1_key]["thesis"]
-        },
-        {
-            "fund_key": top2_key,
-            "name": fund_evaluations[top2_key]["name"],
-            "short_name": fund_evaluations[top2_key]["short_name"],
-            "allocation_amount": 25000.0,
-            "score": fund_evaluations[top2_key]["score"],
-            "category": fund_evaluations[top2_key]["category"],
-            "sub_category": fund_evaluations[top2_key]["sub_category"],
-            "thesis": fund_evaluations[top2_key]["thesis"]
-        }
-    ]
-
-    p1 = top_picks[0]
-    p2 = top_picks[1]
-    thesis_summary = (
-        f"AI Advisor deploys ₹50k monthly SIP into top momentum leaders: "
-        f"₹25k in {p1['short_name']} (Score {p1['score']:.0f}) and ₹25k in {p2['short_name']} (Score {p2['score']:.0f}). "
-        f"{p1['short_name']} shows {p1['sub_category']} strength ({fund_evaluations[top1_key]['thesis']}), "
-        f"while {p2['short_name']} leads in {p2['sub_category']} ({fund_evaluations[top2_key]['thesis']})."
-    )
-
-    return {
-        "as_of_date": str(as_of_date),
-        "allocation_mode": allocation_mode,
-        "nifty_benchmark": {
-            "current_nav": round(nifty_now, 2),
-            "mom_30": round(nifty_mom30, 2),
-            "mom_90": round(nifty_mom90, 2),
-            "dma_200_dist": round(nifty_dma_dist, 2)
-        },
-        "top_picks": top_picks,
-        "thesis_summary": thesis_summary,
-        "ranked_funds": [fund_evaluations[k] for k in ranked_keys]
-    }
 
 
 if __name__ == "__main__":

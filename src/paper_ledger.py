@@ -11,10 +11,16 @@ import requests
 from datetime import date, datetime, timedelta
 from typing import Dict, Any, List, Optional, Tuple
 from src.db import get_db
-from src.regime_engine import (
-    score_unrestricted_universe,
-    UNRESTRICTED_UNIVERSE
-)
+try:
+    from src.regime_engine import (
+        score_unrestricted_universe,
+        UNRESTRICTED_UNIVERSE
+    )
+except ImportError:
+    from src import (
+        score_unrestricted_universe,
+        UNRESTRICTED_UNIVERSE
+    )
 
 # Scheme Code Mapping
 SCHEME_CODES = {
