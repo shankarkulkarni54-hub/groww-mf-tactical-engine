@@ -6,6 +6,7 @@ import sys
 # Ensure repository root is on sys.path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import textwrap
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -140,6 +141,12 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
+def render_html(html_str: str):
+    """Renders HTML in Streamlit stripping leading whitespace from all lines so Markdown doesn't parse it as code."""
+    cleaned = "\n".join(line.strip() for line in html_str.splitlines() if line.strip())
+    st.markdown(cleaned, unsafe_allow_html=True)
+
+
 def init_app():
     """Initializes and caches base state."""
     db = get_db()
@@ -218,66 +225,67 @@ tot_eq = decisions.get("total_sip_equity", 30000.0)
 tot_cash = decisions.get("total_sip_cash", 20000.0)
 sip_decs = decisions.get("sip_decisions", {})
 
-st.markdown(f"""
+sip_guide_html = f"""
 <div class='metric-card' style='border: 1px solid {guide_border}; background: linear-gradient(135deg, #131d34 0%, #1a2544 100%); padding: 16px 18px; margin-bottom: 16px;'>
-    <div style='display:flex; justify-content:space-between; align-items:center;'>
-        <div style='font-size:1.02rem; font-weight:700; color:#FFFFFF;'>📅 Monthly SIP Action Guide (3rd of Month)</div>
-        <span class='badge' style='background:#1e3a8a; color:#bfdbfe; font-size:0.75rem;'>₹50,000/Mo Total</span>
-    </div>
-    
-    <div style='margin-top:10px; margin-bottom:12px;'>
-        <div style='display:inline-block; background:{badge_bg}; color:{badge_fg}; border:1px solid {badge_border}; font-size:0.84rem; padding:5px 12px; border-radius:6px; font-weight:700;'>
-            {badge_text}
-        </div>
-    </div>
-
-    <div style='background:rgba(15, 23, 42, 0.65); border:1px solid #334155; border-radius:8px; padding:10px 12px; margin-bottom:12px;'>
-        <div style='font-size:0.72rem; text-transform:uppercase; color:#94a3b8; font-weight:600; letter-spacing:0.5px;'>Next Action Window (Review & Set on Groww)</div>
-        <div style='font-size:0.92rem; font-weight:600; color:#38bdf8; margin-top:2px;'>
-            🗓️ {decisions.get('window_status_label')}
-        </div>
-    </div>
-
-    <div>
-        <div style='font-size:0.72rem; text-transform:uppercase; color:#94a3b8; font-weight:600; margin-bottom:8px;'>₹50k Allocation Split (Governed by 30-Day Rolling Score)</div>
-        
-        <div style='background:rgba(255,255,255,0.03); border-radius:6px; padding:8px 10px; margin-bottom:6px;'>
-            <div style='display:flex; justify-content:space-between; font-size:0.86rem;'>
-                <span><b>Parag Parikh Flexi Cap</b> (₹10k)</span>
-                <span class='badge' style='background:{"#065f46" if sip_decs.get("Parag Parikh Flexi Cap Fund Direct Growth", {}).get("action") == "EQUITY" else "#78350f"}; color:{"#a7f3d0" if sip_decs.get("Parag Parikh Flexi Cap Fund Direct Growth", {}).get("action") == "EQUITY" else "#fde68a"};'>
-                    {sip_decs.get("Parag Parikh Flexi Cap Fund Direct Growth", {}).get("action")} • ₹{sip_decs.get("Parag Parikh Flexi Cap Fund Direct Growth", {}).get("amount", 10000):,.0f}
-                </span>
-            </div>
-            <div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>{sip_decs.get("Parag Parikh Flexi Cap Fund Direct Growth", {}).get("reason", "")}</div>
-        </div>
-
-        <div style='background:rgba(255,255,255,0.03); border-radius:6px; padding:8px 10px; margin-bottom:6px;'>
-            <div style='display:flex; justify-content:space-between; font-size:0.86rem;'>
-                <span><b>Motilal Oswal Midcap</b> (₹20k)</span>
-                <span class='badge' style='background:{"#065f46" if sip_decs.get("Motilal Oswal Midcap Fund Direct Growth", {}).get("action") == "EQUITY" else "#78350f"}; color:{"#a7f3d0" if sip_decs.get("Motilal Oswal Midcap Fund Direct Growth", {}).get("action") == "EQUITY" else "#fde68a"};'>
-                    {sip_decs.get("Motilal Oswal Midcap Fund Direct Growth", {}).get("action")} • ₹{sip_decs.get("Motilal Oswal Midcap Fund Direct Growth", {}).get("amount", 20000):,.0f}
-                </span>
-            </div>
-            <div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>{sip_decs.get("Motilal Oswal Midcap Fund Direct Growth", {}).get("reason", "")}</div>
-        </div>
-
-        <div style='background:rgba(255,255,255,0.03); border-radius:6px; padding:8px 10px; margin-bottom:6px;'>
-            <div style='display:flex; justify-content:space-between; font-size:0.86rem;'>
-                <span><b>Nippon India Small Cap</b> (₹20k)</span>
-                <span class='badge' style='background:{"#065f46" if sip_decs.get("Nippon India Small Cap Fund Direct Growth", {}).get("action") == "EQUITY" else "#78350f"}; color:{"#a7f3d0" if sip_decs.get("Nippon India Small Cap Fund Direct Growth", {}).get("action") == "EQUITY" else "#fde68a"};'>
-                    {sip_decs.get("Nippon India Small Cap Fund Direct Growth", {}).get("action")} • ₹{sip_decs.get("Nippon India Small Cap Fund Direct Growth", {}).get("amount", 20000):,.0f}
-                </span>
-            </div>
-            <div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>{sip_decs.get("Nippon India Small Cap Fund Direct Growth", {}).get("reason", "")}</div>
-        </div>
-
-        <div style='display:flex; justify-content:space-between; font-weight:700; font-size:0.86rem; margin-top:10px; padding-top:8px; border-top:1px solid #334155;'>
-            <span class='text-green'>🟢 Equity SIP: ₹{tot_eq:,.0f}</span>
-            <span class='text-amber'>🟡 Liquid / Shadow Cash: ₹{tot_cash:,.0f}</span>
-        </div>
-    </div>
+<div style='display:flex; justify-content:space-between; align-items:center;'>
+<div style='font-size:1.02rem; font-weight:700; color:#FFFFFF;'>📅 Monthly SIP Action Guide (3rd of Month)</div>
+<span class='badge' style='background:#1e3a8a; color:#bfdbfe; font-size:0.75rem;'>₹50,000/Mo Total</span>
 </div>
-""", unsafe_allow_html=True)
+
+<div style='margin-top:10px; margin-bottom:12px;'>
+<div style='display:inline-block; background:{badge_bg}; color:{badge_fg}; border:1px solid {badge_border}; font-size:0.84rem; padding:5px 12px; border-radius:6px; font-weight:700;'>
+{badge_text}
+</div>
+</div>
+
+<div style='background:rgba(15, 23, 42, 0.65); border:1px solid #334155; border-radius:8px; padding:10px 12px; margin-bottom:12px;'>
+<div style='font-size:0.72rem; text-transform:uppercase; color:#94a3b8; font-weight:600; letter-spacing:0.5px;'>Next Action Window (Review & Set on Groww)</div>
+<div style='font-size:0.92rem; font-weight:600; color:#38bdf8; margin-top:2px;'>
+🗓️ {decisions.get('window_status_label')}
+</div>
+</div>
+
+<div>
+<div style='font-size:0.72rem; text-transform:uppercase; color:#94a3b8; font-weight:600; margin-bottom:8px;'>₹50k Allocation Split (Governed by 30-Day Rolling Score)</div>
+
+<div style='background:rgba(255,255,255,0.03); border-radius:6px; padding:8px 10px; margin-bottom:6px;'>
+<div style='display:flex; justify-content:space-between; font-size:0.86rem;'>
+<span><b>Parag Parikh Flexi Cap</b> (₹10k)</span>
+<span class='badge' style='background:{"#065f46" if sip_decs.get("Parag Parikh Flexi Cap Fund Direct Growth", {}).get("action") == "EQUITY" else "#78350f"}; color:{"#a7f3d0" if sip_decs.get("Parag Parikh Flexi Cap Fund Direct Growth", {}).get("action") == "EQUITY" else "#fde68a"};'>
+{sip_decs.get("Parag Parikh Flexi Cap Fund Direct Growth", {}).get("action")} • ₹{sip_decs.get("Parag Parikh Flexi Cap Fund Direct Growth", {}).get("amount", 10000):,.0f}
+</span>
+</div>
+<div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>{sip_decs.get("Parag Parikh Flexi Cap Fund Direct Growth", {}).get("reason", "")}</div>
+</div>
+
+<div style='background:rgba(255,255,255,0.03); border-radius:6px; padding:8px 10px; margin-bottom:6px;'>
+<div style='display:flex; justify-content:space-between; font-size:0.86rem;'>
+<span><b>Motilal Oswal Midcap</b> (₹20k)</span>
+<span class='badge' style='background:{"#065f46" if sip_decs.get("Motilal Oswal Midcap Fund Direct Growth", {}).get("action") == "EQUITY" else "#78350f"}; color:{"#a7f3d0" if sip_decs.get("Motilal Oswal Midcap Fund Direct Growth", {}).get("action") == "EQUITY" else "#fde68a"};'>
+{sip_decs.get("Motilal Oswal Midcap Fund Direct Growth", {}).get("action")} • ₹{sip_decs.get("Motilal Oswal Midcap Fund Direct Growth", {}).get("amount", 20000):,.0f}
+</span>
+</div>
+<div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>{sip_decs.get("Motilal Oswal Midcap Fund Direct Growth", {}).get("reason", "")}</div>
+</div>
+
+<div style='background:rgba(255,255,255,0.03); border-radius:6px; padding:8px 10px; margin-bottom:6px;'>
+<div style='display:flex; justify-content:space-between; font-size:0.86rem;'>
+<span><b>Nippon India Small Cap</b> (₹20k)</span>
+<span class='badge' style='background:{"#065f46" if sip_decs.get("Nippon India Small Cap Fund Direct Growth", {}).get("action") == "EQUITY" else "#78350f"}; color:{"#a7f3d0" if sip_decs.get("Nippon India Small Cap Fund Direct Growth", {}).get("action") == "EQUITY" else "#fde68a"};'>
+{sip_decs.get("Nippon India Small Cap Fund Direct Growth", {}).get("action")} • ₹{sip_decs.get("Nippon India Small Cap Fund Direct Growth", {}).get("amount", 20000):,.0f}
+</span>
+</div>
+<div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>{sip_decs.get("Nippon India Small Cap Fund Direct Growth", {}).get("reason", "")}</div>
+</div>
+
+<div style='display:flex; justify-content:space-between; font-weight:700; font-size:0.86rem; margin-top:10px; padding-top:8px; border-top:1px solid #334155;'>
+<span class='text-green'>🟢 Equity SIP: ₹{tot_eq:,.0f}</span>
+<span class='text-amber'>🟡 Liquid / Shadow Cash: ₹{tot_cash:,.0f}</span>
+</div>
+</div>
+</div>
+"""
+render_html(sip_guide_html)
 
 # --- TOP EXECUTIVE METRICS ---
 tac_val = latest_snap.get("tactical_total_value", 0.0)
@@ -292,7 +300,7 @@ eq_pct = 100.0 - cash_pct
 
 m1, m2 = st.columns(2)
 with m1:
-    st.markdown(f"""
+    render_html(f"""
     <div class='metric-card'>
         <div class='metric-title'>Tactical Net Worth (Ledger A)</div>
         <div class='metric-val'>₹{tac_val:,.0f}</div>
@@ -301,12 +309,12 @@ with m1:
             <span class='text-amber'>{cash_pct:.1f}% Cash</span>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
 with m2:
     alpha_class = "text-green" if alpha_rs >= 0 else "text-red"
     alpha_sign = "+" if alpha_rs >= 0 else ""
-    st.markdown(f"""
+    render_html(f"""
     <div class='metric-card'>
         <div class='metric-title'>Tactical Alpha vs Passive</div>
         <div class='metric-val {alpha_class}'>{alpha_sign}₹{alpha_rs:,.0f}</div>
@@ -314,7 +322,7 @@ with m2:
             <span class='{alpha_class}'>{alpha_sign}{alpha_pct:.2f}%</span> vs Buy & Hold (₹{pas_val:,.0f})
         </div>
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
 # --- TABS FOR MOBILE NAVIGATION ---
 tab_regimes, tab_holdings, tab_chart, tab_trades, tab_settings = st.tabs([
@@ -348,7 +356,7 @@ with tab_regimes:
         vix = s.get("vix", 15.0)
         pe_z = s.get("pe_zscore", 0.0)
 
-        st.markdown(f"""
+        render_html(f"""
         <div class='fund-card' style='border-left: 4px solid {badge_color};'>
             <div style='display:flex; justify-content:space-between; align-items:center;'>
                 <span class='fund-title'>{label}</span>
@@ -384,7 +392,7 @@ with tab_regimes:
                 <span>P/E Z-Score: <b>{pe_z:+.2f}</b></span>
             </div>
         </div>
-        """, unsafe_allow_html=True)
+        """)
 
     # Tactical Rules Reference Card
     with st.expander("ℹ️ Tactical Friction & Re-entry Rules", expanded=False):
@@ -421,7 +429,7 @@ with tab_holdings:
     alpha_sign = "+" if alpha_rs >= 0 else ""
 
     # High-level comparison summary banner
-    st.markdown(f"""
+    render_html(f"""
     <div style='background:linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border:1px solid #334155; border-radius:10px; padding:12px 14px; margin-bottom:14px;'>
         <div style='font-size:0.75rem; text-transform:uppercase; color:#94a3b8; font-weight:700; letter-spacing:0.5px;'>Portfolio Allocation Comparison</div>
         <div style='display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:8px;'>
@@ -441,7 +449,7 @@ with tab_holdings:
             <span style='color:#cbd5e1;'>Shadow Cash Yield: <b style='color:#38bdf8;'>6.5% p.a. (Liquid)</b></span>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
     # 4 Active Fund Cards
     table_rows = []
@@ -473,7 +481,7 @@ with tab_holdings:
             "Tactical Status": item["status_badge"]
         })
 
-        st.markdown(f"""
+        render_html(f"""
         <div class='fund-card'>
             <div style='display:flex; justify-content:space-between; align-items:flex-start;'>
                 <div>
@@ -522,10 +530,10 @@ with tab_holdings:
                 </div>
             </div>
         </div>
-        """, unsafe_allow_html=True)
+        """)
 
     # Shadow Cash Reserve Card
-    st.markdown(f"""
+    render_html(f"""
     <div class='fund-card' style='border-left: 4px solid #38bdf8;'>
         <div style='display:flex; justify-content:space-between; align-items:flex-start;'>
             <div>
@@ -553,7 +561,7 @@ with tab_holdings:
             </div>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+    """)
 
     # Compact Tabular View in Expander
     with st.expander("📊 View Full Comparative Balance Sheet Table", expanded=False):
@@ -597,7 +605,7 @@ with tab_holdings:
             l_color = "text-green" if l_gain >= 0 else "text-red"
             l_sign = "+" if l_gain >= 0 else ""
 
-            st.markdown(f"""
+            render_html(f"""
             <div class='fund-card' style='opacity:0.85; background:#181c24; border:1px solid #334155;'>
                 <div style='display:flex; justify-content:space-between; align-items:center;'>
                     <div>
@@ -615,7 +623,7 @@ with tab_holdings:
                     <span>Invested: <b>₹{l_inv:,.2f}</b></span>
                 </div>
             </div>
-            """, unsafe_allow_html=True)
+            """)
 
 # ==========================================
 # TAB 3: DUAL LEDGER ALPHA CHART
