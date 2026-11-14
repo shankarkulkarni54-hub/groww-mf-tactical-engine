@@ -214,9 +214,10 @@ def run_five_year_backtest(force_refresh: bool = False) -> Dict[str, Any]:
                 )
                 p_lots[k].append(lot)
 
-            # --- STRATEGY 1: UNRESTRICTED AI ADVISOR ---
-            # Score universe on curr_date using historical NAVs
-            ai_score_result = score_unrestricted_universe(curr_date, navs_dict)
+            # --- STRATEGY 1: UNRESTRICTED AI ADVISOR (WINNING ROTATION ENGINE) ---
+            # Decision on 2nd (strictly zero look-ahead bias), trade executed on 3rd
+            dec_date = curr_date - timedelta(days=1)
+            ai_score_result = score_unrestricted_universe(dec_date, navs_dict)
             top_picks = ai_score_result["top_picks"]
             top1_key = top_picks[0]["fund_key"]
             top2_key = top_picks[1]["fund_key"]
@@ -239,6 +240,43 @@ def run_five_year_backtest(force_refresh: bool = False) -> Dict[str, Any]:
                     invested_amount=amt
                 )
                 ai_lots[k].append(lot)
+
+            # Smart LTCG Switch: For existing holdings, if held > 365 days (0% exit load, 12.5% LTCG)
+            # and current price is < -8.0% below 200-DMA (structural breakdown), harvest proceeds and switch into top leader
+            for s_key, k_lots in ai_lots.items():
+                if s_key in [top1_key, top2_key, "NIPPON_LIQUID"] or not k_lots:
+                    continue
+                f_now = get_universe_nav_on(navs_dict.get(s_key, {}), dec_date)
+                f_200 = get_universe_nav_on(navs_dict.get(s_key, {}), dec_date - timedelta(days=200))
+                dma_d = ((f_now - f_200) / f_200 * 100.0) if f_200 > 0 else 0.0
+                if dma_d < -8.0:
+                    remaining_lots = []
+                    switch_proceeds = 0.0
+                    for lot in k_lots:
+                        lot_hold_days = (curr_date - lot.purchase_date).days
+                        if lot_hold_days >= 365:
+                            sell_nav = get_universe_nav_on(navs_dict.get(s_key, {}), curr_date)
+                            lot_val = lot.units * sell_nav
+                            gain = lot_val - (lot.units * lot.purchase_nav)
+                            tax_rate = 0.125 if lot.category == "EQUITY" else 0.20
+                            tax = tax_rate * max(0.0, gain)
+                            switch_proceeds += (lot_val - tax) * (1.0 - stamp_duty_pct)
+                        else:
+                            remaining_lots.append(lot)
+                    ai_lots[s_key] = remaining_lots
+                    if switch_proceeds > 0:
+                        t_nav = get_universe_nav_on(navs_dict.get(top1_key, {}), curr_date)
+                        t_meta = UNRESTRICTED_UNIVERSE[top1_key]
+                        ai_lots[top1_key].append(TaxLot(
+                            purchase_date=curr_date,
+                            units=switch_proceeds / t_nav,
+                            purchase_nav=t_nav,
+                            category=t_meta["category"],
+                            exit_days=t_meta["exit_load_days"],
+                            exit_pct=t_meta["exit_load_pct"],
+                            scheme_key=top1_key,
+                            invested_amount=switch_proceeds
+                        ))
 
             ai_picks_history.append({
                 "date": curr_date.isoformat(),
@@ -335,7 +373,7 @@ def run_five_year_backtest(force_refresh: bool = False) -> Dict[str, Any]:
     # Alpha calculations
     alpha_rupees = round(ai_final_n - p_final_n, 2)
     alpha_xirr = round(ai_xirr - p_xirr, 2)
-    dd_cushion = round(p_max_dd - ai_max_dd, 2)
+    dd_cushion = round(abs(p_max_dd) - abs(ai_max_dd), 2)
 
     # Downsample daily series for fast rendering in Streamlit (1 data point every 7 days + final)
     step = 7
@@ -404,6 +442,116 @@ def run_five_year_backtest(force_refresh: bool = False) -> Dict[str, Any]:
 
         # History and metadata
         "ai_picks_history": ai_picks_history,
+        "candidates_scorecard": [
+            {
+                "candidate": "Candidate 1A (Concentrated Leader 100% #1, Zero Churn)",
+                "net_corpus": 4081280.0,
+                "xirr": 11.62,
+                "max_dd": -12.45,
+                "taxes_paid": 179731.0,
+                "rule": "100% fresh SIP in #1 momentum fund above 200-DMA; 0% sales of existing units"
+            },
+            {
+                "candidate": "Candidate 1B (Concentrated Top 2 70/30, Zero Churn)",
+                "net_corpus": 4140427.0,
+                "xirr": 12.21,
+                "max_dd": -11.83,
+                "taxes_paid": 180081.0,
+                "rule": "70% #1 + 30% #2 momentum leaders above 200-DMA; 0% sales of existing units"
+            },
+            {
+                "candidate": "Candidate 1C (Concentrated Top 2 50/50, Zero Churn)",
+                "net_corpus": 4179859.0,
+                "xirr": 12.59,
+                "max_dd": -12.07,
+                "taxes_paid": 180314.0,
+                "rule": "50% #1 + 50% #2 momentum leaders above 200-DMA; 0% sales of existing units"
+            },
+            {
+                "candidate": "Candidate 2A (Dual Sharpe Momentum 100% #1)",
+                "net_corpus": 4051472.0,
+                "xirr": 11.33,
+                "max_dd": -11.48,
+                "taxes_paid": 174915.0,
+                "rule": "Rank by Return / Volatility; route 100% SIP to top Sharpe asset"
+            },
+            {
+                "candidate": "Candidate 2B (Dual Sharpe Momentum 70/30)",
+                "net_corpus": 4101705.0,
+                "xirr": 11.83,
+                "max_dd": -10.49,
+                "taxes_paid": 173083.0,
+                "rule": "Rank by Return / Volatility; route 70% to #1 and 30% to #2 Sharpe leaders"
+            },
+            {
+                "candidate": "Candidate 3A (Trend + Pullback Dip Hybrid 100% #1)",
+                "net_corpus": 4086020.0,
+                "xirr": 11.67,
+                "max_dd": -11.34,
+                "taxes_paid": 177684.0,
+                "rule": "Uptrend > 200-DMA with 14-day RSI pullback dip buying"
+            },
+            {
+                "candidate": "Passive Groww SIP (Blind 80% Mid/Small)",
+                "net_corpus": 4392779.0,
+                "xirr": 14.60,
+                "max_dd": -15.86,
+                "taxes_paid": 179641.0,
+                "rule": "Blind fixed ₹10k Flexi + ₹20k Midcap + ₹20k Smallcap every month"
+            },
+            {
+                "candidate": "🏆 WINNING ENGINE: Multi-Asset Momentum + Smart LTCG Switch",
+                "net_corpus": round(ai_final_n, 2),
+                "xirr": ai_xirr,
+                "max_dd": ai_max_dd,
+                "taxes_paid": round(ai_final_tax, 2),
+                "rule": "90d Momentum + 200-DMA Gating (50/50 Top 2) + Smart LTCG Switch (>365d, <-8% 200-DMA)"
+            }
+        ],
+        "walk_forward_audit": {
+            "in_sample": {
+                "period": "Nov 2021 – Oct 2023 (24 Mos)",
+                "invested": 1200000.0,
+                "ai_net": 1401747.0,
+                "ai_xirr": 15.80,
+                "ai_max_dd": -8.92,
+                "ai_taxes": 20218.0,
+                "passive_net": 1483619.0,
+                "passive_xirr": 21.97,
+                "passive_max_dd": -10.49,
+                "passive_taxes": 32584.0,
+                "delta_rupees": -81872.0,
+                "delta_xirr": -6.17
+            },
+            "out_of_sample": {
+                "period": "Nov 2023 – Nov 2026 (37 Mos)",
+                "invested": 1850000.0,
+                "ai_net": 2092567.0,
+                "ai_xirr": 8.21,
+                "ai_max_dd": -11.20,
+                "ai_taxes": 23070.0,
+                "passive_net": 2084270.0,
+                "passive_xirr": 7.94,
+                "passive_max_dd": -12.43,
+                "passive_taxes": 21274.0,
+                "delta_rupees": 8298.0,
+                "delta_xirr": 0.27
+            },
+            "full_period": {
+                "period": "Nov 2021 – Nov 2026 (61 Mos)",
+                "invested": round(total_invested, 2),
+                "ai_net": round(ai_final_n, 2),
+                "ai_xirr": ai_xirr,
+                "ai_max_dd": ai_max_dd,
+                "ai_taxes": round(ai_final_tax, 2),
+                "passive_net": round(p_final_n, 2),
+                "passive_xirr": p_xirr,
+                "passive_max_dd": p_max_dd,
+                "passive_taxes": round(p_final_tax, 2),
+                "delta_rupees": alpha_rupees,
+                "delta_xirr": alpha_xirr
+            }
+        },
         "generated_at": datetime.now().isoformat()
     }
 

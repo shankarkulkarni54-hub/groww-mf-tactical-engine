@@ -182,6 +182,17 @@ UNRESTRICTED_UNIVERSE: Dict[str, Dict[str, Any]] = {
         "exit_load_pct": 1.0,
         "tax_category": "DOMESTIC_EQUITY"
     },
+    "INVESCO_PSU": {
+        "name": "Invesco India PSU Equity Fund Direct Growth",
+        "short_name": "Invesco India PSU Equity",
+        "amfi_code": 120395,
+        "category": "EQUITY",
+        "sub_category": "Sector PSU & CPSE",
+        "benchmark": "^CNXPSUBANK",
+        "exit_load_days": 30,
+        "exit_load_pct": 0.50,
+        "tax_category": "DOMESTIC_EQUITY"
+    },
     "SBI_GOLD": {
         "name": "SBI Gold Fund Direct Growth",
         "short_name": "SBI Gold Fund",
@@ -323,22 +334,28 @@ def score_unrestricted_universe(
         rs_30 = mom_30 - nifty_mom30
         rs_90 = mom_90 - nifty_mom90
 
-        trend_bonus = 10.0 if dma_dist > 0 else -15.0
-        raw_score = 50.0 + (mom_90 * 1.5) + (rs_30 * 2.0) + trend_bonus
-        final_score = max(5.0, min(98.0, round(raw_score, 1)))
+        # Trend gating: strict 200-DMA filter (funds below 200-DMA are disqualified from fresh equity SIPs)
+        if dma_dist < 0.0 and key != "SBI_GOLD":
+            raw_score = 30.0 + min(9.0, max(-25.0, mom_90 + dma_dist))
+            status = "DEFENSIVE"
+        else:
+            raw_score = 55.0 + (mom_90 * 1.2) + (dma_dist * 0.25)
+            status = "BULLISH" if raw_score >= 60.0 else "CAUTION"
 
-        status = "BULLISH" if final_score >= 60.0 else ("CAUTION" if final_score >= 40.0 else "DEFENSIVE")
+        final_score = max(5.0, min(98.0, round(raw_score, 1)))
 
         # Synthesize plain-English AI thesis
         cat = meta["sub_category"]
-        if dma_dist > 5.0 and rs_30 >= 0:
-            thesis = f"Strong leadership in {cat}. 30d RS vs Nifty: {rs_30:+.1f}%, 90d momentum: {mom_90:+.1f}%, trading {dma_dist:+.1f}% above 200-DMA."
+        if dma_dist < 0.0 and key != "SBI_GOLD":
+            thesis = f"Below 200-DMA ({dma_dist:+.1f}%). Bearish/consolidating in {cat}. Capital routed elsewhere."
+        elif dma_dist > 5.0 and mom_90 >= 5.0:
+            thesis = f"Strong leadership in {cat}. 90d momentum: {mom_90:+.1f}%, trading {dma_dist:+.1f}% above 200-DMA."
         elif dma_dist > 0:
-            thesis = f"Healthy uptrend in {cat} above 200-DMA ({dma_dist:+.1f}%). 90d gain: {mom_90:+.1f}%, 30d RS: {rs_30:+.1f}%."
+            thesis = f"Healthy uptrend in {cat} above 200-DMA ({dma_dist:+.1f}%). 90d gain: {mom_90:+.1f}%."
         elif key == "SBI_GOLD" and mom_90 > 5.0:
             thesis = f"Precious metals showing robust hedge momentum (+{mom_90:.1f}% in 90d). Strong safe-haven demand."
         else:
-            thesis = f"Consolidating/lagging in {cat} ({dma_dist:+.1f}% vs 200-DMA). 30d RS: {rs_30:+.1f}%, 90d momentum: {mom_90:+.1f}%."
+            thesis = f"Consolidating in {cat} ({dma_dist:+.1f}% vs 200-DMA). 90d momentum: {mom_90:+.1f}%."
 
         fund_evaluations[key] = {
             "key": key,
