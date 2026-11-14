@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from datetime import datetime, date
 from src.db import get_db
 from src.regime_engine import update_all_regimes, SLEEVE_CONFIG
@@ -491,45 +492,43 @@ with tab_chart:
         df_snap = pd.DataFrame(snapshots)
         df_snap["Date"] = pd.to_datetime(df_snap["snapshot_date"])
 
-        fig = go.Figure()
+        # ==========================================
+        # CHART 1: PORTFOLIO VALUE COMPARISON
+        # ==========================================
+        st.markdown("<div style='font-size:0.92rem; font-weight:700; color:#E2E8F0; margin-bottom:4px;'>📊 1. Portfolio Value Comparison: Tactical vs. Passive</div>", unsafe_allow_html=True)
+        
+        all_vals = pd.concat([df_snap["tactical_total_value"], df_snap["passive_total_value"]]).dropna()
+        y_min = float(all_vals.min()) * 0.98
+        y_max = float(all_vals.max()) * 1.02
 
-        # Passive Line
-        fig.add_trace(go.Scatter(
-            x=df_snap["Date"],
-            y=df_snap["passive_total_value"],
-            mode="lines",
-            name="Passive Buy & Hold",
-            line=dict(color="#64748B", width=2, dash="dot"),
-            hovertemplate="Passive: ₹%{y:,.0f}<extra></extra>"
-        ))
+        fig1 = go.Figure()
 
-        # Tactical Total Line
-        fig.add_trace(go.Scatter(
+        # Tactical Total Line (Solid Green)
+        fig1.add_trace(go.Scatter(
             x=df_snap["Date"],
             y=df_snap["tactical_total_value"],
             mode="lines",
             name="Tactical Engine (Total)",
-            line=dict(color="#00D09C", width=3),
-            hovertemplate="Tactical: ₹%{y:,.0f}<extra></extra>"
+            line=dict(color="#00D09C", width=2.8),
+            hovertemplate="Tactical Total: ₹%{y:,.0f}<extra></extra>"
         ))
 
-        # Cash Reserve Area
-        fig.add_trace(go.Scatter(
+        # Passive Buy & Hold (Dashed White/Amber Line)
+        fig1.add_trace(go.Scatter(
             x=df_snap["Date"],
-            y=df_snap["tactical_cash_value"],
+            y=df_snap["passive_total_value"],
             mode="lines",
-            name="Shadow Cash Reserve",
-            fill="tozeroy",
-            line=dict(color="#FFB020", width=1.5),
-            hovertemplate="Cash: ₹%{y:,.0f}<extra></extra>"
+            name="Passive Buy & Hold",
+            line=dict(color="#F8FAFC", width=2.2, dash="dash"),
+            hovertemplate="Passive Buy & Hold: ₹%{y:,.0f}<extra></extra>"
         ))
 
-        fig.update_layout(
+        fig1.update_layout(
             template="plotly_dark",
             paper_bgcolor="#131722",
             plot_bgcolor="#131722",
             margin=dict(l=10, r=10, t=10, b=10),
-            height=320,
+            height=280,
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
@@ -540,6 +539,7 @@ with tab_chart:
             ),
             hovermode="x unified",
             yaxis=dict(
+                range=[y_min, y_max],
                 showgrid=True,
                 gridcolor="#232733",
                 tickprefix="₹",
@@ -547,8 +547,77 @@ with tab_chart:
             ),
             xaxis=dict(showgrid=False)
         )
+        st.plotly_chart(fig1, use_container_width=True)
 
-        st.plotly_chart(fig, use_container_width=True)
+        # ==========================================
+        # CHART 2: NET ALPHA & SHADOW CASH
+        # ==========================================
+        st.markdown("<div style='font-size:0.92rem; font-weight:700; color:#E2E8F0; margin-top:14px; margin-bottom:4px;'>💰 2. Daily Rupee Alpha (₹) & Shadow Cash Reserve</div>", unsafe_allow_html=True)
+        
+        fig2 = make_subplots(specs=[[{"secondary_y": True}]])
+
+        # Bar chart for Daily Rupee Alpha
+        fig2.add_trace(
+            go.Bar(
+                x=df_snap["Date"],
+                y=df_snap["alpha_rupees"],
+                name="Net Alpha (₹)",
+                marker_color="#00D09C",
+                hovertemplate="Net Alpha: ₹%{y:+,.2f}<extra></extra>"
+            ),
+            secondary_y=False
+        )
+
+        # Area chart for Shadow Cash Reserve
+        max_cash = float(df_snap["tactical_cash_value"].max()) if not df_snap.empty else 10000.0
+        fig2.add_trace(
+            go.Scatter(
+                x=df_snap["Date"],
+                y=df_snap["tactical_cash_value"],
+                mode="lines",
+                name="Shadow Cash Reserve",
+                line=dict(color="#F59E0B", width=2),
+                fill="tozeroy",
+                fillcolor="rgba(245, 158, 11, 0.15)",
+                hovertemplate="Shadow Cash: ₹%{y:,.0f}<extra></extra>"
+            ),
+            secondary_y=True
+        )
+
+        fig2.update_layout(
+            template="plotly_dark",
+            paper_bgcolor="#131722",
+            plot_bgcolor="#131722",
+            margin=dict(l=10, r=10, t=10, b=10),
+            height=260,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="center",
+                x=0.5,
+                font=dict(size=10)
+            ),
+            hovermode="x unified",
+            xaxis=dict(showgrid=False)
+        )
+        fig2.update_yaxes(
+            title_text="Net Alpha (₹)",
+            showgrid=True,
+            gridcolor="#232733",
+            tickprefix="₹",
+            tickformat=",",
+            secondary_y=False
+        )
+        fig2.update_yaxes(
+            title_text="Shadow Cash (₹)",
+            range=[0, max_cash * 1.15 if max_cash > 0 else 10000.0],
+            showgrid=False,
+            tickprefix="₹",
+            tickformat=",",
+            secondary_y=True
+        )
+        st.plotly_chart(fig2, use_container_width=True)
 
         # Alpha Summary Card
         st.markdown(f"""
