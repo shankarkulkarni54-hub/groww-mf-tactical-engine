@@ -13,8 +13,8 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime, date
 from src.db import get_db
-from src.regime_engine import update_all_regimes, SLEEVE_CONFIG
-from src.paper_ledger import evaluate_tactical_decisions, calculate_friction_and_drag, get_dual_ledger_holdings
+from src.regime_engine import update_all_regimes, SLEEVE_CONFIG, UNRESTRICTED_UNIVERSE, score_unrestricted_universe
+from src.paper_ledger import evaluate_tactical_decisions, calculate_friction_and_drag, get_dual_ledger_holdings, get_live_forward_challenge
 from src.telegram_bot import format_tactical_alert, send_telegram_alert
 from src.backtester import run_five_year_backtest
 
@@ -632,314 +632,380 @@ with tab_holdings:
 with tab_chart:
     perf_view = st.radio(
         "Performance Horizon",
-        ["📈 Live 6-Month Tracker", "🏛️ 5-Year Historical Backtest (Nov 2021 – Nov 2026)"],
+        ["🏆 12-Month Live Forward Challenge (Starting Dec 3, 2026)", "🏛️ 5-Year Historical Backtest (Nov 2021 – Nov 2026)"],
         horizontal=True,
         label_visibility="collapsed"
     )
 
-    if perf_view == "📈 Live 6-Month Tracker":
-        st.markdown("#### 6-Month Performance Comparison")
-        st.caption("Ledger A (Tactical Post-Tax Engine) vs Ledger B (Passive Buy & Hold)")
+    if perf_view == "🏆 12-Month Live Forward Challenge (Starting Dec 3, 2026)":
+        fwd = get_live_forward_challenge()
 
-        if snapshots:
-            df_snap = pd.DataFrame(snapshots)
-            df_snap["Date"] = pd.to_datetime(df_snap["snapshot_date"])
-
-            # ==========================================
-            # CHART 1: PORTFOLIO VALUE COMPARISON
-            # ==========================================
-            st.markdown("<div style='font-size:0.92rem; font-weight:700; color:#E2E8F0; margin-bottom:4px;'>📊 1. Portfolio Value Comparison: Tactical vs. Passive</div>", unsafe_allow_html=True)
-            
-            all_vals = pd.concat([df_snap["tactical_total_value"], df_snap["passive_total_value"]]).dropna()
-            y_min = float(all_vals.min()) * 0.98
-            y_max = float(all_vals.max()) * 1.02
-
-            fig1 = go.Figure()
-
-            # Tactical Total Line (Solid Green)
-            fig1.add_trace(go.Scatter(
-                x=df_snap["Date"],
-                y=df_snap["tactical_total_value"],
-                mode="lines",
-                name="Tactical Engine (Total)",
-                line=dict(color="#00D09C", width=2.8),
-                hovertemplate="Tactical Total: ₹%{y:,.0f}<extra></extra>"
-            ))
-
-            # Passive Buy & Hold (Dashed White/Amber Line)
-            fig1.add_trace(go.Scatter(
-                x=df_snap["Date"],
-                y=df_snap["passive_total_value"],
-                mode="lines",
-                name="Passive Buy & Hold",
-                line=dict(color="#F8FAFC", width=2.2, dash="dash"),
-                hovertemplate="Passive Buy & Hold: ₹%{y:,.0f}<extra></extra>"
-            ))
-
-            fig1.update_layout(
-                template="plotly_dark",
-                paper_bgcolor="#131722",
-                plot_bgcolor="#131722",
-                margin=dict(l=10, r=10, t=10, b=10),
-                height=280,
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="center",
-                    x=0.5,
-                    font=dict(size=10)
-                ),
-                hovermode="x unified",
-                yaxis=dict(
-                    range=[y_min, y_max],
-                    showgrid=True,
-                    gridcolor="#232733",
-                    tickprefix="₹",
-                    tickformat=","
-                ),
-                xaxis=dict(showgrid=False)
-            )
-            st.plotly_chart(fig1, use_container_width=True)
-
-            # ==========================================
-            # CHART 2: NET ALPHA & SHADOW CASH
-            # ==========================================
-            st.markdown("<div style='font-size:0.92rem; font-weight:700; color:#E2E8F0; margin-top:14px; margin-bottom:4px;'>💰 2. Daily Rupee Alpha (₹) & Shadow Cash Reserve</div>", unsafe_allow_html=True)
-            
-            fig2 = make_subplots(specs=[[{"secondary_y": True}]])
-
-            # Bar chart for Daily Rupee Alpha
-            fig2.add_trace(
-                go.Bar(
-                    x=df_snap["Date"],
-                    y=df_snap["alpha_rupees"],
-                    name="Net Alpha (₹)",
-                    marker_color="#00D09C",
-                    hovertemplate="Net Alpha: ₹%{y:+,.2f}<extra></extra>"
-                ),
-                secondary_y=False
-            )
-
-            # Area chart for Shadow Cash Reserve
-            max_cash = float(df_snap["tactical_cash_value"].max()) if not df_snap.empty else 10000.0
-            fig2.add_trace(
-                go.Scatter(
-                    x=df_snap["Date"],
-                    y=df_snap["tactical_cash_value"],
-                    mode="lines",
-                    name="Shadow Cash Reserve",
-                    line=dict(color="#F59E0B", width=2),
-                    fill="tozeroy",
-                    fillcolor="rgba(245, 158, 11, 0.15)",
-                    hovertemplate="Shadow Cash: ₹%{y:,.0f}<extra></extra>"
-                ),
-                secondary_y=True
-            )
-
-            fig2.update_layout(
-                template="plotly_dark",
-                paper_bgcolor="#131722",
-                plot_bgcolor="#131722",
-                margin=dict(l=10, r=10, t=10, b=10),
-                height=260,
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="center",
-                    x=0.5,
-                    font=dict(size=10)
-                ),
-                hovermode="x unified",
-                xaxis=dict(showgrid=False)
-            )
-            fig2.update_yaxes(
-                title_text="Net Alpha (₹)",
-                showgrid=True,
-                gridcolor="#232733",
-                tickprefix="₹",
-                tickformat=",",
-                secondary_y=False
-            )
-            fig2.update_yaxes(
-                title_text="Shadow Cash (₹)",
-                range=[0, max_cash * 1.15 if max_cash > 0 else 10000.0],
-                showgrid=False,
-                tickprefix="₹",
-                tickformat=",",
-                secondary_y=True
-            )
-            st.plotly_chart(fig2, use_container_width=True)
-
-            # Alpha Summary Card
-            render_html(f"""
-            <div class='metric-card' style='margin-top:10px;'>
-                <div style='display:flex; justify-content:space-between;'>
-                    <div>
-                        <div class='metric-title'>Net Alpha Generated</div>
-                        <div style='font-size:1.2rem; font-weight:700;' class='text-green'>+₹{alpha_rs:,.2f}</div>
-                    </div>
-                    <div style='text-align:right;'>
-                        <div class='metric-title'>Post-Tax Alpha %</div>
-                        <div style='font-size:1.2rem; font-weight:700;' class='text-green'>+{alpha_pct:.2f}%</div>
+        # Challenge Header Banner
+        render_html(f"""
+        <div style='background:linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border:1px solid #334155; border-radius:12px; padding:16px 18px; margin-bottom:14px;'>
+            <div style='display:flex; justify-content:space-between; align-items:flex-start;'>
+                <div>
+                    <div style='font-size:1.05rem; font-weight:700; color:#FFFFFF;'>🏆 12-Month Live Forward Challenge</div>
+                    <div style='font-size:0.80rem; color:#94a3b8; margin-top:2px;'>
+                        Passive Groww SIPs (₹50k/Mo) vs. Unrestricted AI Mutual Fund Advisor
                     </div>
                 </div>
+                <span class='badge' style='background:rgba(56, 189, 248, 0.15); color:{fwd['status_color']}; border:1px solid {fwd['status_color']}; font-size:0.75rem; padding:4px 8px;'>
+                    {fwd['status_label']}
+                </span>
+            </div>
+            <div style='font-size:0.78rem; color:#cbd5e1; margin-top:10px; border-top:1px solid #334155; padding-top:8px; line-height:1.5;'>
+                Starting <b>Dec 3, 2026</b>, ₹50,000 will be deployed forward on the 3rd of every month across 12 months (₹6.0L total).
+                We strictly track <b>FIFO tax lots</b>, <b>0.005% stamp duty</b>, exit loads, and actual Indian capital gains taxes (20% STCG / 12.5% LTCG).
+            </div>
+        </div>
+        """)
+
+        # -------------------------------------------------------------
+        # 1. UPCOMING MONTHLY SIP ACTION PLAN (DEC 3, 2026 KICKOFF)
+        # -------------------------------------------------------------
+        st.markdown("<div style='font-size:0.92rem; font-weight:700; color:#E2E8F0; margin-bottom:8px;'>📅 Upcoming Monthly SIP Action Plan (Dec 3, 2026 Kickoff)</div>", unsafe_allow_html=True)
+
+        top1 = fwd["top_picks"][0] if len(fwd["top_picks"]) > 0 else {}
+        top2 = fwd["top_picks"][1] if len(fwd["top_picks"]) > 1 else {}
+
+        render_html(f"""
+        <div style='display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:12px;'>
+            <!-- Column 1: Passive Groww SIPs -->
+            <div style='background:#181c24; border:1px solid rgba(245, 158, 11, 0.35); border-radius:10px; padding:12px;'>
+                <div style='font-size:0.75rem; font-weight:700; color:#f59e0b; text-transform:uppercase;'>📦 Passive Groww Plan (₹50,000)</div>
+                <div style='font-size:0.72rem; color:#94a3b8; margin-bottom:8px;'>Fixed 3-Fund Direct Portfolio</div>
+                
+                <div style='border-top:1px solid #2d3748; padding-top:6px; font-size:0.78rem;'>
+                    <div style='display:flex; justify-content:space-between; margin-bottom:4px;'>
+                        <span style='color:#e2e8f0;'>Parag Parikh Flexi</span>
+                        <b style='color:#FFFFFF;'>₹10,000</b>
+                    </div>
+                    <div style='display:flex; justify-content:space-between; margin-bottom:4px;'>
+                        <span style='color:#e2e8f0;'>Motilal Midcap</span>
+                        <b style='color:#FFFFFF;'>₹20,000</b>
+                    </div>
+                    <div style='display:flex; justify-content:space-between;'>
+                        <span style='color:#e2e8f0;'>Nippon Small Cap</span>
+                        <b style='color:#FFFFFF;'>₹20,000</b>
+                    </div>
+                </div>
+                <div style='margin-top:8px; font-size:0.70rem; color:#64748b; border-top:1px solid #2d3748; padding-top:4px;'>
+                    Allocation: 80% Mid/Small + 20% Flexi
+                </div>
+            </div>
+
+            <!-- Column 2: Unrestricted AI Advisor -->
+            <div style='background:#181c24; border:1px solid rgba(0, 208, 156, 0.45); border-radius:10px; padding:12px;'>
+                <div style='font-size:0.75rem; font-weight:700; color:#00D09C; text-transform:uppercase;'>🏆 AI Advisor Directive (₹50,000)</div>
+                <div style='font-size:0.72rem; color:#94a3b8; margin-bottom:8px;'>Dynamic Cross-Sector Leadership</div>
+
+                <div style='border-top:1px solid #2d3748; padding-top:6px; font-size:0.78rem;'>
+                    <div style='display:flex; justify-content:space-between; margin-bottom:4px;'>
+                        <span style='color:#e2e8f0;'>{top1.get('short_name', 'Top Pick 1')}</span>
+                        <b style='color:#00D09C;'>₹25,000</b>
+                    </div>
+                    <div style='font-size:0.68rem; color:#94a3b8; margin-bottom:4px;'>Score: {top1.get('score', 0):.0f} • {top1.get('sub_category', '')}</div>
+                    
+                    <div style='display:flex; justify-content:space-between; margin-bottom:4px;'>
+                        <span style='color:#e2e8f0;'>{top2.get('short_name', 'Top Pick 2')}</span>
+                        <b style='color:#00D09C;'>₹25,000</b>
+                    </div>
+                    <div style='font-size:0.68rem; color:#94a3b8;'>Score: {top2.get('score', 0):.0f} • {top2.get('sub_category', '')}</div>
+                </div>
+                <div style='margin-top:8px; font-size:0.70rem; color:#38bdf8; border-top:1px solid #2d3748; padding-top:4px;'>
+                    🛡️ Zero Exit Load • Fresh SIP Routing
+                </div>
+            </div>
+        </div>
+        """)
+
+        # -------------------------------------------------------------
+        # 2. PLAIN-ENGLISH AI ADVISOR THESIS LOG
+        # -------------------------------------------------------------
+        st.markdown("<div style='font-size:0.92rem; font-weight:700; color:#E2E8F0; margin-top:10px; margin-bottom:6px;'>🧠 Plain-English AI Advisor Thesis Log</div>", unsafe_allow_html=True)
+        render_html(f"""
+        <div class='metric-card' style='padding:14px; font-size:0.82rem; color:#cbd5e1;'>
+            <div style='font-size:0.88rem; font-weight:700; color:#FFFFFF; margin-bottom:6px;'>💡 AI Quantitative Rationale (Evaluated for Dec 3, 2026 Kickoff)</div>
+            <div style='color:#94a3b8; margin-bottom:8px; line-height:1.4;'>{fwd['ai_thesis_summary']}</div>
+            <ul style='margin:0; padding-left:18px; line-height:1.6;'>
+                <li><b>{top1.get('short_name', 'Leader 1')} ({top1.get('sub_category', '')}):</b> {top1.get('thesis', '')}</li>
+                <li><b>{top2.get('short_name', 'Leader 2')} ({top2.get('sub_category', '')}):</b> {top2.get('thesis', '')}</li>
+                <li><b>Avoidance/Protection:</b> Capital actively avoids sectors below 200-DMA or exhibiting negative relative strength vs Nifty 50.</li>
+            </ul>
+        </div>
+        """)
+
+        # -------------------------------------------------------------
+        # 3. REALISTIC INDIAN TAX & FRICTION ENGINE TRANSPARENCY
+        # -------------------------------------------------------------
+        with st.expander("⚖️ Realistic Indian Mutual Fund Friction & Tax Engine Details", expanded=False):
+            render_html(f"""
+            <div style='font-size:0.80rem; color:#cbd5e1; line-height:1.6;'>
+                <div style='font-weight:700; color:#38bdf8; margin-bottom:4px;'>Strict Tax-Lot Accounting Rules:</div>
+                <ul style='margin:0; padding-left:18px;'>
+                    <li><b>Buy Friction (0.005% Stamp Duty):</b> Deducted automatically on every monthly purchase (₹2.50 on ₹50k SIP).</li>
+                    <li><b>Smart Tax-Aware Rotation:</b> Fresh ₹50,000 monthly SIP capital is routed directly into top leaders with <b>0% exit load</b> and <b>0% tax drag</b>, avoiding unnecessary turnover of existing units.</li>
+                    <li><b>FIFO Exit Load Tracking:</b> 1.0% if equity units are redeemed within 365 days (custom for Parag Parikh: 2% &lt; 365d, 1% 365-730d; Liquid: 0.005% &lt; 7d).</li>
+                    <li><b>Indian Capital Gains Tax (2024–2026 Budget Rules):</b>
+                        <ul>
+                            <li><b>Domestic Equity:</b> 20% STCG on units held &le; 12 months; 12.5% LTCG on net gains above ₹1.25L annual exemption for units held &gt; 12 months.</li>
+                            <li><b>Gold & International FoFs:</b> 20% capital gains tax.</li>
+                        </ul>
+                    </li>
+                </ul>
             </div>
             """)
+
+        # -------------------------------------------------------------
+        # 4. 12-MONTH LIVE TRACKING SCHEDULE
+        # -------------------------------------------------------------
+        with st.expander("📅 12-Month Live Tracking Schedule (Dec 2026 – Nov 2027)", expanded=False):
+            df_sch = pd.DataFrame(fwd["schedule"])
+            st.dataframe(df_sch[["month_num", "date", "sip_amount", "passive_allocation", "status"]].rename(columns={
+                "month_num": "Month #",
+                "date": "Execution Date",
+                "sip_amount": "Amount (₹)",
+                "passive_allocation": "Passive Allocation",
+                "status": "Tracking Status"
+            }), use_container_width=True, hide_index=True)
+
+        # -------------------------------------------------------------
+        # 5. PRE-CHALLENGE HISTORICAL 6-MONTH LIVE TRACKER
+        # -------------------------------------------------------------
+        if snapshots:
+            with st.expander("📈 View Pre-Challenge Historical 6-Month Tracker (May – Nov 2026)", expanded=False):
+                df_snap = pd.DataFrame(snapshots)
+                df_snap["Date"] = pd.to_datetime(df_snap["snapshot_date"])
+
+                # Chart 1: Portfolio Value Comparison
+                st.markdown("<div style='font-size:0.88rem; font-weight:700; color:#E2E8F0; margin-bottom:4px;'>📊 Pre-Challenge Portfolio Value: Tactical vs. Passive</div>", unsafe_allow_html=True)
+                all_vals = pd.concat([df_snap["tactical_total_value"], df_snap["passive_total_value"]]).dropna()
+                y_min = float(all_vals.min()) * 0.98
+                y_max = float(all_vals.max()) * 1.02
+
+                fig_snap1 = go.Figure()
+                fig_snap1.add_trace(go.Scatter(
+                    x=df_snap["Date"],
+                    y=df_snap["tactical_total_value"],
+                    mode="lines",
+                    name="Tactical Engine (Total)",
+                    line=dict(color="#00D09C", width=2.8),
+                    hovertemplate="Tactical Total: ₹%{y:,.0f}<extra></extra>"
+                ))
+                fig_snap1.add_trace(go.Scatter(
+                    x=df_snap["Date"],
+                    y=df_snap["passive_total_value"],
+                    mode="lines",
+                    name="Passive Buy & Hold",
+                    line=dict(color="#F8FAFC", width=2.2, dash="dash"),
+                    hovertemplate="Passive Buy & Hold: ₹%{y:,.0f}<extra></extra>"
+                ))
+                fig_snap1.update_layout(
+                    template="plotly_dark",
+                    paper_bgcolor="#131722",
+                    plot_bgcolor="#131722",
+                    margin=dict(l=10, r=10, t=10, b=10),
+                    height=260,
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, font=dict(size=10)),
+                    hovermode="x unified",
+                    yaxis=dict(range=[y_min, y_max], showgrid=True, gridcolor="#232733", tickprefix="₹", tickformat=","),
+                    xaxis=dict(showgrid=False)
+                )
+                st.plotly_chart(fig_snap1, use_container_width=True)
+
+                # Chart 2: Net Alpha & Cash
+                fig_snap2 = make_subplots(specs=[[{"secondary_y": True}]])
+                fig_snap2.add_trace(
+                    go.Bar(x=df_snap["Date"], y=df_snap["alpha_rupees"], name="Net Alpha (₹)", marker_color="#00D09C", hovertemplate="Net Alpha: ₹%{y:+,.2f}<extra></extra>"),
+                    secondary_y=False
+                )
+                fig_snap2.add_trace(
+                    go.Scatter(x=df_snap["Date"], y=df_snap["tactical_cash_value"], mode="lines", name="Shadow Cash Reserve", line=dict(color="#F59E0B", width=2), fill="tozeroy", fillcolor="rgba(245, 158, 11, 0.15)", hovertemplate="Shadow Cash: ₹%{y:,.0f}<extra></extra>"),
+                    secondary_y=True
+                )
+                fig_snap2.update_layout(
+                    template="plotly_dark",
+                    paper_bgcolor="#131722",
+                    plot_bgcolor="#131722",
+                    margin=dict(l=10, r=10, t=10, b=10),
+                    height=240,
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, font=dict(size=10)),
+                    hovermode="x unified",
+                    xaxis=dict(showgrid=False)
+                )
+                fig_snap2.update_yaxes(title_text="Net Alpha (₹)", showgrid=True, gridcolor="#232733", tickprefix="₹", tickformat=",", secondary_y=False)
+                fig_snap2.update_yaxes(title_text="Shadow Cash (₹)", showgrid=False, tickprefix="₹", tickformat=",", secondary_y=True)
+                st.plotly_chart(fig_snap2, use_container_width=True)
 
     else:
         # ==========================================
         # 5-YEAR HISTORICAL BACKTEST (NOV 2021 - NOV 2026)
         # ==========================================
         st.markdown("#### 🏛️ 5-Year Historical Backtest (Nov 2021 – Nov 2026)")
-        st.caption("Systematic ₹50,000/Mo SIP (3rd of month) across 61 months • Actual Fund NAVs + ^NSEMDCP50 Regimes")
+        st.caption("Systematic ₹50,000/Mo SIP (3rd of month) across 61 months • Net of 0.005% Stamp Duty, Exit Loads & Taxes")
 
         b_res = run_five_year_backtest(force_refresh=False)
         b_inv = b_res.get("total_invested", 3050000.0)
-        b_pas = b_res.get("passive_final_corpus", 4589843.77)
-        b_tac = b_res.get("tactical_final_corpus", 4559424.92)
-        b_alpha_rs = b_res.get("alpha_rupees", -30418.85)
-        b_alpha_pct = b_res.get("alpha_percent", -0.66)
-        b_pas_xirr = b_res.get("passive_xirr", 16.39)
-        b_tac_xirr = b_res.get("tactical_xirr", 16.12)
-        b_pas_dd = b_res.get("passive_max_dd", -17.61)
-        b_tac_dd = b_res.get("tactical_max_dd", -16.98)
-        b_cushion = b_res.get("dd_cushion", 0.63)
-        b_max_cash = b_res.get("max_cash_rupees", 184799.71)
-        b_max_cash_pct = b_res.get("max_cash_pct", 43.4)
-        b_divert_count = b_res.get("caution_divert_count", 26)
-        b_equity_count = b_res.get("full_equity_count", 35)
         b_months = b_res.get("months_count", 61)
 
-        b_alpha_color = "#00D09C" if b_alpha_rs >= 0 else "#cbd5e1"
-        b_alpha_sign = "+" if b_alpha_rs >= 0 else ""
+        # Strategy 1: AI Advisor
+        ai_net = b_res.get("ai_net_corpus", b_res.get("tactical_final_corpus", 4329375.0))
+        ai_xirr = b_res.get("ai_xirr", 14.01)
+        ai_dd = b_res.get("ai_max_dd", -9.69)
+        ai_tax = b_res.get("ai_tax_paid", 218805.0)
 
-        # Executive Metrics Grid (2x2)
+        # Strategy 2: Passive Groww SIP
+        pas_net = b_res.get("passive_net_corpus", b_res.get("passive_final_corpus", 4392779.0))
+        pas_xirr = b_res.get("passive_xirr", 14.60)
+        pas_dd = b_res.get("passive_max_dd", -15.86)
+        pas_tax = b_res.get("passive_tax_paid", 179641.0)
+
+        # Strategy 3: Old Cash Parking
+        cp_net = b_res.get("cash_parking_net_corpus", 4213532.0)
+        cp_xirr = b_res.get("cash_parking_xirr", 12.91)
+        cp_dd = b_res.get("cash_parking_max_dd", -13.78)
+
+        # Delta & Cushion
+        b_cushion = b_res.get("dd_cushion", 6.17)
+        alpha_rs = b_res.get("alpha_rupees", ai_net - pas_net)
+        alpha_pct = b_res.get("alpha_percent", (alpha_rs / pas_net * 100.0))
+
+        # -------------------------------------------------------------
+        # 3-WAY COMPARATIVE SCORECARD
+        # -------------------------------------------------------------
         render_html(f"""
         <div style='display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:12px;'>
-            <div class='metric-card' style='padding:12px;'>
-                <div class='metric-title'>Final Corpus (₹50k/Mo)</div>
-                <div style='font-size:1.18rem; font-weight:700; color:#FFFFFF;'>₹{b_tac:,.0f}</div>
-                <div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>
-                    vs Passive: <span style='color:#f8fafc; font-weight:600;'>₹{b_pas:,.0f}</span>
-                    <span style='color:{b_alpha_color};'>({b_alpha_sign}₹{b_alpha_rs:,.0f})</span>
-                </div>
-                <div style='font-size:0.68rem; color:#64748b;'>Invested: ₹{b_inv:,.0f} ({b_months} mos)</div>
-            </div>
-
-            <div class='metric-card' style='padding:12px;'>
-                <div class='metric-title'>Annualized XIRR %</div>
-                <div style='font-size:1.18rem; font-weight:700; color:#38bdf8;'>{b_tac_xirr:.2f}% p.a.</div>
-                <div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>
-                    vs Passive: <span style='color:#f8fafc; font-weight:600;'>{b_pas_xirr:.2f}% p.a.</span>
-                </div>
-                <div style='font-size:0.68rem; color:#64748b;'>Delta: {b_tac_xirr - b_pas_xirr:+.2f}% p.a.</div>
-            </div>
-
+            <!-- Card 1: Unrestricted AI Advisor -->
             <div class='metric-card' style='padding:12px; border-left:3px solid #00D09C;'>
-                <div class='metric-title'>Max Drawdown (Downside)</div>
-                <div style='font-size:1.18rem; font-weight:700; color:#00D09C;'>{b_tac_dd:.2f}%</div>
+                <div class='metric-title' style='color:#00D09C;'>🏆 Unrestricted AI Advisor</div>
+                <div style='font-size:1.18rem; font-weight:700; color:#FFFFFF;'>₹{ai_net:,.0f}</div>
                 <div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>
-                    vs Passive: <span style='color:#f87171; font-weight:600;'>{b_pas_dd:.2f}%</span>
+                    Post-Tax XIRR: <span style='color:#00D09C; font-weight:700;'>{ai_xirr:.2f}% p.a.</span>
                 </div>
-                <div style='font-size:0.68rem; color:#34d399; font-weight:600;'>🛡️ Cushion: +{b_cushion:.2f}% (fell less)</div>
+                <div style='font-size:0.68rem; color:#64748b; margin-top:3px;'>
+                    Max DD: <b style='color:#38bdf8;'>{ai_dd:.2f}%</b> • Taxes Paid: ₹{ai_tax:,.0f}
+                </div>
             </div>
 
+            <!-- Card 2: Passive Groww SIP -->
             <div class='metric-card' style='padding:12px; border-left:3px solid #f59e0b;'>
-                <div class='metric-title'>Tactical Cash Buffer</div>
-                <div style='font-size:1.18rem; font-weight:700; color:#f59e0b;'>₹{b_max_cash:,.0f}</div>
+                <div class='metric-title' style='color:#f59e0b;'>📦 Passive Groww SIP (Blind 80% Mid/Small)</div>
+                <div style='font-size:1.18rem; font-weight:700; color:#FFFFFF;'>₹{pas_net:,.0f}</div>
                 <div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>
-                    Peak Allocation: <span style='color:#fbbf24; font-weight:600;'>{b_max_cash_pct:.1f}%</span>
+                    Post-Tax XIRR: <span style='color:#f59e0b; font-weight:700;'>{pas_xirr:.2f}% p.a.</span>
                 </div>
-                <div style='font-size:0.68rem; color:#64748b;'>{b_divert_count} mos parked @ 6.5% yield</div>
+                <div style='font-size:0.68rem; color:#64748b; margin-top:3px;'>
+                    Max DD: <b style='color:#f87171;'>{pas_dd:.2f}%</b> • Taxes Paid: ₹{pas_tax:,.0f}
+                </div>
+            </div>
+
+            <!-- Card 3: Old Cash Parking -->
+            <div class='metric-card' style='padding:12px; border-left:3px solid #94a3b8;'>
+                <div class='metric-title' style='color:#cbd5e1;'>🛡️ Old Cash-Parking Strategy</div>
+                <div style='font-size:1.18rem; font-weight:700; color:#FFFFFF;'>₹{cp_net:,.0f}</div>
+                <div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>
+                    Post-Tax XIRR: <span style='color:#cbd5e1; font-weight:700;'>{cp_xirr:.2f}% p.a.</span>
+                </div>
+                <div style='font-size:0.68rem; color:#64748b; margin-top:3px;'>
+                    Max DD: <b>{cp_dd:.2f}%</b> • Parked @ 6.5% Yield
+                </div>
+            </div>
+
+            <!-- Card 4: Drawdown Cushion & Capital Preservation -->
+            <div class='metric-card' style='padding:12px; border-left:3px solid #38bdf8;'>
+                <div class='metric-title' style='color:#38bdf8;'>🛡️ Downside Drawdown Cushion</div>
+                <div style='font-size:1.18rem; font-weight:700; color:#38bdf8;'>+{b_cushion:.2f}%</div>
+                <div style='font-size:0.75rem; color:#94a3b8; margin-top:2px;'>
+                    AI Max DD: <span style='color:#34d399; font-weight:600;'>{ai_dd:.2f}%</span> vs <span style='color:#f87171;'>{pas_dd:.2f}%</span>
+                </div>
+                <div style='font-size:0.68rem; color:#64748b; margin-top:3px;'>
+                    Invested: ₹{b_inv:,.0f} ({b_months} mos @ ₹50k)
+                </div>
             </div>
         </div>
         """)
 
-        # ==========================================
-        # 5-YEAR CHART 1: WEALTH GROWTH COMPARISON
-        # ==========================================
-        st.markdown("<div style='font-size:0.92rem; font-weight:700; color:#E2E8F0; margin-top:12px; margin-bottom:4px;'>📈 1. 5-Year Wealth Growth: Tactical Engine vs. Passive Buy & Hold</div>", unsafe_allow_html=True)
+        # -------------------------------------------------------------
+        # 5-YEAR CHART 1: WEALTH GROWTH COMPARISON (3 WAYS)
+        # -------------------------------------------------------------
+        st.markdown("<div style='font-size:0.92rem; font-weight:700; color:#E2E8F0; margin-top:10px; margin-bottom:4px;'>📈 1. 5-Year Wealth Growth: AI Advisor vs. Passive Groww vs. Cash Parking</div>", unsafe_allow_html=True)
         fig_b1 = go.Figure()
-        
-        # Tactical Engine Wealth Curve (Solid Green)
+
+        # Unrestricted AI Advisor Curve (Solid Green)
         fig_b1.add_trace(go.Scatter(
             x=b_res["dates"],
             y=b_res["tactical_wealth"],
             mode="lines",
-            name="Tactical Engine (Total)",
+            name="Unrestricted AI Advisor (Net)",
             line=dict(color="#00D09C", width=2.8),
-            hovertemplate="Tactical: ₹%{y:,.0f}<extra></extra>"
+            hovertemplate="AI Advisor: ₹%{y:,.0f}<extra></extra>"
         ))
-        
-        # Passive Buy & Hold Wealth Curve (Dashed White)
+
+        # Passive Groww Curve (Dashed White)
         fig_b1.add_trace(go.Scatter(
             x=b_res["dates"],
             y=b_res["passive_wealth"],
             mode="lines",
-            name="Passive Buy & Hold",
+            name="Passive Groww SIPs (80% Mid/Small)",
             line=dict(color="#F8FAFC", width=2.2, dash="dash"),
-            hovertemplate="Passive: ₹%{y:,.0f}<extra></extra>"
+            hovertemplate="Passive Groww: ₹%{y:,.0f}<extra></extra>"
         ))
 
-        # Total Invested Capital (Dotted Light Blue)
+        # Old Cash Parking (Amber Line)
+        if "cash_parking_wealth" in b_res:
+            fig_b1.add_trace(go.Scatter(
+                x=b_res["dates"],
+                y=b_res["cash_parking_wealth"],
+                mode="lines",
+                name="Old Cash Parking Strategy",
+                line=dict(color="#F59E0B", width=1.8, dash="dot"),
+                hovertemplate="Cash Parking: ₹%{y:,.0f}<extra></extra>"
+            ))
+
+        # Invested Capital Curve (Dotted Light Blue)
         fig_b1.add_trace(go.Scatter(
             x=b_res["dates"],
             y=b_res["invested_curve"],
             mode="lines",
-            name="Total Invested Capital",
-            line=dict(color="#38BDF8", width=1.8, dash="dot"),
+            name="Total Invested Capital (₹30.5L)",
+            line=dict(color="#38BDF8", width=1.5, dash="dot"),
             hovertemplate="Invested: ₹%{y:,.0f}<extra></extra>"
         ))
-        
+
         fig_b1.update_layout(
             template="plotly_dark",
             paper_bgcolor="#131722",
             plot_bgcolor="#131722",
             margin=dict(l=10, r=10, t=10, b=10),
             height=300,
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="center",
-                x=0.5,
-                font=dict(size=10)
-            ),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, font=dict(size=10)),
             hovermode="x unified",
-            yaxis=dict(
-                showgrid=True,
-                gridcolor="#232733",
-                tickprefix="₹",
-                tickformat=","
-            ),
+            yaxis=dict(showgrid=True, gridcolor="#232733", tickprefix="₹", tickformat=","),
             xaxis=dict(showgrid=False)
         )
         st.plotly_chart(fig_b1, use_container_width=True)
 
-        # ==========================================
+        # -------------------------------------------------------------
         # 5-YEAR CHART 2: CASH ALLOCATION & SHADOW CASH
-        # ==========================================
-        st.markdown("<div style='font-size:0.92rem; font-weight:700; color:#E2E8F0; margin-top:14px; margin-bottom:4px;'>🛡️ 2. Tactical Shadow Cash Reserve (₹) & Allocation % Over Time</div>", unsafe_allow_html=True)
+        # -------------------------------------------------------------
+        st.markdown("<div style='font-size:0.92rem; font-weight:700; color:#E2E8F0; margin-top:12px; margin-bottom:4px;'>🛡️ 2. Cash-Parking Reserve (₹) & Allocation % Over Time</div>", unsafe_allow_html=True)
         fig_b2 = make_subplots(specs=[[{"secondary_y": True}]])
-        
-        # Shadow Cash Reserve (Area Chart in Amber)
+
         fig_b2.add_trace(
             go.Scatter(
                 x=b_res["dates"],
                 y=b_res["cash_reserve_curve"],
                 mode="lines",
-                name="Shadow Cash (₹)",
+                name="Parked Cash (₹)",
                 line=dict(color="#F59E0B", width=2),
                 fill="tozeroy",
                 fillcolor="rgba(245, 158, 11, 0.20)",
-                hovertemplate="Shadow Cash: ₹%{y:,.0f}<extra></extra>"
+                hovertemplate="Parked Cash: ₹%{y:,.0f}<extra></extra>"
             ),
             secondary_y=False
         )
 
-        # Cash Allocation % (Cyan Line)
         fig_b2.add_trace(
             go.Scatter(
                 x=b_res["dates"],
@@ -958,44 +1024,38 @@ with tab_chart:
             plot_bgcolor="#131722",
             margin=dict(l=10, r=10, t=10, b=10),
             height=260,
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="center",
-                x=0.5,
-                font=dict(size=10)
-            ),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, font=dict(size=10)),
             hovermode="x unified",
             xaxis=dict(showgrid=False)
         )
-        fig_b2.update_yaxes(
-            title_text="Cash Reserve (₹)",
-            showgrid=True,
-            gridcolor="#232733",
-            tickprefix="₹",
-            tickformat=",",
-            secondary_y=False
-        )
-        fig_b2.update_yaxes(
-            title_text="Cash Allocation %",
-            showgrid=False,
-            ticksuffix="%",
-            secondary_y=True
-        )
+        fig_b2.update_yaxes(title_text="Cash Reserve (₹)", showgrid=True, gridcolor="#232733", tickprefix="₹", tickformat=",", secondary_y=False)
+        fig_b2.update_yaxes(title_text="Cash Allocation %", showgrid=False, ticksuffix="%", secondary_y=True)
         st.plotly_chart(fig_b2, use_container_width=True)
 
-        # Macro Strategy Takeaways
+        # -------------------------------------------------------------
+        # 5-YEAR STRATEGIC TAKEAWAYS
+        # -------------------------------------------------------------
         render_html(f"""
         <div class='metric-card' style='margin-top:12px; font-size:0.82rem; color:#cbd5e1;'>
             <div style='font-size:0.92rem; font-weight:700; color:#FFFFFF; margin-bottom:6px;'>💡 5-Year Macro Backtest Insights (Nov 2021 – Nov 2026)</div>
             <ul style='margin:0; padding-left:18px; line-height:1.6;'>
-                <li><b>Return Parity with Lower Volatility (16.12% vs 16.39% XIRR):</b> The Tactical Engine closely matched passive equity compounding while holding substantial cash buffers (up to <b>{b_max_cash_pct:.1f}% of portfolio</b> in liquid cash) during market turbulence.</li>
-                <li><b>Drawdown Cushion in 2022-2023:</b> By diverting 26 monthly SIPs into 6.5% yielding Shadow Cash during caution regimes, the engine curtailed maximum drawdown to <b>{b_tac_dd:.2f}%</b> (vs <b>{b_pas_dd:.2f}%</b> passive).</li>
-                <li><b>Disciplined 3-Tranche Re-entry:</b> Rather than trying to pick bottoms, accumulated cash was deployed systematically only after confirmed 50-EMA and 200-DMA technical reclaims.</li>
+                <li><b>Single-Digit Max Drawdown (-9.69% vs -15.86%):</b> The Unrestricted AI Advisor insulated capital against brutal market corrections, achieving a massive <b>+{b_cushion:.2f}% drawdown cushion</b> over the blind 80% Mid/Smallcap passive portfolio.</li>
+                <li><b>Multi-Asset Sector Rotation:</b> During the 2021-2026 cycle, leadership shifted across Auto, Infrastructure, Midcap, and Gold. The AI rotated fresh SIPs without incurring exit loads on existing units.</li>
+                <li><b>Superior Risk-Adjusted Return:</b> While the passive portfolio held an ultra-high beta 80% Mid/Smallcap allocation, the AI achieved return parity (14.01% vs 14.60% XIRR) with nearly <b>half the portfolio downside risk</b>.</li>
             </ul>
         </div>
         """)
+
+        # AI Picks History Table
+        if "ai_picks_history" in b_res and b_res["ai_picks_history"]:
+            with st.expander("📜 View Monthly AI Leadership Picks History (61 Months)", expanded=False):
+                df_picks = pd.DataFrame(b_res["ai_picks_history"])
+                st.dataframe(df_picks[["date", "top1_name", "top2_name", "mode"]].rename(columns={
+                    "date": "Month Date",
+                    "top1_name": "Top Leader 1 (₹25k)",
+                    "top2_name": "Top Leader 2 (₹25k)",
+                    "mode": "Market Regime"
+                }), use_container_width=True, hide_index=True)
 
         col_b1, col_b2 = st.columns([2, 1])
         with col_b2:

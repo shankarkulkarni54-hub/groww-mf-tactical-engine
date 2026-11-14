@@ -11,6 +11,10 @@ import requests
 from datetime import date, datetime, timedelta
 from typing import Dict, Any, List, Optional, Tuple
 from src.db import get_db
+from src.regime_engine import (
+    score_unrestricted_universe,
+    UNRESTRICTED_UNIVERSE
+)
 
 # Scheme Code Mapping
 SCHEME_CODES = {
@@ -676,6 +680,107 @@ def get_dual_ledger_holdings(db=None) -> Dict[str, Any]:
         "alpha_rupees": alpha_rupees,
         "alpha_pct": alpha_pct,
         "as_of_date": latest_snap.get("snapshot_date", str(date.today()))
+    }
+
+
+def get_live_forward_challenge(as_of_date: Optional[date] = None) -> Dict[str, Any]:
+    """
+    Evaluates the 12-Month Live Forward Challenge (Starting Dec 3, 2026 to Dec 3, 2027):
+    - Ledger 1: Passive Groww SIPs (₹10k PPFC, ₹20k MOMC, ₹20k NISC = ₹50,000/mo).
+    - Ledger 2: Unrestricted AI Advisor (₹50,000/mo deployed into top momentum & leadership direct funds).
+    Returns real-time status, upcoming Dec 3 SIP deployment, plain-English AI Thesis log,
+    friction breakdown, and 12-month forward tracking schedule.
+    """
+    if as_of_date is None:
+        as_of_date = date.today()
+
+    kickoff_date = date(2026, 12, 3)
+    days_to_kickoff = (kickoff_date - as_of_date).days
+
+    # Status badge
+    if days_to_kickoff > 0:
+        status_label = f"KICKOFF IN {days_to_kickoff} DAYS (Starts Dec 3, 2026)"
+        status_color = "#38bdf8"
+        is_active = False
+    elif days_to_kickoff == 0:
+        status_label = "CHALLENGE LAUNCH DAY — Dec 3, 2026!"
+        status_color = "#00D09C"
+        is_active = True
+    else:
+        status_label = "CHALLENGE ACTIVE — Live Tracking"
+        status_color = "#00D09C"
+        is_active = True
+
+    # 1. Evaluate current AI recommendations
+    ai_score_report = score_unrestricted_universe(as_of_date)
+    top_picks = ai_score_report.get("top_picks", [])
+    thesis_summary = ai_score_report.get("thesis_summary", "")
+
+    # 2. Monthly SIP Deployments for Dec 3, 2026:
+    # Strategy A: Passive Groww SIPs
+    passive_plan = [
+        {"name": "Parag Parikh Flexi Cap Direct", "amount": 10000.0, "category": "Core Flexi Cap", "folio": "1039482"},
+        {"name": "Motilal Oswal Midcap Direct", "amount": 20000.0, "category": "Mid Cap", "folio": "1048291"},
+        {"name": "Nippon India Small Cap Direct", "amount": 20000.0, "category": "Small Cap", "folio": "1059203"}
+    ]
+
+    # Strategy B: Unrestricted AI Advisor
+    ai_plan = []
+    for pick in top_picks:
+        ai_plan.append({
+            "name": pick["short_name"],
+            "full_name": pick["name"],
+            "amount": pick["allocation_amount"],
+            "category": pick["sub_category"],
+            "score": pick["score"],
+            "thesis": pick["thesis"]
+        })
+
+    # 3. Transparent Friction & Tax Drag Breakdown
+    friction_breakdown = {
+        "monthly_sip": 50000.0,
+        "stamp_duty_pct": 0.005,
+        "stamp_duty_amount": 2.50,
+        "net_invested_per_month": 49997.50,
+        "exit_load_on_fresh_sips": 0.0,
+        "exit_load_note": "0% Exit Load on fresh monthly deployments (smart switching prioritizes fresh SIP capital over churning existing units).",
+        "stcg_rate_equity": "20% STCG on units redeemed <= 365 days",
+        "ltcg_rate_equity": "12.5% LTCG on gains above ₹1.25L annual exemption for units held > 365 days",
+        "debt_gold_rate": "20% tax on Gold / Foreign FoFs"
+    }
+
+    # 4. 12-Month Schedule (Dec 2026 - Nov 2027)
+    schedule = []
+    start_y, start_m = 2026, 12
+    for i in range(12):
+        m = (start_m - 1 + i) % 12 + 1
+        y = start_y + ((start_m - 1 + i) // 12)
+        sip_dt = date(y, m, 3)
+        schedule.append({
+            "month_num": i + 1,
+            "date": sip_dt.strftime("%d %b %Y"),
+            "sip_amount": 50000.0,
+            "passive_allocation": "PPFC ₹10k + MOMC ₹20k + NISC ₹20k",
+            "ai_allocation_status": "Top 2 Leadership Funds (Determined on 1st-2nd)",
+            "status": "Scheduled" if sip_dt > as_of_date else "Completed"
+        })
+
+    return {
+        "as_of_date": str(as_of_date),
+        "kickoff_date": str(kickoff_date),
+        "days_to_kickoff": days_to_kickoff,
+        "status_label": status_label,
+        "status_color": status_color,
+        "is_active": is_active,
+        "total_challenge_months": 12,
+        "total_planned_capital": 600000.0,
+        "passive_plan": passive_plan,
+        "ai_plan": ai_plan,
+        "ai_thesis_summary": thesis_summary,
+        "top_picks": top_picks,
+        "ranked_funds": ai_score_report.get("ranked_funds", []),
+        "friction_breakdown": friction_breakdown,
+        "schedule": schedule
     }
 
 

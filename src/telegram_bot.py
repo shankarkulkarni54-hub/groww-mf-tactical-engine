@@ -12,6 +12,11 @@ from typing import Dict, Any, Optional
 from dotenv import load_dotenv
 from src.db import get_db
 
+try:
+    from src.regime_engine import score_unrestricted_universe
+except Exception:
+    score_unrestricted_universe = None
+
 load_dotenv()
 
 
@@ -87,27 +92,49 @@ def format_tactical_alert(
             f"   └ 200-DMA: {dist_sign}{dma_dist:.1f}% | RSI: {rsi:.1f} | VIX: {vix:.1f}"
         )
 
+    # Fetch AI Advisor recommendations if available
+    ai_picks = []
+    ai_thesis = ""
+    if score_unrestricted_universe:
+        try:
+            ai_rep = score_unrestricted_universe(now.date())
+            ai_picks = ai_rep.get("top_picks", [])
+            ai_thesis = ai_rep.get("thesis_summary", "")
+        except Exception as e:
+            print(f"[TelegramBot] Warning: Could not score unrestricted universe: {e}")
+
     msg.append("━━━━━━━━━━━━━━━━━━━━━")
     msg.append("📌 <b>ACTION DIRECTIVE & GUIDANCE</b>:")
     msg.append(f"<b>{decisions.get('action_badge', 'No Action Required Today')}</b>\n")
 
-    # Detail based on window
     total_cash_sip = decisions.get("total_sip_cash", 0.0)
     total_eq_sip = decisions.get("total_sip_equity", 50000.0)
 
     if is_action_window:
         msg.append(f"⚡ <b>ACTION REQUIRED ON GROWW (For 3rd SIP)</b>:")
-        msg.append(f"• <b>Equity SIPs:</b> ₹{total_eq_sip:,.0f}")
-        msg.append(f"• <b>Liquid / Shadow Cash:</b> ₹{total_cash_sip:,.0f}")
+        msg.append(f"📦 <b>1. Passive Groww SIP Plan:</b>")
+        msg.append(f"• Equity: ₹{total_eq_sip:,.0f} | Shadow Cash: ₹{total_cash_sip:,.0f}")
         for f_name, d_info in decisions.get("sip_decisions", {}).items():
             short_name = f_name.replace(" Direct Growth", "")
             msg.append(f"  └ {short_name}: <b>{d_info['action']}</b> (₹{d_info['amount']:,.0f})")
+
+        if ai_picks:
+            msg.append(f"\n🏆 <b>2. Unrestricted AI Advisor Directive:</b>")
+            for p in ai_picks:
+                msg.append(f"  • <b>₹{p['allocation_amount']:,.0f}</b> in <b>{p['short_name']}</b> (Score {p['score']:.0f})")
+                msg.append(f"    └ <i>{p['thesis']}</i>")
+            msg.append("  └ <i>Smart Switching: 0.005% stamp duty, 0% exit load on fresh SIPs.</i>")
+
     elif is_execution_day:
         msg.append(f"• Auto-debit executing today: ₹{total_eq_sip:,.0f} Equity | ₹{total_cash_sip:,.0f} Shadow Cash.")
+        if ai_picks:
+            msg.append(f"• <b>AI Top Picks Today:</b> {ai_picks[0]['short_name']} + {ai_picks[1]['short_name']}")
     else:
         msg.append(f"• <b>Daily Status:</b> Outside the monthly SIP window. All active units held.")
         msg.append(f"• <b>Next Action Window:</b> {decisions.get('window_status_label')}")
-        msg.append(f"• <i>Current 30-Day Preview:</i> ₹{total_eq_sip:,.0f} Equity | ₹{total_cash_sip:,.0f} Cash")
+        msg.append(f"• <i>Groww SIP Preview:</i> ₹{total_eq_sip:,.0f} Equity | ₹{total_cash_sip:,.0f} Cash")
+        if ai_picks and len(ai_picks) >= 2:
+            msg.append(f"• <i>AI Advisor Preview:</i> ₹25k {ai_picks[0]['short_name']} + ₹25k {ai_picks[1]['short_name']}")
 
     # Emergency switches
     switches = decisions.get("switch_signals", [])
@@ -135,8 +162,6 @@ def format_tactical_alert(
 
     msg.append("━━━━━━━━━━━━━━━━━━━━━")
     msg.append(f"📱 <a href='{dashboard_url}'>Open Mobile Web Dashboard</a>")
-
-    return "\n".join(msg)
 
     return "\n".join(msg)
 
