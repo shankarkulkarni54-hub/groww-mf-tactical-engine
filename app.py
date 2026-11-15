@@ -55,26 +55,46 @@ st.set_page_config(
 # Finology-Inspired Design System CSS - Clean Light Canvas, Editorial Typography, Crisp Bento Borders
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    /* -------------------------------------------------------------
+       1. GOOGLE FONTS: Modern Fintech Typography System
+       - Plus Jakarta Sans: Page titles, card headers, section titles
+       - Inter: UI body text, tabs, captions, descriptions
+       - JetBrains Mono: All ₹ rupee metrics, percentages, NAV values
+       ------------------------------------------------------------- */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap');
 
-    /* Global Reset & Typography */
-    html, body, [class*="css"] {
-        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif !important;
-    }
-
-    .stApp {
+    /* Global Root & Streamlit Canvas */
+    html, body, [class*="css"], .stApp {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
         background-color: #F8FAFC !important;
         color: #0F172A !important;
     }
 
-    /* Top Breathing Room - Prevents Streamlit Header Clipping */
-    header[data-testid="stHeader"] {
-        background: rgba(248, 250, 252, 0.85) !important;
-        backdrop-filter: blur(8px) !important;
+    /* Headings & Editorial Typography */
+    h1, h2, h3, h4, h5, h6,
+    .section-title,
+    .hero-title,
+    .fin-title,
+    div[data-testid="stMarkdownContainer"] h1,
+    div[data-testid="stMarkdownContainer"] h2,
+    div[data-testid="stMarkdownContainer"] h3,
+    div[data-testid="stMarkdownContainer"] h4 {
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        font-weight: 700 !important;
+        color: #0F172A !important;
+        letter-spacing: -0.02em !important;
     }
 
+    /* Tabular Rupee & Numeric Figures (JetBrains Mono) */
+    .tabular, .mono-num, .kpi-value, .metric-val, .metric-num, .nav-val {
+        font-family: 'JetBrains Mono', monospace !important;
+        font-variant-numeric: tabular-nums !important;
+        font-feature-settings: 'tnum' 1 !important;
+    }
+
+    /* Top Breathing Room - Prevents Streamlit Header Clipping */
     .block-container {
-        padding-top: 3.2rem !important;
+        padding-top: 3.5rem !important;
         padding-bottom: 3.5rem !important;
         padding-left: 1.25rem !important;
         padding-right: 1.25rem !important;
@@ -82,7 +102,248 @@ st.markdown("""
         font-feature-settings: 'tnum' 1;
     }
 
-    /* Finology Bento Cards & Containers */
+    /* -------------------------------------------------------------
+       2. STREAMLIT TOP HEADER TOOLBAR CONTRAST FIX
+       Fixes faint white icons/buttons against light canvas
+       ------------------------------------------------------------- */
+    header[data-testid="stHeader"] {
+        background: rgba(248, 250, 252, 0.95) !important;
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px) !important;
+        border-bottom: 1px solid #E2E8F0 !important;
+    }
+
+    /* Hide default gradient decoration line */
+    div[data-testid="stDecoration"] {
+        display: none !important;
+    }
+
+    /* Toolbar action buttons, SVGs, and text in dark slate */
+    header[data-testid="stHeader"] * {
+        color: #334155 !important;
+    }
+
+    header[data-testid="stHeader"] button,
+    header[data-testid="stHeader"] a {
+        background-color: #FFFFFF !important;
+        border: 1px solid #CBD5E1 !important;
+        border-radius: 8px !important;
+        color: #334155 !important;
+        transition: all 0.15s ease !important;
+    }
+
+    header[data-testid="stHeader"] button:hover,
+    header[data-testid="stHeader"] a:hover {
+        background-color: #F1F5F9 !important;
+        border-color: #94A3B8 !important;
+        color: #0F172A !important;
+    }
+
+    header[data-testid="stHeader"] svg {
+        fill: #334155 !important;
+        stroke: #334155 !important;
+        color: #334155 !important;
+    }
+
+    header[data-testid="stHeader"] button:hover svg {
+        fill: #0F172A !important;
+        stroke: #0F172A !important;
+        color: #0F172A !important;
+    }
+
+    /* -------------------------------------------------------------
+       3. STREAMLIT TABS CONTRAST & TYPOGRAPHY FIX
+       Unselected tabs in dark slate (#475569), active tab in bold royal blue (#2563EB)
+       ------------------------------------------------------------- */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px !important;
+        background-color: transparent !important;
+        border-bottom: 2px solid #E2E8F0 !important;
+        padding-bottom: 0px !important;
+        margin-bottom: 18px !important;
+    }
+
+    /* Unselected tabs */
+    .stTabs [data-baseweb="tab"] {
+        background-color: transparent !important;
+        border: none !important;
+        border-bottom: 2px solid transparent !important;
+        border-radius: 8px 8px 0 0 !important;
+        padding: 8px 16px !important;
+        margin-bottom: -2px !important;
+        color: #475569 !important;
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 600 !important;
+        font-size: 0.90rem !important;
+        transition: all 0.15s ease-in-out !important;
+    }
+
+    .stTabs [data-baseweb="tab"]:hover {
+        color: #0F172A !important;
+        background-color: #F1F5F9 !important;
+    }
+
+    .stTabs [data-baseweb="tab"] div,
+    .stTabs [data-baseweb="tab"] p,
+    .stTabs [data-baseweb="tab"] span {
+        color: #475569 !important;
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 600 !important;
+        font-size: 0.90rem !important;
+        transition: color 0.15s ease-in-out !important;
+    }
+
+    .stTabs [data-baseweb="tab"]:hover div,
+    .stTabs [data-baseweb="tab"]:hover p,
+    .stTabs [data-baseweb="tab"]:hover span {
+        color: #0F172A !important;
+    }
+
+    /* Active / Selected Tab */
+    .stTabs [data-baseweb="tab"][aria-selected="true"] {
+        background-color: #EFF6FF !important;
+        color: #2563EB !important;
+        border-bottom: 2px solid #2563EB !important;
+    }
+
+    .stTabs [data-baseweb="tab"][aria-selected="true"] div,
+    .stTabs [data-baseweb="tab"][aria-selected="true"] p,
+    .stTabs [data-baseweb="tab"][aria-selected="true"] span {
+        color: #2563EB !important;
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 700 !important;
+    }
+
+    .stTabs [data-baseweb="tab-highlight"] {
+        background-color: #2563EB !important;
+        height: 2px !important;
+    }
+
+    .stTabs [data-baseweb="tab-border"] {
+        display: none !important;
+    }
+
+    /* -------------------------------------------------------------
+       4. STREAMLIT WIDGETS CONTRAST FIX
+       Ensures dark text on light surfaces for selectboxes, radios, expanders, tables
+       ------------------------------------------------------------- */
+    /* Widget labels */
+    .stSelectbox label, 
+    .stRadio label, 
+    .stSlider label,
+    .stMultiSelect label,
+    label[data-testid="stWidgetLabel"] p,
+    label[data-testid="stWidgetLabel"] span {
+        color: #0F172A !important;
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 600 !important;
+        font-size: 0.82rem !important;
+    }
+
+    /* Selectbox dropdowns */
+    div[data-baseweb="select"] {
+        background-color: #FFFFFF !important;
+        border-color: #CBD5E1 !important;
+        border-radius: 8px !important;
+    }
+    div[data-baseweb="select"] * {
+        color: #0F172A !important;
+        font-family: 'Inter', sans-serif !important;
+    }
+    div[data-baseweb="select"]:hover {
+        border-color: #2563EB !important;
+    }
+    ul[data-baseweb="menu"] {
+        background-color: #FFFFFF !important;
+        border: 1px solid #E2E8F0 !important;
+        border-radius: 8px !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+    }
+    ul[data-baseweb="menu"] li {
+        color: #0F172A !important;
+        font-family: 'Inter', sans-serif !important;
+    }
+    ul[data-baseweb="menu"] li:hover,
+    ul[data-baseweb="menu"] li[aria-selected="true"] {
+        background-color: #EFF6FF !important;
+        color: #2563EB !important;
+    }
+
+    /* Radio buttons */
+    div[data-testid="stRadio"] div[role="radiogroup"] label {
+        color: #334155 !important;
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 500 !important;
+    }
+    div[data-testid="stRadio"] div[role="radiogroup"] label div p {
+        color: #334155 !important;
+    }
+    div[data-testid="stRadio"] div[role="radiogroup"] label:hover div p {
+        color: #0F172A !important;
+    }
+
+    /* Expanders */
+    div[data-testid="stExpander"] {
+        background-color: #FFFFFF !important;
+        border: 1px solid #E2E8F0 !important;
+        border-radius: 10px !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.02) !important;
+        margin-bottom: 12px !important;
+    }
+    div[data-testid="stExpander"] details summary {
+        color: #0F172A !important;
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        font-weight: 600 !important;
+    }
+    div[data-testid="stExpander"] details summary svg {
+        fill: #475569 !important;
+    }
+    div[data-testid="stExpander"] details summary:hover {
+        color: #2563EB !important;
+    }
+    div[data-testid="stExpander"] details div[data-testid="stExpanderDetails"] {
+        background-color: #FFFFFF !important;
+        border-top: 1px solid #F1F5F9 !important;
+        color: #334155 !important;
+    }
+
+    /* Captions & Markdown Text */
+    .stCaption, 
+    div[data-testid="stCaptionContainer"] p {
+        color: #64748B !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 0.78rem !important;
+    }
+    div[data-testid="stMarkdownContainer"] p {
+        color: #334155 !important;
+        font-family: 'Inter', sans-serif !important;
+    }
+
+    /* Dataframes / Tables */
+    div[data-testid="stDataFrame"] {
+        background: #FFFFFF !important;
+        border: 1px solid #E2E8F0 !important;
+        border-radius: 10px !important;
+        overflow: hidden !important;
+    }
+    div[data-testid="stDataFrame"] * {
+        font-family: 'Inter', sans-serif !important;
+        color: #0F172A !important;
+    }
+
+    /* Sliders */
+    div[data-testid="stSlider"] div[data-baseweb="slider"] {
+        color: #2563EB !important;
+    }
+    div[data-testid="stSlider"] p,
+    div[data-testid="stSlider"] span {
+        color: #0F172A !important;
+        font-family: 'JetBrains Mono', monospace !important;
+    }
+
+    /* -------------------------------------------------------------
+       5. FINOLOGY BENTO CARDS & COMPONENTS
+       ------------------------------------------------------------- */
     .fin-card {
         background: #FFFFFF !important;
         border: 1px solid #E2E8F0 !important;
@@ -123,6 +384,7 @@ st.markdown("""
         box-shadow: 0 1px 3px rgba(0,0,0,0.03);
     }
     .kpi-label {
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
         font-size: 0.72rem;
         font-weight: 700;
         color: #64748B;
@@ -131,13 +393,16 @@ st.markdown("""
         margin-bottom: 4px;
     }
     .kpi-value {
+        font-family: 'JetBrains Mono', monospace !important;
         font-size: 1.35rem;
-        font-weight: 800;
+        font-weight: 700;
         color: #0F172A;
         line-height: 1.2;
         font-feature-settings: 'tnum' 1;
+        font-variant-numeric: tabular-nums;
     }
     .kpi-sub {
+        font-family: 'Inter', sans-serif !important;
         font-size: 0.75rem;
         margin-top: 5px;
         font-feature-settings: 'tnum' 1;
@@ -157,8 +422,9 @@ st.markdown("""
         box-shadow: 0 2px 6px rgba(0,0,0,0.04);
     }
 
-    /* Finology Status Badges & Pills */
+    /* Status Badges & Pills */
     .badge-pill {
+        font-family: 'Inter', sans-serif !important;
         font-size: 0.72rem;
         font-weight: 600;
         padding: 3px 8px;
@@ -198,36 +464,12 @@ st.markdown("""
         border: 1px solid #DDD6FE;
     }
 
-    /* Clean Streamlit Tab Styling */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 6px;
-        border-bottom: 1px solid #E2E8F0;
-        background: transparent;
-        padding-bottom: 2px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        height: 38px;
-        white-space: nowrap;
-        border-radius: 8px;
-        color: #64748B;
-        font-weight: 600;
-        font-size: 0.88rem;
-        padding: 0 14px;
-        background: transparent;
-        border: none;
-        transition: all 0.15s ease;
-    }
-    .stTabs [aria-selected="true"] {
-        background: #EFF6FF !important;
-        color: #2563EB !important;
-        font-weight: 700 !important;
-    }
-
-    /* Clean Modern Buttons */
+    /* Buttons */
     .stButton>button {
         width: 100%;
         border-radius: 8px;
         height: 42px;
+        font-family: 'Inter', sans-serif !important;
         font-weight: 600;
         border: 1px solid #CBD5E1;
         background: #FFFFFF;
@@ -239,12 +481,6 @@ st.markdown("""
         background: #F8FAFC;
         border-color: #2563EB;
         color: #2563EB;
-    }
-
-    /* Tabular numeric alignment */
-    .tabular {
-        font-feature-settings: 'tnum' 1;
-        font-variant-numeric: tabular-nums;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -288,7 +524,7 @@ render_html(f"""
             📈
         </div>
         <div>
-            <div style='font-size:1.15rem; font-weight:800; color:#0F172A; letter-spacing:-0.3px; line-height:1.2;'>
+            <div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.15rem; font-weight:800; color:#0F172A; letter-spacing:-0.3px; line-height:1.2;'>
                 Tactical MF Engine
             </div>
             <div style='font-size:0.75rem; color:#64748B; font-weight:500;'>
@@ -327,7 +563,7 @@ render_html(f"""
         <div class='kpi-label'>Groww Portfolio Net Worth</div>
         <div class='kpi-value'>{format_inr(tot_net_worth)}</div>
         <div class='kpi-sub'>
-            <span class='badge-pill {gain_pill_cls}'>{format_inr(tot_gain_rs, show_sign=True)} ({tot_gain_pct:+.2f}%)</span>
+            <span class='badge-pill {gain_pill_cls} mono-num'>{format_inr(tot_gain_rs, show_sign=True)} ({tot_gain_pct:+.2f}%)</span>
             <span style='color:#64748B; font-size:0.72rem;'>• 100% Equity</span>
         </div>
     </div>
@@ -337,7 +573,7 @@ render_html(f"""
         <div class='kpi-label'>5-Yr Alpha vs Nifty 500</div>
         <div class='kpi-value' style='color:#059669;'>+{format_inr(872787)}</div>
         <div class='kpi-sub'>
-            <span class='badge-pill pill-emerald'>+8.28% p.a.</span>
+            <span class='badge-pill pill-emerald mono-num'>+8.28% p.a.</span>
             <span style='color:#64748B; font-size:0.72rem;'>17.55% vs 9.27%</span>
         </div>
     </div>
@@ -347,7 +583,7 @@ render_html(f"""
         <div class='kpi-label'>5-Yr Alpha vs Passive Groww</div>
         <div class='kpi-value' style='color:#059669;'>+{format_inr(329792)}</div>
         <div class='kpi-sub'>
-            <span class='badge-pill pill-amber'>+2.95% p.a.</span>
+            <span class='badge-pill pill-amber mono-num'>+2.95% p.a.</span>
             <span style='color:#64748B; font-size:0.72rem;'>17.55% vs 14.60%</span>
         </div>
     </div>
@@ -355,7 +591,7 @@ render_html(f"""
     <!-- Tile 4: Upcoming Dec 3 SIP -->
     <div class='kpi-tile' style='border-left: 3px solid #7C3AED;'>
         <div class='kpi-label'>Upcoming Dec 3 SIP</div>
-        <div class='kpi-value' style='font-size:1.22rem;'>{format_inr(50000)} Full Equity</div>
+        <div class='kpi-value' style='font-size:1.20rem;'>{format_inr(50000)} Full Equity</div>
         <div class='kpi-sub'>
             <span class='badge-pill pill-purple'>Top 2 Leaders</span>
             <span style='color:#64748B; font-size:0.70rem;'>Pharma & Midcap</span>
@@ -399,24 +635,22 @@ p1_name = p1.get("short_name", "Nippon India Pharma")
 p1_subcat = p1.get("sub_category", "Sector Healthcare / Pharma")
 p1_score = p1.get("score", 61.8)
 p1_amt = p1.get("allocation_amount", 25000.0)
-p1_thesis = p1.get("thesis", "Uptrend in Pharma leadership above 200-DMA (+13.6%). 90d gain: +2.8%.")
 
 p2_name = p2.get("short_name", "Motilal Oswal Midcap")
 p2_subcat = p2.get("sub_category", "Cap Midcap")
 p2_score = p2.get("score", 61.7)
 p2_amt = p2.get("allocation_amount", 25000.0)
-p2_thesis = p2.get("thesis", "High-growth midcap alpha leader above 200-DMA (+16.3%). 90d gain: +2.2%.")
 
 render_html(f"""
 <div class='hero-card'>
     <div style='display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;'>
         <div>
             <div style='display:flex; align-items:center; gap:8px;'>
-                <span style='font-size:1.02rem; font-weight:800; color:#0F172A;'>📅 Monthly SIP Allocation Directive</span>
+                <span style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.02rem; font-weight:800; color:#0F172A;'>📅 Monthly SIP Allocation Directive</span>
                 <span class='badge-pill pill-blue'>Dec 3, 2026 Kickoff</span>
             </div>
             <div style='font-size:0.78rem; color:#64748B; margin-top:2px;'>
-                Governed by Winning 17.55% AI Engine • {format_inr(50000)}/Month Capital
+                Governed by Winning 17.55% AI Engine • <span class='mono-num'>{format_inr(50000)}</span>/Month Capital
             </div>
         </div>
         <div>
@@ -432,17 +666,17 @@ render_html(f"""
         <div style='background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:12px 14px;'>
             <div style='display:flex; justify-content:space-between; align-items:flex-start;'>
                 <div>
-                    <div style='font-size:0.90rem; font-weight:700; color:#0F172A;'>{p1_name}</div>
+                    <div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.92rem; font-weight:700; color:#0F172A;'>{p1_name}</div>
                     <div style='font-size:0.72rem; color:#64748B;'>{p1_subcat}</div>
                 </div>
                 <div style='text-align:right;'>
-                    <div style='font-size:1.05rem; font-weight:800; color:#059669;'>{format_inr(p1_amt)}</div>
-                    <span class='badge-pill pill-emerald' style='font-size:0.68rem;'>Score {p1_score:.0f}/100</span>
+                    <div class='mono-num' style='font-size:1.08rem; font-weight:800; color:#059669;'>{format_inr(p1_amt)}</div>
+                    <span class='badge-pill pill-emerald mono-num' style='font-size:0.68rem;'>Score {p1_score:.0f}/100</span>
                 </div>
             </div>
             <div style='margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;'>
-                <span class='badge-pill pill-blue'>200-DMA +13.6%</span>
-                <span class='badge-pill pill-slate'>90d Return +2.8%</span>
+                <span class='badge-pill pill-blue mono-num'>200-DMA +13.6%</span>
+                <span class='badge-pill pill-slate mono-num'>90d Return +2.8%</span>
                 <span class='badge-pill pill-emerald'>0% Exit Load</span>
             </div>
             <div style='font-size:0.75rem; color:#475569; margin-top:8px; line-height:1.4;'>
@@ -454,17 +688,17 @@ render_html(f"""
         <div style='background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:12px 14px;'>
             <div style='display:flex; justify-content:space-between; align-items:flex-start;'>
                 <div>
-                    <div style='font-size:0.90rem; font-weight:700; color:#0F172A;'>{p2_name}</div>
+                    <div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.92rem; font-weight:700; color:#0F172A;'>{p2_name}</div>
                     <div style='font-size:0.72rem; color:#64748B;'>{p2_subcat}</div>
                 </div>
                 <div style='text-align:right;'>
-                    <div style='font-size:1.05rem; font-weight:800; color:#059669;'>{format_inr(p2_amt)}</div>
-                    <span class='badge-pill pill-emerald' style='font-size:0.68rem;'>Score {p2_score:.0f}/100</span>
+                    <div class='mono-num' style='font-size:1.08rem; font-weight:800; color:#059669;'>{format_inr(p2_amt)}</div>
+                    <span class='badge-pill pill-emerald mono-num' style='font-size:0.68rem;'>Score {p2_score:.0f}/100</span>
                 </div>
             </div>
             <div style='margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;'>
-                <span class='badge-pill pill-blue'>200-DMA +16.3%</span>
-                <span class='badge-pill pill-slate'>90d Return +2.2%</span>
+                <span class='badge-pill pill-blue mono-num'>200-DMA +16.3%</span>
+                <span class='badge-pill pill-slate mono-num'>90d Return +2.2%</span>
                 <span class='badge-pill pill-emerald'>0% Exit Load</span>
             </div>
             <div style='font-size:0.75rem; color:#475569; margin-top:8px; line-height:1.4;'>
@@ -480,7 +714,7 @@ render_html(f"""
             <span style='font-size:0.75rem; color:#475569;'>Zero churn triggered — all active units trade safely above 200-DMA bands.</span>
         </div>
         <div style='font-size:0.75rem; color:#64748B;'>
-            Total Equity: <b style='color:#059669;'>{format_inr(tot_eq)}</b> • Cash: <b style='color:#64748B;'>{format_inr(tot_cash)}</b> • Stamp Duty: ₹2.50
+            Total Equity: <b class='mono-num' style='color:#059669;'>{format_inr(tot_eq)}</b> • Cash: <b class='mono-num' style='color:#64748B;'>{format_inr(tot_cash)}</b> • Stamp Duty: <span class='mono-num'>₹2.50</span>
         </div>
     </div>
 </div>
@@ -497,7 +731,7 @@ tab_regimes, tab_holdings, tab_chart, tab_trades, tab_settings = st.tabs([
 # TAB 1: REGIMES & INTERACTIVE MOMENTUM SCREENER
 # =====================================================================
 with tab_regimes:
-    st.markdown("<div style='font-size:1.05rem; font-weight:800; color:#0F172A; margin-bottom:2px;'>🎯 Market Regime Breakdown (0–100)</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.05rem; font-weight:800; color:#0F172A; margin-bottom:2px;'>🎯 Market Regime Breakdown (0–100)</div>", unsafe_allow_html=True)
     st.caption("50% Technicals (200-DMA, 50-EMA, RSI, ATR, VIX) + 50% Fundamentals (PE Z-score, PB, Yield Spread)")
 
     # 3-Column Macro Sleeve Cards
@@ -523,7 +757,7 @@ with tab_regimes:
             render_html(f"""
             <div class='fin-card' style='padding:12px 14px;'>
                 <div style='display:flex; justify-content:space-between; align-items:center;'>
-                    <div style='font-size:0.86rem; font-weight:700; color:#0F172A;'>{s_title}</div>
+                    <div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.88rem; font-weight:700; color:#0F172A;'>{s_title}</div>
                     <span class='badge-pill {status_cls}'>{status}</span>
                 </div>
                 <div style='font-size:0.70rem; color:#64748B; margin-top:2px;'>{s_fund}</div>
@@ -531,18 +765,18 @@ with tab_regimes:
                 <div style='display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-top:10px; background:#F8FAFC; padding:8px 10px; border-radius:8px; border:1px solid #E2E8F0;'>
                     <div>
                         <div style='font-size:0.65rem; color:#64748B; text-transform:uppercase;'>Spot Score</div>
-                        <div style='font-size:1.15rem; font-weight:800; color:#0F172A;'>{spot:.1f}</div>
+                        <div class='mono-num' style='font-size:1.15rem; font-weight:800; color:#0F172A;'>{spot:.1f}</div>
                     </div>
                     <div>
                         <div style='font-size:0.65rem; color:#2563EB; text-transform:uppercase;'>30d Average</div>
-                        <div style='font-size:1.15rem; font-weight:800; color:#2563EB;'>{rolling:.1f}</div>
+                        <div class='mono-num' style='font-size:1.15rem; font-weight:800; color:#2563EB;'>{rolling:.1f}</div>
                     </div>
                 </div>
 
                 <div style='display:flex; justify-content:space-between; margin-top:8px; font-size:0.72rem; color:#64748B;'>
-                    <span>200-DMA: <b style='color:#0F172A;'>{dma_sign}{dma_dist:.1f}%</b></span>
-                    <span>RSI: <b style='color:#0F172A;'>{rsi:.1f}</b></span>
-                    <span>VIX: <b style='color:#0F172A;'>{vix:.1f}</b></span>
+                    <span>200-DMA: <b class='mono-num' style='color:#0F172A;'>{dma_sign}{dma_dist:.1f}%</b></span>
+                    <span>RSI: <b class='mono-num' style='color:#0F172A;'>{rsi:.1f}</b></span>
+                    <span>VIX: <b class='mono-num' style='color:#0F172A;'>{vix:.1f}</b></span>
                 </div>
             </div>
             """)
@@ -550,7 +784,7 @@ with tab_regimes:
     # -------------------------------------------------------------
     # INTERACTIVE UNIVERSE MOMENTUM SCREENER
     # -------------------------------------------------------------
-    st.markdown("<div style='font-size:1.05rem; font-weight:800; color:#0F172A; margin-top:18px; margin-bottom:2px;'>🔍 Interactive Universe Momentum & 200-DMA Screener</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.05rem; font-weight:800; color:#0F172A; margin-top:18px; margin-bottom:2px;'>🔍 Interactive Universe Momentum & 200-DMA Screener</div>", unsafe_allow_html=True)
     st.caption("Scans direct Indian mutual funds across Core, Thematic, Commodities & Global sleeves.")
 
     rep = score_unrestricted_universe()
@@ -644,7 +878,7 @@ with tab_regimes:
     # -------------------------------------------------------------
     # LIGHT-CANVAS PRICE VS 200-DMA & 50-EMA TREND INSPECTOR
     # -------------------------------------------------------------
-    st.markdown("<div style='font-size:1.05rem; font-weight:800; color:#0F172A; margin-top:20px; margin-bottom:2px;'>📈 Technical Trend & Moving Averages Inspector</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.05rem; font-weight:800; color:#0F172A; margin-top:20px; margin-bottom:2px;'>📈 Technical Trend & Moving Averages Inspector</div>", unsafe_allow_html=True)
     st.caption("Clean light-canvas Plotly chart showing daily NAV, 200-day trend gate, and 50-day momentum.")
 
     fund_keys = [f["key"] for f in ranked_funds]
@@ -704,7 +938,7 @@ with tab_regimes:
             template="plotly_white",
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="#FFFFFF",
-            font=dict(family="Plus Jakarta Sans, sans-serif", color="#475569"),
+            font=dict(family="Inter, sans-serif", color="#475569"),
             height=280,
             margin=dict(l=10, r=10, t=10, b=10),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10)),
@@ -717,20 +951,20 @@ with tab_regimes:
         d_sign = "+" if c_data['dma_dist_pct'] >= 0 else ""
         render_html(f"""
         <div style='background:#FFFFFF; border:1px solid #E2E8F0; border-radius:8px; padding:8px 14px; display:flex; justify-content:space-between; align-items:center; font-size:0.78rem;'>
-            <span>Latest NAV: <b style='color:#0F172A;'>{format_inr(c_data['current_nav'], decimals=2)}</b></span>
-            <span>200-DMA: <b style='color:#64748B;'>{format_inr(c_data['current_200_dma'], decimals=2)}</b></span>
-            <span>Distance from 200-DMA: <b style='color:{"#059669" if c_data["dma_dist_pct"]>=0 else "#DC2626"};'>{d_sign}{c_data['dma_dist_pct']:.2f}%</b></span>
+            <span>Latest NAV: <b class='mono-num' style='color:#0F172A;'>{format_inr(c_data['current_nav'], decimals=2)}</b></span>
+            <span>200-DMA: <b class='mono-num' style='color:#64748B;'>{format_inr(c_data['current_200_dma'], decimals=2)}</b></span>
+            <span>Distance from 200-DMA: <b class='mono-num' style='color:{"#059669" if c_data["dma_dist_pct"]>=0 else "#DC2626"};'>{d_sign}{c_data['dma_dist_pct']:.2f}%</b></span>
         </div>
         """)
 
-# =====================================================================
+# ==========================================
 # TAB 2: UNIFIED HOLDINGS & FORWARD CHALLENGE
-# =====================================================================
+# ==========================================
 with tab_holdings:
     # -------------------------------------------------------------
     # SECTION A: 12-MONTH LIVE FORWARD CHALLENGE PORTFOLIOS
     # -------------------------------------------------------------
-    st.markdown("<div style='font-size:1.05rem; font-weight:800; color:#0F172A; margin-bottom:2px;'>🏆 Section A: 12-Month Live Forward Challenge Portfolios</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.05rem; font-weight:800; color:#0F172A; margin-bottom:2px;'>🏆 Section A: 12-Month Live Forward Challenge Portfolios</div>", unsafe_allow_html=True)
     st.caption("Starting Dec 3, 2026 • ₹50,000/Mo SIP on the 3rd • 4 Portfolios Tracked Side-by-Side")
 
     fwd = get_live_forward_challenge()
@@ -741,51 +975,51 @@ with tab_holdings:
         <!-- Strategy 1: Winning AI Engine -->
         <div class='fin-card' style='border-top:3px solid #059669; padding:12px 14px;'>
             <div style='font-size:0.72rem; font-weight:700; color:#059669; text-transform:uppercase;'>🏆 Winning AI Engine</div>
-            <div style='font-size:1.20rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(50000)}<span style='font-size:0.70rem; color:#64748B;'>/mo</span></div>
+            <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(50000)}<span style='font-size:0.70rem; color:#64748B;'>/mo</span></div>
             <div style='font-size:0.72rem; color:#475569; margin-top:4px;'>Top 2 Momentum Leaders (₹25k each)</div>
             <div style='margin-top:8px;'>
-                <span class='badge-pill pill-emerald'>17.55% XIRR</span>
-                <span style='font-size:0.68rem; color:#64748B; margin-left:4px;'>-13.9% DD</span>
+                <span class='badge-pill pill-emerald mono-num'>17.55% XIRR</span>
+                <span class='mono-num' style='font-size:0.68rem; color:#64748B; margin-left:4px;'>-13.9% DD</span>
             </div>
         </div>
 
         <!-- Strategy 2: My Passive Groww SIPs -->
         <div class='fin-card' style='border-top:3px solid #D97706; padding:12px 14px;'>
             <div style='font-size:0.72rem; font-weight:700; color:#D97706; text-transform:uppercase;'>📦 Passive Groww</div>
-            <div style='font-size:1.20rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(50000)}<span style='font-size:0.70rem; color:#64748B;'>/mo</span></div>
+            <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(50000)}<span style='font-size:0.70rem; color:#64748B;'>/mo</span></div>
             <div style='font-size:0.72rem; color:#475569; margin-top:4px;'>PPFC ₹10k + MOMC ₹20k + NISC ₹20k</div>
             <div style='margin-top:8px;'>
-                <span class='badge-pill pill-amber'>14.60% XIRR</span>
-                <span style='font-size:0.68rem; color:#64748B; margin-left:4px;'>-15.9% DD</span>
+                <span class='badge-pill pill-amber mono-num'>14.60% XIRR</span>
+                <span class='mono-num' style='font-size:0.68rem; color:#64748B; margin-left:4px;'>-15.9% DD</span>
             </div>
         </div>
 
         <!-- Strategy 3: Nifty 500 Broad Market -->
         <div class='fin-card' style='border-top:3px solid #2563EB; padding:12px 14px;'>
             <div style='font-size:0.72rem; font-weight:700; color:#2563EB; text-transform:uppercase;'>🌐 Nifty 500 Index</div>
-            <div style='font-size:1.20rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(50000)}<span style='font-size:0.70rem; color:#64748B;'>/mo</span></div>
+            <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(50000)}<span style='font-size:0.70rem; color:#64748B;'>/mo</span></div>
             <div style='font-size:0.72rem; color:#475569; margin-top:4px;'>Motilal Nifty 500 Index Direct</div>
             <div style='margin-top:8px;'>
-                <span class='badge-pill pill-blue'>9.27% XIRR</span>
-                <span style='font-size:0.68rem; color:#64748B; margin-left:4px;'>-11.2% DD</span>
+                <span class='badge-pill pill-blue mono-num'>9.27% XIRR</span>
+                <span class='mono-num' style='font-size:0.68rem; color:#64748B; margin-left:4px;'>-11.2% DD</span>
             </div>
         </div>
 
         <!-- Strategy 4: Nifty 50 Large Cap -->
         <div class='fin-card' style='border-top:3px solid #7C3AED; padding:12px 14px;'>
             <div style='font-size:0.72rem; font-weight:700; color:#7C3AED; text-transform:uppercase;'>🏛️ Nifty 50 Index</div>
-            <div style='font-size:1.20rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(50000)}<span style='font-size:0.70rem; color:#64748B;'>/mo</span></div>
+            <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(50000)}<span style='font-size:0.70rem; color:#64748B;'>/mo</span></div>
             <div style='font-size:0.72rem; color:#475569; margin-top:4px;'>UTI Nifty 50 Index Direct</div>
             <div style='margin-top:8px;'>
-                <span class='badge-pill pill-purple'>7.49% XIRR</span>
-                <span style='font-size:0.68rem; color:#64748B; margin-left:4px;'>-11.4% DD</span>
+                <span class='badge-pill pill-purple mono-num'>7.49% XIRR</span>
+                <span class='mono-num' style='font-size:0.68rem; color:#64748B; margin-left:4px;'>-11.4% DD</span>
             </div>
         </div>
     </div>
     """)
 
     # Compact, Sortable Interactive Table for Dec 3rd Day-1 Allocation Preview
-    st.markdown("<div style='font-size:0.95rem; font-weight:700; color:#0F172A; margin-top:6px; margin-bottom:2px;'>🔍 Dec 3, 2026 Day-1 Allocation Preview</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.95rem; font-weight:700; color:#0F172A; margin-top:6px; margin-bottom:2px;'>🔍 Dec 3, 2026 Day-1 Allocation Preview</div>", unsafe_allow_html=True)
     st.caption("Net invested capital after 0.005% stamp duty, live NAVs, and estimated units credited on launch day.")
 
     day1 = fwd.get("day1_preview", {})
@@ -824,7 +1058,7 @@ with tab_holdings:
     # -------------------------------------------------------------
     # SECTION B: MY EXISTING GROWW CORE & LOCKED ELSS SCORECARD
     # -------------------------------------------------------------
-    st.markdown("<div style='font-size:1.05rem; font-weight:800; color:#0F172A; margin-top:20px; margin-bottom:2px;'>💼 Section B: My Existing Groww Core & Locked ELSS Holdings</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.05rem; font-weight:800; color:#0F172A; margin-top:20px; margin-bottom:2px;'>💼 Section B: My Existing Groww Core & Locked ELSS Holdings</div>", unsafe_allow_html=True)
     st.caption("Clean, live valuation of active portfolio and segregated tax-saver holdings (100% direct equity, zero cash drag).")
 
     active_items = portfolio_sum.get("active_items", [])
@@ -865,9 +1099,9 @@ with tab_holdings:
     locked_val = portfolio_sum.get("locked_value", 366540.0)
     render_html(f"""
     <div style='background:#FFFFFF; border:1px solid #E2E8F0; border-radius:10px; padding:10px 16px; margin-top:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; font-size:0.78rem;'>
-        <span>Active Tradable (4 Funds): <b style='color:#059669;'>{format_inr(active_val)}</b></span>
-        <span>Locked ELSS (2 Funds): <b style='color:#64748B;'>{format_inr(locked_val)}</b></span>
-        <span>Total Net Worth: <b style='color:#0F172A;'>{format_inr(tot_net_worth)}</b> (100% Equity, Zero Cash Drag)</span>
+        <span>Active Tradable (4 Funds): <b class='mono-num' style='color:#059669;'>{format_inr(active_val)}</b></span>
+        <span>Locked ELSS (2 Funds): <b class='mono-num' style='color:#64748B;'>{format_inr(locked_val)}</b></span>
+        <span>Total Net Worth: <b class='mono-num' style='color:#0F172A;'>{format_inr(tot_net_worth)}</b> (100% Equity, Zero Cash Drag)</span>
     </div>
     """)
 
@@ -890,7 +1124,7 @@ with tab_chart:
     # 1. INTERACTIVE SIP & CORPUS SIMULATOR
     # -------------------------------------------------------------
     if "Simulator" in alpha_subtab:
-        st.markdown("<div style='font-size:1.05rem; font-weight:800; color:#0F172A; margin-bottom:2px;'>🔮 Interactive SIP & Corpus Simulator</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.05rem; font-weight:800; color:#0F172A; margin-bottom:2px;'>🔮 Interactive SIP & Corpus Simulator</div>", unsafe_allow_html=True)
         st.caption("Project your future post-tax wealth under the Winning 17.55% AI Engine vs. Passive Groww vs. Nifty 500 vs. Nifty 50.")
 
         sim_col1, sim_col2 = st.columns(2)
@@ -931,26 +1165,26 @@ with tab_chart:
         <div style='display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin-top:10px; margin-bottom:12px;'>
             <div class='fin-card' style='border-top:3px solid #059669; padding:12px 14px;'>
                 <div style='font-size:0.72rem; color:#059669; font-weight:700;'>🏆 AI Engine (17.55%)</div>
-                <div style='font-size:1.22rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(final_ai)}</div>
-                <div style='font-size:0.70rem; color:#059669; margin-top:2px;'>Gain: +{format_inr(final_ai - tot_invested_sim)}</div>
+                <div class='mono-num' style='font-size:1.22rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(final_ai)}</div>
+                <div class='mono-num' style='font-size:0.70rem; color:#059669; margin-top:2px;'>Gain: +{format_inr(final_ai - tot_invested_sim)}</div>
             </div>
 
             <div class='fin-card' style='border-top:3px solid #D97706; padding:12px 14px;'>
                 <div style='font-size:0.72rem; color:#D97706; font-weight:700;'>📦 Passive Groww (14.60%)</div>
-                <div style='font-size:1.22rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(final_groww)}</div>
-                <div style='font-size:0.70rem; color:#D97706; margin-top:2px;'>Gain: +{format_inr(final_groww - tot_invested_sim)}</div>
+                <div class='mono-num' style='font-size:1.22rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(final_groww)}</div>
+                <div class='mono-num' style='font-size:0.70rem; color:#D97706; margin-top:2px;'>Gain: +{format_inr(final_groww - tot_invested_sim)}</div>
             </div>
 
             <div class='fin-card' style='border-top:3px solid #2563EB; padding:12px 14px;'>
                 <div style='font-size:0.72rem; color:#2563EB; font-weight:700;'>🌐 Nifty 500 (9.27%)</div>
-                <div style='font-size:1.22rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(final_n500)}</div>
-                <div style='font-size:0.70rem; color:#2563EB; margin-top:2px;'>Gain: +{format_inr(final_n500 - tot_invested_sim)}</div>
+                <div class='mono-num' style='font-size:1.22rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(final_n500)}</div>
+                <div class='mono-num' style='font-size:0.70rem; color:#2563EB; margin-top:2px;'>Gain: +{format_inr(final_n500 - tot_invested_sim)}</div>
             </div>
 
             <div class='fin-card' style='border-top:3px solid #7C3AED; padding:12px 14px;'>
                 <div style='font-size:0.72rem; color:#7C3AED; font-weight:700;'>🏛️ Nifty 50 (7.49%)</div>
-                <div style='font-size:1.22rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(final_n50)}</div>
-                <div style='font-size:0.70rem; color:#7C3AED; margin-top:2px;'>Gain: +{format_inr(final_n50 - tot_invested_sim)}</div>
+                <div class='mono-num' style='font-size:1.22rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(final_n50)}</div>
+                <div class='mono-num' style='font-size:0.70rem; color:#7C3AED; margin-top:2px;'>Gain: +{format_inr(final_n50 - tot_invested_sim)}</div>
             </div>
         </div>
         """)
@@ -958,12 +1192,12 @@ with tab_chart:
         # Callout Highlight Banner
         render_html(f"""
         <div style='background:#ECFDF5; border:1px solid #A7F3D0; border-radius:10px; padding:10px 16px; margin-bottom:14px;'>
-            <div style='font-size:0.86rem; font-weight:700; color:#059669;'>
-                🚀 Projected Wealth Advantage: +{format_inr(alpha_vs_n500_sim)} over Nifty 500!
+            <div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.86rem; font-weight:700; color:#059669;'>
+                🚀 Projected Wealth Advantage: <span class='mono-num'>+{format_inr(alpha_vs_n500_sim)}</span> over Nifty 500!
             </div>
             <div style='font-size:0.75rem; color:#475569; margin-top:2px;'>
-                Investing <b>{format_inr(sim_sip)}/month</b> across <b>{n_years} years</b> ({format_inr(tot_invested_sim)} total capital) yields 
-                <b>+{format_inr(alpha_vs_n500_sim)}</b> more wealth than Nifty 500 and <b>+{format_inr(alpha_vs_groww_sim)}</b> more than passive Groww SIPs.
+                Investing <b class='mono-num'>{format_inr(sim_sip)}/month</b> across <b>{n_years} years</b> (<span class='mono-num'>{format_inr(tot_invested_sim)}</span> total capital) yields 
+                <b class='mono-num'>+{format_inr(alpha_vs_n500_sim)}</b> more wealth than Nifty 500 and <b class='mono-num'>+{format_inr(alpha_vs_groww_sim)}</b> more than passive Groww SIPs.
             </div>
         </div>
         """)
@@ -1025,7 +1259,7 @@ with tab_chart:
             template="plotly_white",
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="#FFFFFF",
-            font=dict(family="Plus Jakarta Sans, sans-serif", color="#475569"),
+            font=dict(family="Inter, sans-serif", color="#475569"),
             height=300,
             margin=dict(l=10, r=10, t=10, b=10),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10)),
@@ -1045,7 +1279,7 @@ with tab_chart:
         <div class='fin-card' style='border-top:3px solid #2563EB;'>
             <div style='display:flex; justify-content:space-between; align-items:flex-start;'>
                 <div>
-                    <div style='font-size:1.05rem; font-weight:800; color:#0F172A;'>🏆 12-Month Live Forward Challenge</div>
+                    <div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.05rem; font-weight:800; color:#0F172A;'>🏆 12-Month Live Forward Challenge</div>
                     <div style='font-size:0.78rem; color:#64748B; margin-top:2px;'>
                         Passive Groww SIPs (₹50k/Mo) vs. Unrestricted AI Mutual Fund Advisor
                     </div>
@@ -1053,20 +1287,20 @@ with tab_chart:
                 <span class='badge-pill pill-blue'>{fwd['status_label']}</span>
             </div>
             <div style='font-size:0.78rem; color:#475569; margin-top:8px; line-height:1.5;'>
-                Starting <b>Dec 3, 2026</b>, ₹50,000 will be deployed forward on the 3rd of every month across 12 months ({format_inr(600000)} total).
+                Starting <b>Dec 3, 2026</b>, ₹50,000 will be deployed forward on the 3rd of every month across 12 months (<span class='mono-num'>{format_inr(600000)}</span> total).
                 Strictly tracking <b>FIFO tax lots</b>, <b>0.005% stamp duty</b>, exit loads, and actual Indian capital gains taxes.
             </div>
         </div>
         """)
 
         # AI Thesis Log
-        st.markdown("<div style='font-size:0.95rem; font-weight:700; color:#0F172A; margin-top:10px; margin-bottom:4px;'>🧠 Plain-English AI Advisor Thesis Log</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.95rem; font-weight:700; color:#0F172A; margin-top:10px; margin-bottom:4px;'>🧠 Plain-English AI Advisor Thesis Log</div>", unsafe_allow_html=True)
         top1 = fwd["top_picks"][0] if len(fwd["top_picks"]) > 0 else {}
         top2 = fwd["top_picks"][1] if len(fwd["top_picks"]) > 1 else {}
 
         render_html(f"""
         <div class='fin-card' style='padding:14px; font-size:0.80rem; color:#334155;'>
-            <div style='font-weight:700; color:#0F172A; margin-bottom:6px;'>💡 Quantitative Rationale for Dec 3, 2026 Kickoff</div>
+            <div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-weight:700; color:#0F172A; margin-bottom:6px;'>💡 Quantitative Rationale for Dec 3, 2026 Kickoff</div>
             <div style='color:#64748B; margin-bottom:8px;'>{fwd['ai_thesis_summary']}</div>
             <ul style='margin:0; padding-left:18px; line-height:1.6;'>
                 <li><b>{top1.get('short_name', 'Leader 1')} ({top1.get('sub_category', '')}):</b> {top1.get('thesis', '')}</li>
@@ -1092,7 +1326,7 @@ with tab_chart:
     # 3. 5-YEAR HISTORICAL BACKTEST (NOV 2021 – NOV 2026)
     # -------------------------------------------------------------
     else:
-        st.markdown("<div style='font-size:1.05rem; font-weight:800; color:#0F172A; margin-bottom:2px;'>🏛️ 5-Year Historical Backtest (Nov 2021 – Nov 2026)</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.05rem; font-weight:800; color:#0F172A; margin-bottom:2px;'>🏛️ 5-Year Historical Backtest (Nov 2021 – Nov 2026)</div>", unsafe_allow_html=True)
         st.caption("Systematic ₹50,000/Mo SIP (3rd of month) across 61 months • Net of 0.005% Stamp Duty, Exit Loads & Taxes")
 
         b_res = run_five_year_backtest(force_refresh=False)
@@ -1118,36 +1352,36 @@ with tab_chart:
         <div style='display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin-bottom:14px;'>
             <div class='fin-card' style='border-top:3px solid #059669; padding:12px 14px;'>
                 <div style='font-size:0.72rem; color:#059669; font-weight:700;'>🏆 Winning AI Engine</div>
-                <div style='font-size:1.20rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(ai_net)}</div>
-                <div style='font-size:0.72rem; color:#64748B;'>Post-Tax: <b style='color:#059669;'>{ai_xirr:.2f}% XIRR</b></div>
-                <div style='font-size:0.68rem; color:#94A3B8; margin-top:2px;'>Max DD: {ai_dd:.2f}%</div>
+                <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(ai_net)}</div>
+                <div style='font-size:0.72rem; color:#64748B;'>Post-Tax: <b class='mono-num' style='color:#059669;'>{ai_xirr:.2f}% XIRR</b></div>
+                <div class='mono-num' style='font-size:0.68rem; color:#94A3B8; margin-top:2px;'>Max DD: {ai_dd:.2f}%</div>
             </div>
 
             <div class='fin-card' style='border-top:3px solid #D97706; padding:12px 14px;'>
                 <div style='font-size:0.72rem; color:#D97706; font-weight:700;'>📦 Passive Groww SIP</div>
-                <div style='font-size:1.20rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(pas_net)}</div>
-                <div style='font-size:0.72rem; color:#64748B;'>Post-Tax: <b style='color:#D97706;'>{pas_xirr:.2f}% XIRR</b></div>
-                <div style='font-size:0.68rem; color:#94A3B8; margin-top:2px;'>Max DD: {pas_dd:.2f}%</div>
+                <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(pas_net)}</div>
+                <div style='font-size:0.72rem; color:#64748B;'>Post-Tax: <b class='mono-num' style='color:#D97706;'>{pas_xirr:.2f}% XIRR</b></div>
+                <div class='mono-num' style='font-size:0.68rem; color:#94A3B8; margin-top:2px;'>Max DD: {pas_dd:.2f}%</div>
             </div>
 
             <div class='fin-card' style='border-top:3px solid #2563EB; padding:12px 14px;'>
                 <div style='font-size:0.72rem; color:#2563EB; font-weight:700;'>🌐 Nifty 500 Index</div>
-                <div style='font-size:1.20rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(n500_net)}</div>
-                <div style='font-size:0.72rem; color:#64748B;'>Post-Tax: <b style='color:#2563EB;'>{n500_xirr:.2f}% XIRR</b></div>
-                <div style='font-size:0.68rem; color:#94A3B8; margin-top:2px;'>Max DD: {n500_dd:.2f}%</div>
+                <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(n500_net)}</div>
+                <div style='font-size:0.72rem; color:#64748B;'>Post-Tax: <b class='mono-num' style='color:#2563EB;'>{n500_xirr:.2f}% XIRR</b></div>
+                <div class='mono-num' style='font-size:0.68rem; color:#94A3B8; margin-top:2px;'>Max DD: {n500_dd:.2f}%</div>
             </div>
 
             <div class='fin-card' style='border-top:3px solid #7C3AED; padding:12px 14px;'>
                 <div style='font-size:0.72rem; color:#7C3AED; font-weight:700;'>🏛️ Nifty 50 Index</div>
-                <div style='font-size:1.20rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(n50_net)}</div>
-                <div style='font-size:0.72rem; color:#64748B;'>Post-Tax: <b style='color:#7C3AED;'>{n50_xirr:.2f}% XIRR</b></div>
-                <div style='font-size:0.68rem; color:#94A3B8; margin-top:2px;'>Max DD: {n50_dd:.2f}%</div>
+                <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(n50_net)}</div>
+                <div style='font-size:0.72rem; color:#64748B;'>Post-Tax: <b class='mono-num' style='color:#7C3AED;'>{n50_xirr:.2f}% XIRR</b></div>
+                <div class='mono-num' style='font-size:0.68rem; color:#94A3B8; margin-top:2px;'>Max DD: {n50_dd:.2f}%</div>
             </div>
         </div>
         """)
 
         # 5-Year Wealth Growth Curve
-        st.markdown("<div style='font-size:0.95rem; font-weight:700; color:#0F172A; margin-bottom:4px;'>📈 5-Year Wealth Growth Curve</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.95rem; font-weight:700; color:#0F172A; margin-bottom:4px;'>📈 5-Year Wealth Growth Curve</div>", unsafe_allow_html=True)
         fig_b = go.Figure()
 
         fig_b.add_trace(go.Scatter(
@@ -1196,7 +1430,7 @@ with tab_chart:
             template="plotly_white",
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="#FFFFFF",
-            font=dict(family="Plus Jakarta Sans, sans-serif", color="#475569"),
+            font=dict(family="Inter, sans-serif", color="#475569"),
             height=300,
             margin=dict(l=10, r=10, t=10, b=10),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10)),
@@ -1206,14 +1440,14 @@ with tab_chart:
         )
         st.plotly_chart(fig_b, use_container_width=True)
 
-# =====================================================================
+# ==========================================
 # TAB 4: TRANSACTION & AUDIT LEDGER
-# =====================================================================
+# ==========================================
 with tab_trades:
-    st.markdown("<div style='font-size:1.05rem; font-weight:800; color:#0F172A; margin-bottom:2px;'>📝 Transaction Log & Execution Queue</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.05rem; font-weight:800; color:#0F172A; margin-bottom:2px;'>📝 Transaction Log & Execution Queue</div>", unsafe_allow_html=True)
     st.caption("Clean audit trail of upcoming kickoff orders and settled portfolio transactions.")
 
-    st.markdown("<div style='font-size:0.95rem; font-weight:700; color:#0F172A; margin-top:8px; margin-bottom:4px;'>📅 Upcoming Dec 3, 2026 Kickoff Orders</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.95rem; font-weight:700; color:#0F172A; margin-top:8px; margin-bottom:4px;'>📅 Upcoming Dec 3, 2026 Kickoff Orders</div>", unsafe_allow_html=True)
     fwd = get_live_forward_challenge()
     day1_items = fwd.get("day1_preview", {}).get("ai_engine", [])
 
@@ -1232,7 +1466,7 @@ with tab_trades:
         })
     st.dataframe(pd.DataFrame(q_rows), use_container_width=True, hide_index=True)
 
-    st.markdown("<div style='font-size:0.95rem; font-weight:700; color:#0F172A; margin-top:16px; margin-bottom:4px;'>📜 Settled Portfolio Transactions</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.95rem; font-weight:700; color:#0F172A; margin-top:16px; margin-bottom:4px;'>📜 Settled Portfolio Transactions</div>", unsafe_allow_html=True)
     txs = db.get_transactions(limit=100)
     clean_txs = [t for t in txs if "CASH" not in t.get("transaction_type", "") and "Shadow" not in t.get("scheme_name", "")]
 
@@ -1253,11 +1487,11 @@ with tab_trades:
     else:
         st.info("Upcoming trades scheduled in Dec 3, 2026 Kickoff Queue above.")
 
-# =====================================================================
+# ==========================================
 # TAB 5: ON-DEMAND ACTIONS & CLOUD CONTROL
-# =====================================================================
+# ==========================================
 with tab_settings:
-    st.markdown("<div style='font-size:1.05rem; font-weight:800; color:#0F172A; margin-bottom:2px;'>⚙️ Cloud Control & Pipeline</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.05rem; font-weight:800; color:#0F172A; margin-bottom:2px;'>⚙️ Cloud Control & Pipeline</div>", unsafe_allow_html=True)
     st.caption("Trigger live pipeline steps, dispatch alerts, and monitor system health.")
 
     act_col1, act_col2, act_col3 = st.columns(3)
@@ -1288,7 +1522,7 @@ with tab_settings:
 
     # Cloud Deployment Info
     st.markdown("---")
-    st.markdown("<div style='font-size:0.95rem; font-weight:700; color:#0F172A; margin-bottom:6px;'>☁️ Cloud Deployment Status</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.95rem; font-weight:700; color:#0F172A; margin-bottom:6px;'>☁️ Cloud Deployment Status</div>", unsafe_allow_html=True)
     supabase_configured = bool(os.getenv("SUPABASE_URL") and "supabase.co" in os.getenv("SUPABASE_URL", ""))
     telegram_configured = bool(os.getenv("TELEGRAM_BOT_TOKEN") and os.getenv("TELEGRAM_CHAT_ID"))
 
