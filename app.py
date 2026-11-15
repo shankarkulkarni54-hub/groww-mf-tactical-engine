@@ -44,11 +44,11 @@ from src.paper_ledger import (
 from src.telegram_bot import format_tactical_alert, send_telegram_alert
 from src.backtester import run_five_year_backtest
 
-# Streamlit Page Config - Centered layout with generous width for Finology Bento design
+# Streamlit Page Config - Full-Width Layout for Finology Bento Design
 st.set_page_config(
     page_title="Tactical MF Engine | WealthTech",
     page_icon="📈",
-    layout="centered",
+    layout="wide",
     initial_sidebar_state="collapsed"
 )
 
@@ -92,14 +92,26 @@ st.markdown("""
         font-feature-settings: 'tnum' 1 !important;
     }
 
-    /* Top Breathing Room - Prevents Streamlit Header Clipping */
+    /* Full-Width Bento Layout - Balanced Margins without Wide Empty Gutters */
+    div[data-testid="stMainBlockContainer"],
+    div[data-testid="stAppViewBlockContainer"],
     .block-container {
+        max-width: 100% !important;
         padding-top: 3.5rem !important;
         padding-bottom: 3.5rem !important;
-        padding-left: 1.25rem !important;
-        padding-right: 1.25rem !important;
-        max-width: 980px !important;
+        padding-left: 2.2rem !important;
+        padding-right: 2.2rem !important;
         font-feature-settings: 'tnum' 1;
+    }
+
+    @media (max-width: 768px) {
+        div[data-testid="stMainBlockContainer"],
+        div[data-testid="stAppViewBlockContainer"],
+        .block-container {
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+            padding-top: 2.8rem !important;
+        }
     }
 
     /* -------------------------------------------------------------
@@ -224,27 +236,33 @@ st.markdown("""
     }
 
     /* -------------------------------------------------------------
-       4. STREAMLIT WIDGETS CONTRAST FIX
-       Ensures dark text on light surfaces for selectboxes, radios, expanders, tables
+       4. STREAMLIT WIDGET LABELS & CONTROLS CONTRAST FIX
+       Forces crisp dark slate (#1E293B) for all form labels and radios
        ------------------------------------------------------------- */
     /* Widget labels */
+    div[data-testid="stWidgetLabel"],
+    div[data-testid="stWidgetLabel"] p,
+    div[data-testid="stWidgetLabel"] label,
+    div[data-testid="stWidgetLabel"] span,
+    label[data-testid="stWidgetLabel"],
     .stSelectbox label, 
     .stRadio label, 
     .stSlider label,
     .stMultiSelect label,
-    label[data-testid="stWidgetLabel"] p,
-    label[data-testid="stWidgetLabel"] span {
-        color: #0F172A !important;
+    label {
+        color: #1E293B !important;
         font-family: 'Inter', sans-serif !important;
         font-weight: 600 !important;
-        font-size: 0.82rem !important;
+        font-size: 0.84rem !important;
+        letter-spacing: -0.01em !important;
     }
 
     /* Selectbox dropdowns */
     div[data-baseweb="select"] {
         background-color: #FFFFFF !important;
-        border-color: #CBD5E1 !important;
+        border: 1px solid #CBD5E1 !important;
         border-radius: 8px !important;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03) !important;
     }
     div[data-baseweb="select"] * {
         color: #0F172A !important;
@@ -257,28 +275,35 @@ st.markdown("""
         background-color: #FFFFFF !important;
         border: 1px solid #E2E8F0 !important;
         border-radius: 8px !important;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08) !important;
     }
     ul[data-baseweb="menu"] li {
         color: #0F172A !important;
         font-family: 'Inter', sans-serif !important;
+        font-size: 0.85rem !important;
     }
     ul[data-baseweb="menu"] li:hover,
     ul[data-baseweb="menu"] li[aria-selected="true"] {
         background-color: #EFF6FF !important;
         color: #2563EB !important;
+        font-weight: 600 !important;
     }
 
-    /* Radio buttons */
+    /* Radio buttons & options labels */
     div[data-testid="stRadio"] div[role="radiogroup"] label {
-        color: #334155 !important;
+        color: #1E293B !important;
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 500 !important;
+        font-size: 0.85rem !important;
+    }
+    div[data-testid="stRadio"] div[role="radiogroup"] label div p,
+    div[data-testid="stRadio"] div[role="radiogroup"] label span {
+        color: #1E293B !important;
         font-family: 'Inter', sans-serif !important;
         font-weight: 500 !important;
     }
-    div[data-testid="stRadio"] div[role="radiogroup"] label div p {
-        color: #334155 !important;
-    }
-    div[data-testid="stRadio"] div[role="radiogroup"] label:hover div p {
+    div[data-testid="stRadio"] div[role="radiogroup"] label:hover div p,
+    div[data-testid="stRadio"] div[role="radiogroup"] label:hover span {
         color: #0F172A !important;
     }
 
@@ -319,16 +344,80 @@ st.markdown("""
         font-family: 'Inter', sans-serif !important;
     }
 
-    /* Dataframes / Tables */
-    div[data-testid="stDataFrame"] {
+    /* -------------------------------------------------------------
+       5. STREAMLIT DATAFRAMES & TABLES - FINOLOGY LIGHT STYLE
+       Clean white (#FFFFFF) background, #0F172A text, subtle #E2E8F0 row dividers
+       ------------------------------------------------------------- */
+    div[data-testid="stDataFrame"],
+    div[data-testid="stTable"],
+    .stDataFrame {
         background: #FFFFFF !important;
+        background-color: #FFFFFF !important;
         border: 1px solid #E2E8F0 !important;
         border-radius: 10px !important;
         overflow: hidden !important;
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04) !important;
     }
-    div[data-testid="stDataFrame"] * {
+    div[data-testid="stDataFrame"] > div,
+    div[data-testid="stDataFrame"] > div > div {
+        background: #FFFFFF !important;
+        background-color: #FFFFFF !important;
+    }
+    div[data-testid="stDataFrame"] *,
+    div[data-testid="stTable"] * {
         font-family: 'Inter', sans-serif !important;
         color: #0F172A !important;
+    }
+    div[data-testid="stDataFrame"] canvas {
+        filter: none !important;
+    }
+
+    /* HTML Tables */
+    table {
+        width: 100% !important;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        background-color: #FFFFFF !important;
+        border: 1px solid #E2E8F0 !important;
+        border-radius: 10px !important;
+        overflow: hidden !important;
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04) !important;
+        margin-top: 8px !important;
+        margin-bottom: 14px !important;
+    }
+    thead th, th {
+        background-color: #F8FAFC !important;
+        color: #1E293B !important;
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        font-weight: 700 !important;
+        font-size: 0.80rem !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.03em !important;
+        padding: 10px 14px !important;
+        border-bottom: 1px solid #E2E8F0 !important;
+        border-right: 1px solid #F1F5F9 !important;
+        text-align: left !important;
+    }
+    thead th:last-child, th:last-child {
+        border-right: none !important;
+    }
+    tbody td, td {
+        background-color: #FFFFFF !important;
+        color: #0F172A !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 0.85rem !important;
+        padding: 10px 14px !important;
+        border-bottom: 1px solid #E2E8F0 !important;
+        border-right: 1px solid #F8FAFC !important;
+    }
+    tbody td:last-child, td:last-child {
+        border-right: none !important;
+    }
+    tbody tr:last-child td, tr:last-child td {
+        border-bottom: none !important;
+    }
+    tbody tr:hover td, tr:hover td {
+        background-color: #F8FAFC !important;
     }
 
     /* Sliders */
