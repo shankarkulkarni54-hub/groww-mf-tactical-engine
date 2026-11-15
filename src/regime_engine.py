@@ -95,7 +95,9 @@ __all__ = [
     "UNRESTRICTED_UNIVERSE",
     "fetch_universe_navs",
     "get_universe_nav_on",
+    "compute_fund_volatility_90d",
     "score_unrestricted_universe",
+    "score_variant_b",
     "check_smart_ltcg_switches",
     "get_fund_chart_data",
     "format_inr",
@@ -479,6 +481,151 @@ def score_unrestricted_universe(
         "top_picks": top_picks,
         "thesis_summary": thesis_summary,
         "ranked_funds": [fund_evaluations[k] for k in ranked_keys]
+    }
+
+
+def compute_fund_volatility_90d(
+    nav_dict: Dict[str, float],
+    as_of_date: Optional[date] = None,
+    vol_floor: float = 0.10
+) -> float:
+    """
+    Computes 90-day annualized volatility from daily NAV changes.
+    Enforces a minimum floor (default 10% / 0.10) to prevent division spikes on low-volatility funds.
+    Formula: std(daily_returns) * sqrt(252), floored at vol_floor.
+    """
+    if as_of_date is None:
+        as_of_date = date.today()
+    start_date = as_of_date - timedelta(days=90)
+    dates = sorted([d for d in nav_dict.keys() if start_date.isoformat() <= d <= as_of_date.isoformat()])
+    if len(dates) < 5:
+        return vol_floor
+    vals = [nav_dict[d] for d in dates]
+    rets = [(vals[i] - vals[i - 1]) / vals[i - 1] for i in range(1, len(vals)) if vals[i - 1] > 0]
+    if len(rets) < 5:
+        return vol_floor
+    ann_vol = float(np.std(rets, ddof=1) * np.sqrt(252))
+    return max(ann_vol, vol_floor)
+
+
+def score_variant_b(
+    as_of_date: Optional[date] = None,
+    navs_dict: Optional[Dict[str, Dict[str, float]]] = None
+) -> Dict[str, Any]:
+    """
+    Evaluates Candidate Variant B: Risk-Adjusted Dual Momentum + 70/30 Conviction Tilt.
+    Formula: Score = (0.5 * Return_90D + 0.5 * Return_180D) / max(Annualized_Volatility_90D, 0.10)
+    Gating: >200-DMA gate (or SBI Gold hedge).
+    Allocation: 70% (₹35,000) to #1, 30% (₹15,000) to #2 (or 100% to #1 if only 1 equity fund is eligible).
+    """
+    if as_of_date is None:
+        as_of_date = date.today()
+    if navs_dict is None:
+        navs_dict = fetch_universe_navs()
+
+    nifty_now = get_universe_nav_on(navs_dict.get("UTI_NIFTY50", {}), as_of_date)
+    nifty_200 = get_universe_nav_on(navs_dict.get("UTI_NIFTY50", {}), as_of_date - timedelta(days=200))
+    nifty_dma_dist = ((nifty_now - nifty_200) / nifty_200 * 100.0) if nifty_200 > 0 else 0.0
+
+    evaluations = {}
+    eligible_equity = []
+
+    for key, meta in UNRESTRICTED_UNIVERSE.items():
+        if key == "NIPPON_LIQUID":
+            continue
+        f_navs = navs_dict.get(key, {})
+        c_now = get_universe_nav_on(f_navs, as_of_date)
+        c_90 = get_universe_nav_on(f_navs, as_of_date - timedelta(days=90))
+        c_180 = get_universe_nav_on(f_navs, as_of_date - timedelta(days=180))
+        c_200 = get_universe_nav_on(f_navs, as_of_date - timedelta(days=200))
+
+        dma_dist = ((c_now - c_200) / c_200 * 100.0) if c_200 > 0 else 0.0
+        ret_90 = ((c_now - c_90) / c_90) if c_90 > 0 else 0.0
+        ret_180 = ((c_now - c_180) / c_180) if c_180 > 0 else 0.0
+        vol_90 = compute_fund_volatility_90d(f_navs, as_of_date, vol_floor=0.10)
+        score = (0.5 * ret_90 + 0.5 * ret_180) / vol_90
+
+        if dma_dist >= 0.0 or key == "SBI_GOLD":
+            evaluations[key] = {
+                "key": key,
+                "name": meta["name"],
+                "short_name": meta["short_name"],
+                "category": meta["category"],
+                "sub_category": meta["sub_category"],
+                "score": round(score, 3),
+                "ret_90_pct": round(ret_90 * 100.0, 2),
+                "ret_180_pct": round(ret_180 * 100.0, 2),
+                "vol_90_ann": round(vol_90 * 100.0, 2),
+                "dma_dist": round(dma_dist, 2),
+                "eligible": True
+            }
+            if meta["category"] == "EQUITY" and dma_dist >= 0.0:
+                eligible_equity.append(key)
+        else:
+            evaluations[key] = {
+                "key": key,
+                "name": meta["name"],
+                "short_name": meta["short_name"],
+                "category": meta["category"],
+                "sub_category": meta["sub_category"],
+                "score": -999.0,
+                "ret_90_pct": round(ret_90 * 100.0, 2),
+                "ret_180_pct": round(ret_180 * 100.0, 2),
+                "vol_90_ann": round(vol_90 * 100.0, 2),
+                "dma_dist": round(dma_dist, 2),
+                "eligible": False
+            }
+
+    ranked = sorted(evaluations.keys(), key=lambda k: evaluations[k]["score"], reverse=True)
+
+    # Bear Shield
+    if nifty_dma_dist < -5.0 and evaluations[ranked[0]]["score"] < 0:
+        top1_key = "SBI_GOLD" if evaluations.get("SBI_GOLD", {}).get("score", -999) > 0 else "NIPPON_LIQUID"
+        top2_key = "NIPPON_LIQUID"
+        p1_amt = 35000.0
+        p2_amt = 15000.0
+        mode = "DEFENSIVE_BEAR_SHIELD"
+    elif len(eligible_equity) == 1 and evaluations[ranked[0]]["score"] > 0:
+        top1_key = eligible_equity[0]
+        top2_key = None
+        p1_amt = 50000.0
+        p2_amt = 0.0
+        mode = "SINGLE_LEADER_CONCENTRATION"
+    else:
+        top1_key = ranked[0]
+        top2_key = ranked[1] if len(ranked) > 1 else ranked[0]
+        p1_amt = 35000.0
+        p2_amt = 15000.0
+        mode = "RISK_ADJUSTED_70_30_TILT"
+
+    top_picks = [
+        {
+            "fund_key": top1_key,
+            "allocation_amount": p1_amt,
+            "score": evaluations.get(top1_key, {}).get("score", 0.0),
+            "name": UNRESTRICTED_UNIVERSE[top1_key]["name"],
+            "short_name": UNRESTRICTED_UNIVERSE[top1_key]["short_name"],
+            "category": UNRESTRICTED_UNIVERSE[top1_key]["category"],
+            "sub_category": UNRESTRICTED_UNIVERSE[top1_key]["sub_category"]
+        }
+    ]
+    if top2_key and p2_amt > 0:
+        top_picks.append({
+            "fund_key": top2_key,
+            "allocation_amount": p2_amt,
+            "score": evaluations.get(top2_key, {}).get("score", 0.0),
+            "name": UNRESTRICTED_UNIVERSE[top2_key]["name"],
+            "short_name": UNRESTRICTED_UNIVERSE[top2_key]["short_name"],
+            "category": UNRESTRICTED_UNIVERSE[top2_key]["category"],
+            "sub_category": UNRESTRICTED_UNIVERSE[top2_key]["sub_category"]
+        })
+
+    return {
+        "as_of_date": str(as_of_date),
+        "allocation_mode": mode,
+        "top_picks": top_picks,
+        "evaluations": evaluations,
+        "ranked_keys": ranked
     }
 
 

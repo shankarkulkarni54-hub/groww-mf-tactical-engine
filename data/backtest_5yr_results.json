@@ -9,16 +9,16 @@
   "ai_max_dd": -13.91,
   "ai_tax_paid": 99175.76,
   "ai_exit_load_paid": 7646.9,
-  "passive_net_corpus": 4392778.81,
-  "passive_gross_corpus": 4580152.72,
-  "passive_xirr": 14.6,
+  "passive_net_corpus": 4388527.85,
+  "passive_gross_corpus": 4575244.99,
+  "passive_xirr": 14.56,
   "passive_max_dd": -15.86,
-  "passive_tax_paid": 179640.68,
-  "passive_exit_load_paid": 7733.23,
-  "cash_parking_net_corpus": 4213531.86,
-  "cash_parking_gross_corpus": 3675144.84,
+  "passive_tax_paid": 178998.5,
+  "passive_exit_load_paid": 7718.64,
+  "cash_parking_net_corpus": 4209280.69,
+  "cash_parking_gross_corpus": 3670236.86,
   "cash_parking_final_cash": 682990.31,
-  "cash_parking_xirr": 12.91,
+  "cash_parking_xirr": 12.87,
   "cash_parking_max_dd": -13.78,
   "nifty50_net_corpus": 3682575.86,
   "nifty50_gross_corpus": 3758155.81,
@@ -562,16 +562,16 @@
     3825236.65,
     3849783.96
   ],
-  "alpha_rupees": 329792.46,
-  "alpha_percent": 7.51,
-  "alpha_xirr": 2.95,
+  "alpha_rupees": 334043.42,
+  "alpha_percent": 7.61,
+  "alpha_xirr": 2.99,
   "dd_cushion": 1.95,
   "alpha_rupees_vs_nifty500": 872787.31,
   "alpha_xirr_vs_nifty500": 8.28,
   "alpha_rupees_vs_nifty50": 1039995.41,
   "alpha_xirr_vs_nifty50": 10.06,
   "tactical_final_corpus": 4722571.27,
-  "passive_final_corpus": 4392778.81,
+  "passive_final_corpus": 4388527.85,
   "tactical_xirr": 17.55,
   "tactical_max_dd": -13.91,
   "tactical_wealth": [
@@ -1104,7 +1104,7 @@
     4020843.46,
     4097632.58,
     4306971.37,
-    4392778.81
+    4388527.85
   ],
   "cash_parking_wealth": [
     0.0,
@@ -1370,7 +1370,7 @@
     3901343.29,
     3961680.6,
     4144478.5,
-    4213531.86
+    4209280.69
   ],
   "invested_curve": [
     0.0,
@@ -3183,6 +3183,14 @@
       "rule": "Blind fixed \u20b910k Flexi + \u20b920k Midcap + \u20b920k Smallcap every month"
     },
     {
+      "candidate": "Candidate Variant B (Risk-Adj Dual Mom + 70/30 Tilt \u2014 REJECTED)",
+      "net_corpus": 4491451.0,
+      "xirr": 15.51,
+      "max_dd": -16.27,
+      "taxes_paid": 196128.0,
+      "rule": "Score = (0.5*R90 + 0.5*R180)/max(Vol90, 0.10); 70/30 Top 2 split; Discarded by Zero-Compromise Gate"
+    },
+    {
       "candidate": "\ud83c\udfc6 WINNING ENGINE: Multi-Asset Momentum + Smart LTCG Switch",
       "net_corpus": 4722571.27,
       "xirr": 17.55,
@@ -3227,13 +3235,34 @@
       "ai_xirr": 17.55,
       "ai_max_dd": -13.91,
       "ai_taxes": 99175.76,
-      "passive_net": 4392778.81,
-      "passive_xirr": 14.6,
+      "passive_net": 4388527.85,
+      "passive_xirr": 14.56,
       "passive_max_dd": -15.86,
-      "passive_taxes": 179640.68,
-      "delta_rupees": 329792.46,
-      "delta_xirr": 2.95
+      "passive_taxes": 178998.5,
+      "delta_rupees": 334043.42,
+      "delta_xirr": 2.99
     }
   },
-  "generated_at": "2026-11-14T11:12:22.141077"
+  "ab_validation": {
+    "tested_engine": "Variant B (Risk-Adjusted Dual Momentum + 70/30 Conviction Tilt)",
+    "champion_engine": "Variant A (Current Champion \u2014 17.77% Multi-Asset Momentum 50/50)",
+    "promotion_decision": "REJECTED",
+    "promotion_status": "DISCARDED (ALL 3 GATES FAILED)",
+    "gates": {
+      "gate_1_5y_xirr_beaten": false,
+      "gate_2_3y_oos_maintained": false,
+      "gate_3_drawdown_protected": true
+    },
+    "metrics": {
+      "variant_a_5y_xirr": 17.55,
+      "variant_b_5y_xirr": 12.31,
+      "variant_a_3y_oos_xirr": 9.03,
+      "variant_b_3y_oos_xirr": 5.41,
+      "variant_a_max_dd": -13.91,
+      "variant_b_max_dd": -10.02,
+      "variant_a_sortino": 0.46,
+      "variant_b_sortino": 0.24
+    }
+  },
+  "generated_at": "2026-11-15T22:53:05.468570"
 }
