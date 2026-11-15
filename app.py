@@ -52,8 +52,185 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Finology-Inspired Design System CSS - Clean Light Canvas, Editorial Typography, Crisp Bento Borders
-st.markdown("""
+# =====================================================================
+# THEME SWITCHER & TOP HEADER BRAND STRIP (DEFAULT: DARK MODE)
+# =====================================================================
+if "theme_mode" not in st.session_state:
+    st.session_state.theme_mode = "🌙 Dark"
+
+# Calculate Cut-off Countdown
+now_ist = datetime.now()
+cutoff_time = now_ist.replace(hour=15, minute=0, second=0, microsecond=0)
+if now_ist < cutoff_time:
+    mins_left = int((cutoff_time - now_ist).total_seconds() / 60)
+    cutoff_text = f"🟢 3 PM Cut-off: {mins_left}m Left"
+else:
+    cutoff_text = "🟢 3 PM Cut-off"
+
+# Theme Toggle Radio in Top Header (Beside Share)
+st.markdown("<div id='theme-toggle-anchor'></div>", unsafe_allow_html=True)
+theme_choice = st.radio(
+    "Theme Switcher",
+    options=["🌙 Dark", "☀️ Light"],
+    index=0 if st.session_state.theme_mode == "🌙 Dark" else 1,
+    horizontal=True,
+    label_visibility="collapsed",
+    key="theme_switcher_radio"
+)
+st.session_state.theme_mode = theme_choice
+is_dark = (st.session_state.theme_mode == "🌙 Dark")
+
+# Header Brand & Live Status Strip (Left of Share)
+st.markdown(f"""
+<div class='header-brand-strip'>
+    <span class='header-brand-title'>📈 Tactical MF Engine</span>
+    <span class='header-brand-sep'>|</span>
+    <span class='header-brand-sub'>Groww Direct • 17.55% AI Momentum</span>
+    <span class='header-brand-sep'>|</span>
+    <span class='header-brand-badge'>{cutoff_text}</span>
+</div>
+""", unsafe_allow_html=True)
+
+# ---------------------------------------------------------------------
+# DESIGN TOKENS (DYNAMIC DARK & LIGHT THEME)
+# ---------------------------------------------------------------------
+if is_dark:
+    T = {
+        "mode": "dark",
+        "bg_canvas": "#090D16",
+        "bg_card": "#111827",
+        "bg_card_hover": "#1F2937",
+        "bg_subtle": "#1E293B",
+        "bg_alt": "#0B1120",
+        "border": "#1E293B",
+        "border_light": "#334155",
+        "text_primary": "#F8FAFC",
+        "text_secondary": "#94A3B8",
+        "text_muted": "#64748B",
+        "accent_blue": "#3B82F6",
+        "accent_emerald": "#10B981",
+        "accent_amber": "#F59E0B",
+        "accent_rose": "#EF4444",
+        "header_bg": "rgba(9, 13, 22, 0.95)",
+        "tab_unselected_color": "#94A3B8",
+        "tab_unselected_bg": "transparent",
+        "tab_active_bg": "#1E293B",
+        "tab_active_color": "#60A5FA",
+        "tab_active_border": "#3B82F6",
+        "widget_label_color": "#F1F5F9",
+        "select_bg": "#111827",
+        "select_border": "#334155",
+        "select_hover": "#3B82F6",
+        "menu_bg": "#111827",
+        "menu_text": "#F8FAFC",
+        "menu_hover_bg": "#1E293B",
+        "menu_hover_text": "#60A5FA",
+        "table_header_bg": "#1E293B",
+        "table_header_text": "#F8FAFC",
+        "table_row_bg": "#111827",
+        "table_row_alt": "#0F172A",
+        "table_row_text": "#F8FAFC",
+        "table_border": "#1E293B",
+        "table_hover": "#1F2937",
+        "shadow_sm": "0 1px 3px 0 rgba(0, 0, 0, 0.4)",
+        "plotly_template": "plotly_dark",
+        "plotly_paper": "#111827",
+        "plotly_plot": "#111827",
+        "plotly_grid": "#1E293B",
+        "plotly_text": "#F8FAFC",
+        "pill_emerald_bg": "#064E3B",
+        "pill_emerald_border": "#059669",
+        "pill_emerald_text": "#34D399",
+        "pill_blue_bg": "#1E3A8A",
+        "pill_blue_border": "#2563EB",
+        "pill_blue_text": "#93C5FD",
+        "pill_amber_bg": "#451A03",
+        "pill_amber_border": "#D97706",
+        "pill_amber_text": "#FCD34D",
+        "pill_rose_bg": "#4C0519",
+        "pill_rose_border": "#DC2626",
+        "pill_rose_text": "#FCA5A5",
+        "pill_slate_bg": "#1E293B",
+        "pill_slate_border": "#334155",
+        "pill_slate_text": "#CBD5E1",
+        "pill_purple_bg": "#2E1065",
+        "pill_purple_border": "#7C3AED",
+        "pill_purple_text": "#C4B5FD",
+        "toggle_bg": "#1E293B",
+        "toggle_border": "#334155",
+        "toggle_active_bg": "#3B82F6",
+        "toggle_active_text": "#FFFFFF",
+    }
+else:
+    T = {
+        "mode": "light",
+        "bg_canvas": "#F8FAFC",
+        "bg_card": "#FFFFFF",
+        "bg_card_hover": "#F1F5F9",
+        "bg_subtle": "#F1F5F9",
+        "bg_alt": "#F8FAFC",
+        "border": "#E2E8F0",
+        "border_light": "#CBD5E1",
+        "text_primary": "#0F172A",
+        "text_secondary": "#475569",
+        "text_muted": "#64748B",
+        "accent_blue": "#2563EB",
+        "accent_emerald": "#059669",
+        "accent_amber": "#D97706",
+        "accent_rose": "#DC2626",
+        "header_bg": "rgba(248, 250, 252, 0.95)",
+        "tab_unselected_color": "#475569",
+        "tab_unselected_bg": "transparent",
+        "tab_active_bg": "#EFF6FF",
+        "tab_active_color": "#2563EB",
+        "tab_active_border": "#2563EB",
+        "widget_label_color": "#1E293B",
+        "select_bg": "#FFFFFF",
+        "select_border": "#CBD5E1",
+        "select_hover": "#2563EB",
+        "menu_bg": "#FFFFFF",
+        "menu_text": "#0F172A",
+        "menu_hover_bg": "#EFF6FF",
+        "menu_hover_text": "#2563EB",
+        "table_header_bg": "#F8FAFC",
+        "table_header_text": "#1E293B",
+        "table_row_bg": "#FFFFFF",
+        "table_row_alt": "#F8FAFC",
+        "table_row_text": "#0F172A",
+        "table_border": "#E2E8F0",
+        "table_hover": "#F8FAFC",
+        "shadow_sm": "0 1px 3px 0 rgba(0, 0, 0, 0.04)",
+        "plotly_template": "plotly_white",
+        "plotly_paper": "#FFFFFF",
+        "plotly_plot": "#FFFFFF",
+        "plotly_grid": "#E2E8F0",
+        "plotly_text": "#0F172A",
+        "pill_emerald_bg": "#ECFDF5",
+        "pill_emerald_border": "#A7F3D0",
+        "pill_emerald_text": "#065F46",
+        "pill_blue_bg": "#EFF6FF",
+        "pill_blue_border": "#BFDBFE",
+        "pill_blue_text": "#1E40AF",
+        "pill_amber_bg": "#FFFBEB",
+        "pill_amber_border": "#FDE68A",
+        "pill_amber_text": "#92400E",
+        "pill_rose_bg": "#FEF2F2",
+        "pill_rose_border": "#FECACA",
+        "pill_rose_text": "#991B1B",
+        "pill_slate_bg": "#F1F5F9",
+        "pill_slate_border": "#E2E8F0",
+        "pill_slate_text": "#475569",
+        "pill_purple_bg": "#F5F3FF",
+        "pill_purple_border": "#DDD6FE",
+        "pill_purple_text": "#7C3AED",
+        "toggle_bg": "#E2E8F0",
+        "toggle_border": "#CBD5E1",
+        "toggle_active_bg": "#2563EB",
+        "toggle_active_text": "#FFFFFF",
+    }
+
+# Dynamic Theme-Driven CSS Style Sheet
+st.markdown(f"""
 <style>
     /* -------------------------------------------------------------
        1. GOOGLE FONTS: Modern Fintech Typography System
@@ -63,12 +240,32 @@ st.markdown("""
        ------------------------------------------------------------- */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap');
 
+    :root {{
+        --bg-canvas: {T['bg_canvas']};
+        --bg-card: {T['bg_card']};
+        --bg-card-hover: {T['bg_card_hover']};
+        --bg-subtle: {T['bg_subtle']};
+        --border: {T['border']};
+        --border-light: {T['border_light']};
+        --text-primary: {T['text_primary']};
+        --text-secondary: {T['text_secondary']};
+        --text-muted: {T['text_muted']};
+        --accent-blue: {T['accent_blue']};
+        --accent-emerald: {T['accent_emerald']};
+        --toggle-bg: {T['toggle_bg']};
+        --toggle-border: {T['toggle_border']};
+        --toggle-active-bg: {T['toggle_active_bg']};
+        --pill-emerald-bg: {T['pill_emerald_bg']};
+        --pill-emerald-border: {T['pill_emerald_border']};
+        --pill-emerald-text: {T['pill_emerald_text']};
+    }}
+
     /* Global Root & Streamlit Canvas */
-    html, body, [class*="css"], .stApp {
+    html, body, [class*="css"], .stApp {{
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
-        background-color: #F8FAFC !important;
-        color: #0F172A !important;
-    }
+        background-color: {T['bg_canvas']} !important;
+        color: {T['text_primary']} !important;
+    }}
 
     /* Headings & Editorial Typography */
     h1, h2, h3, h4, h5, h6,
@@ -78,419 +275,534 @@ st.markdown("""
     div[data-testid="stMarkdownContainer"] h1,
     div[data-testid="stMarkdownContainer"] h2,
     div[data-testid="stMarkdownContainer"] h3,
-    div[data-testid="stMarkdownContainer"] h4 {
+    div[data-testid="stMarkdownContainer"] h4 {{
         font-family: 'Plus Jakarta Sans', sans-serif !important;
         font-weight: 700 !important;
-        color: #0F172A !important;
+        color: {T['text_primary']} !important;
         letter-spacing: -0.02em !important;
-    }
+    }}
 
     /* Tabular Rupee & Numeric Figures (JetBrains Mono) */
-    .tabular, .mono-num, .kpi-value, .metric-val, .metric-num, .nav-val {
+    .tabular, .mono-num, .kpi-value, .metric-val, .metric-num, .nav-val {{
         font-family: 'JetBrains Mono', monospace !important;
         font-variant-numeric: tabular-nums !important;
         font-feature-settings: 'tnum' 1 !important;
-    }
+    }}
 
-    /* Full-Width Bento Layout - Balanced Margins without Wide Empty Gutters */
+    /* Pulled-Up Container Clearance Below Fixed Header */
+    section.main {{
+        padding-top: 3.5rem !important;
+    }}
     div[data-testid="stMainBlockContainer"],
     div[data-testid="stAppViewBlockContainer"],
-    .block-container {
+    .block-container {{
         max-width: 100% !important;
-        padding-top: 3.5rem !important;
+        padding-top: 1.2rem !important;
         padding-bottom: 3.5rem !important;
         padding-left: 2.2rem !important;
         padding-right: 2.2rem !important;
         font-feature-settings: 'tnum' 1;
-    }
+    }}
 
-    @media (max-width: 768px) {
+    @media (max-width: 768px) {{
         div[data-testid="stMainBlockContainer"],
         div[data-testid="stAppViewBlockContainer"],
-        .block-container {
+        .block-container {{
             padding-left: 1rem !important;
             padding-right: 1rem !important;
-            padding-top: 2.8rem !important;
-        }
-    }
+            padding-top: 0.8rem !important;
+        }}
+    }}
 
     /* -------------------------------------------------------------
-       2. STREAMLIT TOP HEADER TOOLBAR CONTRAST FIX
-       Fixes faint white icons/buttons against light canvas
+       2. TOP HEADER BAR, BRAND STRIP & COMPACT THEME TOGGLE
        ------------------------------------------------------------- */
-    header[data-testid="stHeader"] {
-        background: rgba(248, 250, 252, 0.95) !important;
+    header[data-testid="stHeader"] {{
+        background: {T['header_bg']} !important;
         backdrop-filter: blur(12px) !important;
         -webkit-backdrop-filter: blur(12px) !important;
-        border-bottom: 1px solid #E2E8F0 !important;
-    }
+        border-bottom: 1px solid {T['border']} !important;
+        height: 3.5rem !important;
+    }}
 
-    /* Hide default gradient decoration line */
-    div[data-testid="stDecoration"] {
+    div[data-testid="stDecoration"] {{
         display: none !important;
-    }
+    }}
 
-    /* Toolbar action buttons, SVGs, and text in dark slate */
-    header[data-testid="stHeader"] * {
-        color: #334155 !important;
-    }
+    header[data-testid="stHeader"] * {{
+        color: {T['text_secondary']} !important;
+    }}
 
     header[data-testid="stHeader"] button,
-    header[data-testid="stHeader"] a {
-        background-color: #FFFFFF !important;
-        border: 1px solid #CBD5E1 !important;
+    header[data-testid="stHeader"] a {{
+        background-color: {T['bg_card']} !important;
+        border: 1px solid {T['border_light']} !important;
         border-radius: 8px !important;
-        color: #334155 !important;
+        color: {T['text_secondary']} !important;
         transition: all 0.15s ease !important;
-    }
+    }}
 
     header[data-testid="stHeader"] button:hover,
-    header[data-testid="stHeader"] a:hover {
-        background-color: #F1F5F9 !important;
-        border-color: #94A3B8 !important;
-        color: #0F172A !important;
-    }
+    header[data-testid="stHeader"] a:hover {{
+        background-color: {T['bg_card_hover']} !important;
+        border-color: {T['accent_blue']} !important;
+        color: {T['text_primary']} !important;
+    }}
 
-    header[data-testid="stHeader"] svg {
-        fill: #334155 !important;
-        stroke: #334155 !important;
-        color: #334155 !important;
-    }
+    header[data-testid="stHeader"] svg {{
+        fill: {T['text_secondary']} !important;
+        stroke: {T['text_secondary']} !important;
+        color: {T['text_secondary']} !important;
+    }}
 
-    header[data-testid="stHeader"] button:hover svg {
-        fill: #0F172A !important;
-        stroke: #0F172A !important;
-        color: #0F172A !important;
-    }
+    header[data-testid="stHeader"] button:hover svg {{
+        fill: {T['text_primary']} !important;
+        stroke: {T['text_primary']} !important;
+        color: {T['text_primary']} !important;
+    }}
+
+    /* Brand Strip in Header Bar */
+    .header-brand-strip {{
+        position: fixed !important;
+        top: 0 !important;
+        left: 2.2rem !important;
+        height: 3.5rem !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+        z-index: 999998 !important;
+        pointer-events: auto !important;
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+    }}
+
+    .header-brand-title {{
+        font-size: 0.95rem !important;
+        font-weight: 800 !important;
+        color: {T['text_primary']} !important;
+        letter-spacing: -0.02em !important;
+    }}
+
+    .header-brand-sep {{
+        color: {T['border_light']} !important;
+        font-size: 0.85rem !important;
+    }}
+
+    .header-brand-sub {{
+        font-family: 'Inter', sans-serif !important;
+        font-size: 0.80rem !important;
+        font-weight: 500 !important;
+        color: {T['text_secondary']} !important;
+    }}
+
+    .header-brand-badge {{
+        background: {T['pill_emerald_bg']} !important;
+        border: 1px solid {T['pill_emerald_border']} !important;
+        color: {T['pill_emerald_text']} !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 0.72rem !important;
+        font-weight: 700 !important;
+        padding: 3px 9px !important;
+        border-radius: 9999px !important;
+        letter-spacing: 0.02em !important;
+    }}
+
+    /* Compact Theme Toggle Radio (Beside Share) */
+    div[data-testid="stRadio"]:has(input[value="🌙 Dark"]) {{
+        position: fixed !important;
+        top: 0.65rem !important;
+        right: 175px !important;
+        z-index: 999999 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }}
+
+    div[data-testid="stRadio"]:has(input[value="🌙 Dark"]) div[role="radiogroup"] {{
+        display: inline-flex !important;
+        flex-direction: row !important;
+        background: {T['toggle_bg']} !important;
+        border: 1px solid {T['toggle_border']} !important;
+        border-radius: 20px !important;
+        padding: 2px 3px !important;
+        gap: 2px !important;
+        box-shadow: {T['shadow_sm']} !important;
+    }}
+
+    div[data-testid="stRadio"]:has(input[value="🌙 Dark"]) div[role="radiogroup"] label {{
+        margin: 0 !important;
+        padding: 3px 10px !important;
+        border-radius: 16px !important;
+        cursor: pointer !important;
+        background: transparent !important;
+        transition: all 0.15s ease !important;
+    }}
+
+    div[data-testid="stRadio"]:has(input[value="🌙 Dark"]) div[role="radiogroup"] label > div:first-child {{
+        display: none !important;
+    }}
+
+    div[data-testid="stRadio"]:has(input[value="🌙 Dark"]) div[role="radiogroup"] label div p {{
+        font-family: 'Inter', sans-serif !important;
+        font-size: 0.76rem !important;
+        font-weight: 600 !important;
+        color: {T['text_secondary']} !important;
+        margin: 0 !important;
+    }}
+
+    div[data-testid="stRadio"]:has(input[value="🌙 Dark"]) div[role="radiogroup"] label:has(input:checked) {{
+        background: {T['toggle_active_bg']} !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.15) !important;
+    }}
+
+    div[data-testid="stRadio"]:has(input[value="🌙 Dark"]) div[role="radiogroup"] label:has(input:checked) div p {{
+        color: {T['toggle_active_text']} !important;
+        font-weight: 700 !important;
+    }}
+
+    @media (max-width: 900px) {{
+        .header-brand-strip .header-brand-sub,
+        .header-brand-strip .header-brand-sep:nth-of-type(1) {{
+            display: none !important;
+        }}
+        div[data-testid="stRadio"]:has(input[value="🌙 Dark"]) {{
+            right: 120px !important;
+        }}
+    }}
+
+    @media (max-width: 640px) {{
+        .header-brand-strip {{
+            left: 0.8rem !important;
+            gap: 6px !important;
+        }}
+        .header-brand-strip .header-brand-title {{
+            font-size: 0.82rem !important;
+        }}
+        .header-brand-strip .header-brand-badge {{
+            font-size: 0.65rem !important;
+            padding: 2px 6px !important;
+        }}
+        div[data-testid="stRadio"]:has(input[value="🌙 Dark"]) {{
+            right: 48px !important;
+            top: 0.60rem !important;
+        }}
+    }}
 
     /* -------------------------------------------------------------
-       3. STREAMLIT TABS CONTRAST & TYPOGRAPHY FIX
-       Unselected tabs in dark slate (#475569), active tab in bold royal blue (#2563EB)
+       3. STREAMLIT TABS CONTRAST & TYPOGRAPHY
        ------------------------------------------------------------- */
-    .stTabs [data-baseweb="tab-list"] {
+    .stTabs [data-baseweb="tab-list"] {{
         gap: 8px !important;
         background-color: transparent !important;
-        border-bottom: 2px solid #E2E8F0 !important;
+        border-bottom: 2px solid {T['border']} !important;
         padding-bottom: 0px !important;
         margin-bottom: 18px !important;
-    }
+    }}
 
-    /* Unselected tabs */
-    .stTabs [data-baseweb="tab"] {
+    .stTabs [data-baseweb="tab"] {{
         background-color: transparent !important;
         border: none !important;
         border-bottom: 2px solid transparent !important;
         border-radius: 8px 8px 0 0 !important;
         padding: 8px 16px !important;
         margin-bottom: -2px !important;
-        color: #475569 !important;
+        color: {T['tab_unselected_color']} !important;
         font-family: 'Inter', sans-serif !important;
         font-weight: 600 !important;
         font-size: 0.90rem !important;
         transition: all 0.15s ease-in-out !important;
-    }
+    }}
 
-    .stTabs [data-baseweb="tab"]:hover {
-        color: #0F172A !important;
-        background-color: #F1F5F9 !important;
-    }
+    .stTabs [data-baseweb="tab"]:hover {{
+        color: {T['text_primary']} !important;
+        background-color: {T['bg_card_hover']} !important;
+    }}
 
     .stTabs [data-baseweb="tab"] div,
     .stTabs [data-baseweb="tab"] p,
-    .stTabs [data-baseweb="tab"] span {
-        color: #475569 !important;
+    .stTabs [data-baseweb="tab"] span {{
+        color: {T['tab_unselected_color']} !important;
         font-family: 'Inter', sans-serif !important;
         font-weight: 600 !important;
         font-size: 0.90rem !important;
         transition: color 0.15s ease-in-out !important;
-    }
+    }}
 
     .stTabs [data-baseweb="tab"]:hover div,
     .stTabs [data-baseweb="tab"]:hover p,
-    .stTabs [data-baseweb="tab"]:hover span {
-        color: #0F172A !important;
-    }
+    .stTabs [data-baseweb="tab"]:hover span {{
+        color: {T['text_primary']} !important;
+    }}
 
-    /* Active / Selected Tab */
-    .stTabs [data-baseweb="tab"][aria-selected="true"] {
-        background-color: #EFF6FF !important;
-        color: #2563EB !important;
-        border-bottom: 2px solid #2563EB !important;
-    }
+    .stTabs [data-baseweb="tab"][aria-selected="true"] {{
+        background-color: {T['tab_active_bg']} !important;
+        color: {T['tab_active_color']} !important;
+        border-bottom: 2px solid {T['tab_active_border']} !important;
+    }}
 
     .stTabs [data-baseweb="tab"][aria-selected="true"] div,
     .stTabs [data-baseweb="tab"][aria-selected="true"] p,
-    .stTabs [data-baseweb="tab"][aria-selected="true"] span {
-        color: #2563EB !important;
+    .stTabs [data-baseweb="tab"][aria-selected="true"] span {{
+        color: {T['tab_active_color']} !important;
         font-family: 'Inter', sans-serif !important;
         font-weight: 700 !important;
-    }
+    }}
 
-    .stTabs [data-baseweb="tab-highlight"] {
-        background-color: #2563EB !important;
+    .stTabs [data-baseweb="tab-highlight"] {{
+        background-color: {T['tab_active_border']} !important;
         height: 2px !important;
-    }
+    }}
 
-    .stTabs [data-baseweb="tab-border"] {
+    .stTabs [data-baseweb="tab-border"] {{
         display: none !important;
-    }
+    }}
 
     /* -------------------------------------------------------------
-       4. STREAMLIT WIDGET LABELS & CONTROLS CONTRAST FIX
-       Forces crisp dark slate (#1E293B) for all form labels and radios
+       4. FORM CONTROLS, SELECTBOXES & RADIOS
        ------------------------------------------------------------- */
-    /* Widget labels */
     div[data-testid="stWidgetLabel"],
     div[data-testid="stWidgetLabel"] p,
     div[data-testid="stWidgetLabel"] label,
     div[data-testid="stWidgetLabel"] span,
     label[data-testid="stWidgetLabel"],
     .stSelectbox label, 
-    .stRadio label, 
+    .stRadio:not(:has(input[value="🌙 Dark"])) label, 
     .stSlider label,
     .stMultiSelect label,
-    label {
-        color: #1E293B !important;
+    label {{
+        color: {T['widget_label_color']} !important;
         font-family: 'Inter', sans-serif !important;
         font-weight: 600 !important;
         font-size: 0.84rem !important;
         letter-spacing: -0.01em !important;
-    }
+    }}
 
-    /* Selectbox dropdowns */
-    div[data-baseweb="select"] {
-        background-color: #FFFFFF !important;
-        border: 1px solid #CBD5E1 !important;
+    div[data-baseweb="select"] {{
+        background-color: {T['select_bg']} !important;
+        border: 1px solid {T['select_border']} !important;
         border-radius: 8px !important;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03) !important;
-    }
-    div[data-baseweb="select"] * {
-        color: #0F172A !important;
+        box-shadow: {T['shadow_sm']} !important;
+    }}
+    div[data-baseweb="select"] * {{
+        color: {T['text_primary']} !important;
         font-family: 'Inter', sans-serif !important;
-    }
-    div[data-baseweb="select"]:hover {
-        border-color: #2563EB !important;
-    }
-    ul[data-baseweb="menu"] {
-        background-color: #FFFFFF !important;
-        border: 1px solid #E2E8F0 !important;
+    }}
+    div[data-baseweb="select"]:hover {{
+        border-color: {T['select_hover']} !important;
+    }}
+    ul[data-baseweb="menu"] {{
+        background-color: {T['menu_bg']} !important;
+        border: 1px solid {T['border']} !important;
         border-radius: 8px !important;
-        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08) !important;
-    }
-    ul[data-baseweb="menu"] li {
-        color: #0F172A !important;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25) !important;
+    }}
+    ul[data-baseweb="menu"] li {{
+        color: {T['menu_text']} !important;
         font-family: 'Inter', sans-serif !important;
         font-size: 0.85rem !important;
-    }
+    }}
     ul[data-baseweb="menu"] li:hover,
-    ul[data-baseweb="menu"] li[aria-selected="true"] {
-        background-color: #EFF6FF !important;
-        color: #2563EB !important;
+    ul[data-baseweb="menu"] li[aria-selected="true"] {{
+        background-color: {T['menu_hover_bg']} !important;
+        color: {T['menu_hover_text']} !important;
         font-weight: 600 !important;
-    }
+    }}
 
-    /* Radio buttons & options labels */
-    div[data-testid="stRadio"] div[role="radiogroup"] label {
-        color: #1E293B !important;
+    div[data-testid="stRadio"]:not(:has(input[value="🌙 Dark"])) div[role="radiogroup"] label {{
+        color: {T['text_secondary']} !important;
         font-family: 'Inter', sans-serif !important;
         font-weight: 500 !important;
         font-size: 0.85rem !important;
-    }
-    div[data-testid="stRadio"] div[role="radiogroup"] label div p,
-    div[data-testid="stRadio"] div[role="radiogroup"] label span {
-        color: #1E293B !important;
+    }}
+    div[data-testid="stRadio"]:not(:has(input[value="🌙 Dark"])) div[role="radiogroup"] label div p,
+    div[data-testid="stRadio"]:not(:has(input[value="🌙 Dark"])) div[role="radiogroup"] label span {{
+        color: {T['text_secondary']} !important;
         font-family: 'Inter', sans-serif !important;
         font-weight: 500 !important;
-    }
-    div[data-testid="stRadio"] div[role="radiogroup"] label:hover div p,
-    div[data-testid="stRadio"] div[role="radiogroup"] label:hover span {
-        color: #0F172A !important;
-    }
+    }}
+    div[data-testid="stRadio"]:not(:has(input[value="🌙 Dark"])) div[role="radiogroup"] label:hover div p,
+    div[data-testid="stRadio"]:not(:has(input[value="🌙 Dark"])) div[role="radiogroup"] label:hover span {{
+        color: {T['text_primary']} !important;
+    }}
 
-    /* Expanders */
-    div[data-testid="stExpander"] {
-        background-color: #FFFFFF !important;
-        border: 1px solid #E2E8F0 !important;
+    div[data-testid="stExpander"] {{
+        background-color: {T['bg_card']} !important;
+        border: 1px solid {T['border']} !important;
         border-radius: 10px !important;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.02) !important;
+        box-shadow: {T['shadow_sm']} !important;
         margin-bottom: 12px !important;
-    }
-    div[data-testid="stExpander"] details summary {
-        color: #0F172A !important;
+    }}
+    div[data-testid="stExpander"] details summary {{
+        color: {T['text_primary']} !important;
         font-family: 'Plus Jakarta Sans', sans-serif !important;
         font-weight: 600 !important;
-    }
-    div[data-testid="stExpander"] details summary svg {
-        fill: #475569 !important;
-    }
-    div[data-testid="stExpander"] details summary:hover {
-        color: #2563EB !important;
-    }
-    div[data-testid="stExpander"] details div[data-testid="stExpanderDetails"] {
-        background-color: #FFFFFF !important;
-        border-top: 1px solid #F1F5F9 !important;
-        color: #334155 !important;
-    }
+    }}
+    div[data-testid="stExpander"] details summary svg {{
+        fill: {T['text_secondary']} !important;
+    }}
+    div[data-testid="stExpander"] details summary:hover {{
+        color: {T['accent_blue']} !important;
+    }}
+    div[data-testid="stExpander"] details div[data-testid="stExpanderDetails"] {{
+        background-color: {T['bg_card']} !important;
+        border-top: 1px solid {T['border']} !important;
+        color: {T['text_secondary']} !important;
+    }}
 
-    /* Captions & Markdown Text */
     .stCaption, 
-    div[data-testid="stCaptionContainer"] p {
-        color: #64748B !important;
+    div[data-testid="stCaptionContainer"] p {{
+        color: {T['text_muted']} !important;
         font-family: 'Inter', sans-serif !important;
         font-size: 0.78rem !important;
-    }
-    div[data-testid="stMarkdownContainer"] p {
-        color: #334155 !important;
+    }}
+    div[data-testid="stMarkdownContainer"] p {{
+        color: {T['text_secondary']} !important;
         font-family: 'Inter', sans-serif !important;
-    }
+    }}
 
     /* -------------------------------------------------------------
-       5. STREAMLIT DATAFRAMES & TABLES - FINOLOGY LIGHT STYLE
-       Clean white (#FFFFFF) background, #0F172A text, subtle #E2E8F0 row dividers
+       5. DATAFRAMES & TABLES
        ------------------------------------------------------------- */
     div[data-testid="stDataFrame"],
     div[data-testid="stTable"],
-    .stDataFrame {
-        background: #FFFFFF !important;
-        background-color: #FFFFFF !important;
-        border: 1px solid #E2E8F0 !important;
+    .stDataFrame {{
+        background: {T['table_row_bg']} !important;
+        background-color: {T['table_row_bg']} !important;
+        border: 1px solid {T['table_border']} !important;
         border-radius: 10px !important;
         overflow: hidden !important;
-        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04) !important;
-    }
+        box-shadow: {T['shadow_sm']} !important;
+    }}
     div[data-testid="stDataFrame"] > div,
-    div[data-testid="stDataFrame"] > div > div {
-        background: #FFFFFF !important;
-        background-color: #FFFFFF !important;
-    }
+    div[data-testid="stDataFrame"] > div > div {{
+        background: {T['table_row_bg']} !important;
+        background-color: {T['table_row_bg']} !important;
+    }}
     div[data-testid="stDataFrame"] *,
-    div[data-testid="stTable"] * {
+    div[data-testid="stTable"] * {{
         font-family: 'Inter', sans-serif !important;
-        color: #0F172A !important;
-    }
-    div[data-testid="stDataFrame"] canvas {
-        filter: none !important;
-    }
+        color: {T['table_row_text']} !important;
+    }}
 
-    /* HTML Tables */
-    table {
+    table {{
         width: 100% !important;
         border-collapse: separate !important;
         border-spacing: 0 !important;
-        background-color: #FFFFFF !important;
-        border: 1px solid #E2E8F0 !important;
+        background-color: {T['table_row_bg']} !important;
+        border: 1px solid {T['table_border']} !important;
         border-radius: 10px !important;
         overflow: hidden !important;
-        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04) !important;
+        box-shadow: {T['shadow_sm']} !important;
         margin-top: 8px !important;
         margin-bottom: 14px !important;
-    }
-    thead th, th {
-        background-color: #F8FAFC !important;
-        color: #1E293B !important;
+    }}
+    thead th, th {{
+        background-color: {T['table_header_bg']} !important;
+        color: {T['table_header_text']} !important;
         font-family: 'Plus Jakarta Sans', sans-serif !important;
         font-weight: 700 !important;
         font-size: 0.80rem !important;
         text-transform: uppercase !important;
         letter-spacing: 0.03em !important;
         padding: 10px 14px !important;
-        border-bottom: 1px solid #E2E8F0 !important;
-        border-right: 1px solid #F1F5F9 !important;
+        border-bottom: 1px solid {T['table_border']} !important;
+        border-right: 1px solid {T['border_light']} !important;
         text-align: left !important;
-    }
-    thead th:last-child, th:last-child {
+    }}
+    thead th:last-child, th:last-child {{
         border-right: none !important;
-    }
-    tbody td, td {
-        background-color: #FFFFFF !important;
-        color: #0F172A !important;
+    }}
+    tbody td, td {{
+        background-color: {T['table_row_bg']} !important;
+        color: {T['table_row_text']} !important;
         font-family: 'Inter', sans-serif !important;
         font-size: 0.85rem !important;
         padding: 10px 14px !important;
-        border-bottom: 1px solid #E2E8F0 !important;
-        border-right: 1px solid #F8FAFC !important;
-    }
-    tbody td:last-child, td:last-child {
+        border-bottom: 1px solid {T['table_border']} !important;
+        border-right: 1px solid {T['border']} !important;
+    }}
+    tbody td:last-child, td:last-child {{
         border-right: none !important;
-    }
-    tbody tr:last-child td, tr:last-child td {
+    }}
+    tbody tr:last-child td, tr:last-child td {{
         border-bottom: none !important;
-    }
-    tbody tr:hover td, tr:hover td {
-        background-color: #F8FAFC !important;
-    }
+    }}
+    tbody tr:hover td, tr:hover td {{
+        background-color: {T['table_hover']} !important;
+    }}
 
-    /* Sliders */
-    div[data-testid="stSlider"] div[data-baseweb="slider"] {
-        color: #2563EB !important;
-    }
+    div[data-testid="stSlider"] div[data-baseweb="slider"] {{
+        color: {T['accent_blue']} !important;
+    }}
     div[data-testid="stSlider"] p,
-    div[data-testid="stSlider"] span {
-        color: #0F172A !important;
+    div[data-testid="stSlider"] span {{
+        color: {T['text_primary']} !important;
         font-family: 'JetBrains Mono', monospace !important;
-    }
+    }}
 
     /* -------------------------------------------------------------
-       5. FINOLOGY BENTO CARDS & COMPONENTS
+       6. BENTO CARDS & BADGES
        ------------------------------------------------------------- */
-    .fin-card {
-        background: #FFFFFF !important;
-        border: 1px solid #E2E8F0 !important;
+    .fin-card {{
+        background: {T['bg_card']} !important;
+        border: 1px solid {T['border']} !important;
         border-radius: 12px !important;
         padding: 16px 18px !important;
         margin-bottom: 14px !important;
-        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px 0 rgba(0, 0, 0, 0.02) !important;
+        box-shadow: {T['shadow_sm']} !important;
         transition: box-shadow 0.15s ease, border-color 0.15s ease !important;
-    }
-    .fin-card:hover {
-        border-color: #CBD5E1 !important;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03) !important;
-    }
+    }}
+    .fin-card:hover {{
+        border-color: {T['border_light']} !important;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.15) !important;
+    }}
 
-    /* Horizontal KPI Grid Ribbon */
-    .kpi-ribbon {
+    .kpi-ribbon {{
         display: grid;
         grid-template-columns: repeat(4, 1fr);
         gap: 12px;
         margin-bottom: 16px;
-    }
-    @media (max-width: 768px) {
-        .kpi-ribbon {
+    }}
+    @media (max-width: 768px) {{
+        .kpi-ribbon {{
             grid-template-columns: repeat(2, 1fr);
-        }
-    }
-    @media (max-width: 480px) {
-        .kpi-ribbon {
+        }}
+    }}
+    @media (max-width: 480px) {{
+        .kpi-ribbon {{
             grid-template-columns: 1fr;
-        }
-    }
+        }}
+    }}
 
-    .kpi-tile {
-        background: #FFFFFF;
-        border: 1px solid #E2E8F0;
-        border-radius: 12px;
-        padding: 14px 16px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.03);
-    }
-    .kpi-label {
+    .kpi-tile {{
+        background: {T['bg_card']} !important;
+        border: 1px solid {T['border']} !important;
+        border-radius: 12px !important;
+        padding: 14px 16px !important;
+        box-shadow: {T['shadow_sm']} !important;
+        transition: transform 0.15s ease, border-color 0.15s ease !important;
+    }}
+    .kpi-tile:hover {{
+        transform: translateY(-1px);
+        border-color: {T['border_light']} !important;
+    }}
+    .kpi-label {{
         font-family: 'Plus Jakarta Sans', sans-serif !important;
         font-size: 0.72rem;
         font-weight: 700;
-        color: #64748B;
+        color: {T['text_muted']};
         text-transform: uppercase;
         letter-spacing: 0.5px;
         margin-bottom: 4px;
-    }
-    .kpi-value {
+    }}
+    .kpi-value {{
         font-family: 'JetBrains Mono', monospace !important;
         font-size: 1.35rem;
         font-weight: 700;
-        color: #0F172A;
+        color: {T['text_primary']};
         line-height: 1.2;
         font-feature-settings: 'tnum' 1;
         font-variant-numeric: tabular-nums;
-    }
-    .kpi-sub {
+    }}
+    .kpi-sub {{
         font-family: 'Inter', sans-serif !important;
         font-size: 0.75rem;
         margin-top: 5px;
@@ -498,21 +810,20 @@ st.markdown("""
         display: flex;
         align-items: center;
         gap: 4px;
-    }
+        color: {T['text_secondary']};
+    }}
 
-    /* Hero Decision Card */
-    .hero-card {
-        background: #FFFFFF;
-        border: 1px solid #E2E8F0;
-        border-top: 4px solid #2563EB;
-        border-radius: 14px;
-        padding: 18px 20px;
-        margin-bottom: 18px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.04);
-    }
+    .hero-card {{
+        background: {T['bg_card']} !important;
+        border: 1px solid {T['border']} !important;
+        border-top: 4px solid {T['accent_blue']} !important;
+        border-radius: 14px !important;
+        padding: 18px 20px !important;
+        margin-bottom: 18px !important;
+        box-shadow: {T['shadow_sm']} !important;
+    }}
 
-    /* Status Badges & Pills */
-    .badge-pill {
+    .badge-pill {{
         font-family: 'Inter', sans-serif !important;
         font-size: 0.72rem;
         font-weight: 600;
@@ -521,63 +832,116 @@ st.markdown("""
         display: inline-block;
         letter-spacing: 0.2px;
         line-height: 1.3;
-    }
-    .pill-emerald {
-        background: #ECFDF5;
-        color: #059669;
-        border: 1px solid #A7F3D0;
-    }
-    .pill-blue {
-        background: #EFF6FF;
-        color: #2563EB;
-        border: 1px solid #BFDBFE;
-    }
-    .pill-amber {
-        background: #FFFBEB;
-        color: #D97706;
-        border: 1px solid #FDE68A;
-    }
-    .pill-rose {
-        background: #FEF2F2;
-        color: #DC2626;
-        border: 1px solid #FECACA;
-    }
-    .pill-slate {
-        background: #F1F5F9;
-        color: #475569;
-        border: 1px solid #E2E8F0;
-    }
-    .pill-purple {
-        background: #F5F3FF;
-        color: #7C3AED;
-        border: 1px solid #DDD6FE;
-    }
+    }}
+    .pill-emerald {{
+        background: {T['pill_emerald_bg']} !important;
+        color: {T['pill_emerald_text']} !important;
+        border: 1px solid {T['pill_emerald_border']} !important;
+    }}
+    .pill-blue {{
+        background: {T['pill_blue_bg']} !important;
+        color: {T['pill_blue_text']} !important;
+        border: 1px solid {T['pill_blue_border']} !important;
+    }}
+    .pill-amber {{
+        background: {T['pill_amber_bg']} !important;
+        color: {T['pill_amber_text']} !important;
+        border: 1px solid {T['pill_amber_border']} !important;
+    }}
+    .pill-rose {{
+        background: {T['pill_rose_bg']} !important;
+        color: {T['pill_rose_text']} !important;
+        border: 1px solid {T['pill_rose_border']} !important;
+    }}
+    .pill-slate {{
+        background: {T['pill_slate_bg']} !important;
+        color: {T['pill_slate_text']} !important;
+        border: 1px solid {T['pill_slate_border']} !important;
+    }}
+    .pill-purple {{
+        background: {T['pill_purple_bg']} !important;
+        color: {T['pill_purple_text']} !important;
+        border: 1px solid {T['pill_purple_border']} !important;
+    }}
 
-    /* Buttons */
-    .stButton>button {
+    .stButton>button {{
         width: 100%;
         border-radius: 8px;
         height: 42px;
         font-family: 'Inter', sans-serif !important;
         font-weight: 600;
-        border: 1px solid #CBD5E1;
-        background: #FFFFFF;
-        color: #0F172A;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        border: 1px solid {T['border_light']};
+        background: {T['bg_card']};
+        color: {T['text_primary']};
+        box-shadow: {T['shadow_sm']};
         transition: all 0.15s ease;
-    }
-    .stButton>button:hover {
-        background: #F8FAFC;
-        border-color: #2563EB;
-        color: #2563EB;
-    }
+    }}
+    .stButton>button:hover {{
+        background: {T['bg_card_hover']};
+        border-color: {T['accent_blue']};
+        color: {T['accent_blue']};
+    }}
+
+    /* Global dynamic catch-all overrides for inline markup */
+    div[style*="background:#F8FAFC"],
+    div[style*="background: #F8FAFC"] {{
+        background: {T['bg_alt']} !important;
+        border-color: {T['border']} !important;
+    }}
+    div[style*="background:#FFFFFF"],
+    div[style*="background: #FFFFFF"],
+    div[style*="background-color:#FFFFFF"],
+    div[style*="background-color: #FFFFFF"] {{
+        background: {T['bg_card']} !important;
+        background-color: {T['bg_card']} !important;
+        border-color: {T['border']} !important;
+    }}
+    div[style*="color:#0F172A"],
+    div[style*="color: #0F172A"],
+    span[style*="color:#0F172A"],
+    span[style*="color: #0F172A"],
+    b[style*="color:#0F172A"],
+    b[style*="color: #0F172A"] {{
+        color: {T['text_primary']} !important;
+    }}
+    div[style*="color:#64748B"],
+    div[style*="color: #64748B"],
+    span[style*="color:#64748B"],
+    span[style*="color: #64748B"] {{
+        color: {T['text_secondary']} !important;
+    }}
+    div[style*="border:1px solid #E2E8F0"],
+    div[style*="border: 1px solid #E2E8F0"] {{
+        border-color: {T['border']} !important;
+    }}
 </style>
 """, unsafe_allow_html=True)
 
 
 def render_html(html_str: str):
-    """Renders HTML in Streamlit stripping leading whitespace from all lines so Markdown doesn't parse it as code."""
+    """Renders HTML in Streamlit adapting colors to the active theme."""
     cleaned = "\n".join(line.strip() for line in html_str.splitlines() if line.strip())
+    if is_dark:
+        cleaned = (
+            cleaned.replace("background:#FFFFFF", "background:#111827")
+                   .replace("background: #FFFFFF", "background:#111827")
+                   .replace("background-color:#FFFFFF", "background-color:#111827")
+                   .replace("background-color: #FFFFFF", "background-color:#111827")
+                   .replace("background:#F8FAFC", "background:#0B1120")
+                   .replace("background: #F8FAFC", "background:#0B1120")
+                   .replace("background-color:#F8FAFC", "background-color:#0B1120")
+                   .replace("background-color: #F8FAFC", "background-color:#0B1120")
+                   .replace("border:1px solid #E2E8F0", "border:1px solid #1E293B")
+                   .replace("border: 1px solid #E2E8F0", "border: 1px solid #1E293B")
+                   .replace("color:#0F172A", "color:#F8FAFC")
+                   .replace("color: #0F172A", "color: #F8FAFC")
+                   .replace("color:#334155", "color:#CBD5E1")
+                   .replace("color: #334155", "color: #CBD5E1")
+                   .replace("color:#475569", "color:#94A3B8")
+                   .replace("color: #475569", "color: #94A3B8")
+                   .replace("color:#64748B", "color:#94A3B8")
+                   .replace("color: #64748B", "color: #94A3B8")
+        )
     st.markdown(cleaned, unsafe_allow_html=True)
 
 
@@ -594,39 +958,6 @@ def init_app():
 
 db, scores, portfolio_sum = init_app()
 decisions = evaluate_tactical_decisions(scores)
-
-# =====================================================================
-# 1. SLEEK TOP WEALTH-TECH NAVIGATION BAR (NO CLIPPING)
-# =====================================================================
-now_ist = datetime.now()
-cutoff_time = now_ist.replace(hour=15, minute=0, second=0, microsecond=0)
-if now_ist < cutoff_time:
-    mins_left = int((cutoff_time - now_ist).total_seconds() / 60)
-    cutoff_badge = f"<span class='badge-pill pill-emerald'>🟢 3 PM Cut-off: {mins_left}m Left</span>"
-else:
-    cutoff_badge = "<span class='badge-pill pill-slate'>⚪ Settled Today</span>"
-
-render_html(f"""
-<div style='display:flex; justify-content:space-between; align-items:center; background:#FFFFFF; border:1px solid #E2E8F0; border-radius:14px; padding:12px 18px; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,0.04);'>
-    <div style='display:flex; align-items:center; gap:12px;'>
-        <div style='background:#EFF6FF; border:1px solid #BFDBFE; width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.3rem;'>
-            📈
-        </div>
-        <div>
-            <div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.15rem; font-weight:800; color:#0F172A; letter-spacing:-0.3px; line-height:1.2;'>
-                Tactical MF Engine
-            </div>
-            <div style='font-size:0.75rem; color:#64748B; font-weight:500;'>
-                Groww Direct Portfolios • <span style='color:#2563EB; font-weight:700;'>17.55% AI Momentum Engine</span>
-            </div>
-        </div>
-    </div>
-    <div style='text-align:right;'>
-        {cutoff_badge}
-        <div style='font-size:0.70rem; color:#94A3B8; margin-top:3px;'>Cloud Automated</div>
-    </div>
-</div>
-""")
 
 # =====================================================================
 # 2. COMPACT HORIZONTAL KPI RIBBON (4 TILES SIDE-BY-SIDE)
@@ -1024,15 +1355,15 @@ with tab_regimes:
         ))
 
         fig_c.update_layout(
-            template="plotly_white",
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="#FFFFFF",
-            font=dict(family="Inter, sans-serif", color="#475569"),
+            template=T["plotly_template"],
+            paper_bgcolor=T["plotly_paper"],
+            plot_bgcolor=T["plotly_plot"],
+            font=dict(family="Inter, sans-serif", color=T["text_secondary"]),
             height=280,
             margin=dict(l=10, r=10, t=10, b=10),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10)),
-            xaxis=dict(gridcolor="#F1F5F9", showline=True, linecolor="#E2E8F0"),
-            yaxis=dict(gridcolor="#F1F5F9", showline=True, linecolor="#E2E8F0"),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10, color=T["text_primary"])),
+            xaxis=dict(gridcolor=T["plotly_grid"], showline=True, linecolor=T["border"]),
+            yaxis=dict(gridcolor=T["plotly_grid"], showline=True, linecolor=T["border"]),
             hovermode="x unified"
         )
         st.plotly_chart(fig_c, use_container_width=True)
@@ -1345,15 +1676,15 @@ with tab_chart:
         ))
 
         fig_sim.update_layout(
-            template="plotly_white",
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="#FFFFFF",
-            font=dict(family="Inter, sans-serif", color="#475569"),
+            template=T["plotly_template"],
+            paper_bgcolor=T["plotly_paper"],
+            plot_bgcolor=T["plotly_plot"],
+            font=dict(family="Inter, sans-serif", color=T["text_secondary"]),
             height=300,
             margin=dict(l=10, r=10, t=10, b=10),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10)),
-            xaxis=dict(title="Months", gridcolor="#F1F5F9", showline=True, linecolor="#E2E8F0"),
-            yaxis=dict(title="Corpus (₹)", gridcolor="#F1F5F9", showline=True, linecolor="#E2E8F0"),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10, color=T["text_primary"])),
+            xaxis=dict(title="Months", gridcolor=T["plotly_grid"], showline=True, linecolor=T["border"]),
+            yaxis=dict(title="Corpus (₹)", gridcolor=T["plotly_grid"], showline=True, linecolor=T["border"]),
             hovermode="x unified"
         )
         st.plotly_chart(fig_sim, use_container_width=True)
@@ -1516,15 +1847,15 @@ with tab_chart:
             ))
 
         fig_b.update_layout(
-            template="plotly_white",
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="#FFFFFF",
-            font=dict(family="Inter, sans-serif", color="#475569"),
+            template=T["plotly_template"],
+            paper_bgcolor=T["plotly_paper"],
+            plot_bgcolor=T["plotly_plot"],
+            font=dict(family="Inter, sans-serif", color=T["text_secondary"]),
             height=300,
             margin=dict(l=10, r=10, t=10, b=10),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10)),
-            xaxis=dict(gridcolor="#F1F5F9", showline=True, linecolor="#E2E8F0"),
-            yaxis=dict(gridcolor="#F1F5F9", showline=True, linecolor="#E2E8F0"),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10, color=T["text_primary"])),
+            xaxis=dict(gridcolor=T["plotly_grid"], showline=True, linecolor=T["border"]),
+            yaxis=dict(gridcolor=T["plotly_grid"], showline=True, linecolor=T["border"]),
             hovermode="x unified"
         )
         st.plotly_chart(fig_b, use_container_width=True)
