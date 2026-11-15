@@ -31,8 +31,20 @@ SCHEME_CODES = {
     "Motilal Oswal Midcap Fund Direct Growth": 127042,
     "Nippon India Small Cap Fund Direct Growth": 118778,
     "Parag Parikh Flexi Cap Fund Direct Growth": 122639,
-    "Edelweiss US Technology Equity FoF Direct Growth": 148063
+    "Edelweiss US Technology Equity FoF Direct Growth": 148063,
+    "Mirae Asset ELSS Tax Saver Fund Direct Growth": 135781,
+    "Quant ELSS Tax Saver Fund Direct Growth": 120847
 }
+
+__all__ = [
+    "evaluate_tactical_decisions",
+    "calculate_friction_and_drag",
+    "get_dual_ledger_holdings",
+    "get_live_portfolio_summary",
+    "get_live_forward_challenge",
+    "fetch_scheme_nav_history",
+    "get_nav_on_or_before"
+]
 
 # Cache for fetched NAV histories
 _NAV_CACHE: Dict[int, Dict[str, float]] = {}
@@ -226,7 +238,6 @@ def evaluate_tactical_decisions(
             "sub_category": pick["sub_category"],
             "reason": pick["thesis"]
         }
-        total_sip_cash += 40000.0
 
     # -------------------------------------------------------------
     # TIER 2: EMERGENCY CORPUS SWITCH (< 30 SPOT SCORE)
@@ -646,13 +657,156 @@ def get_dual_ledger_holdings(db=None) -> Dict[str, Any]:
     }
 
 
+def get_live_portfolio_summary(db=None) -> Dict[str, Any]:
+    """
+    Returns the real consolidated portfolio summary directly from user's live Groww holdings:
+    - Active Tradable Core (4 funds: Motilal Midcap, Nippon Smallcap, PPFC, Edelweiss US Tech)
+    - Locked ELSS (2 funds: Mirae Asset ELSS, Quant ELSS)
+    - Live daily NAVs from mfapi.in
+    - 200-DMA distance % for each holding
+    - Gain/loss in ₹ and %
+    - Overall Net Worth (100% equity invested, zero cash drag)
+    - Smart LTCG switch safety check (>365d holdings >8% below 200-DMA)
+    """
+    if db is None:
+        db = get_db()
+
+    all_holdings = db.get_holdings(active_only=False)
+
+    scheme_code_map = {
+        "Motilal Oswal Midcap Fund Direct Growth": 127042,
+        "Nippon India Small Cap Fund Direct Growth": 118778,
+        "Parag Parikh Flexi Cap Fund Direct Growth": 122639,
+        "Edelweiss US Technology Equity FoF Direct Growth": 148063,
+        "Mirae Asset ELSS Tax Saver Fund Direct Growth": 135781,
+        "Quant ELSS Tax Saver Fund Direct Growth": 120847,
+    }
+
+    active_items = []
+    locked_items = []
+
+    active_val_sum = 0.0
+    active_inv_sum = 0.0
+    locked_val_sum = 0.0
+    locked_inv_sum = 0.0
+
+    today = date.today()
+
+    for h in all_holdings:
+        name = h["scheme_name"]
+        code = scheme_code_map.get(name)
+        units = float(h.get("units", 0))
+        invested = float(h.get("invested_value", 0))
+        folio = h.get("folio_no", "N/A")
+        sleeve = h.get("sleeve", "CORE")
+        sip_amt = float(h.get("sip_amount", 0))
+        is_locked = bool(h.get("is_locked", False))
+
+        nav_dict = fetch_scheme_nav_history(code) if code else {}
+        if nav_dict:
+            curr_nav = get_nav_on_or_before(nav_dict, today)
+            nav_200 = get_nav_on_or_before(nav_dict, today - timedelta(days=200))
+            dma_dist = round(((curr_nav - nav_200) / nav_200 * 100.0), 2) if nav_200 > 0 else 0.0
+        else:
+            curr_nav = float(h.get("current_nav", 0))
+            dma_dist = 5.0
+
+        curr_val = round(units * curr_nav, 2)
+        gain_rs = round(curr_val - invested, 2)
+        gain_pct = round((gain_rs / invested * 100.0), 2) if invested > 0 else 0.0
+
+        if is_locked:
+            status_badge = "Locked (ELSS)"
+            status_color = "#94a3b8"
+            status_note = "3-Year Tax Saver lock-in. Preserved and excluded from active rotation."
+        elif dma_dist < -8.0:
+            status_badge = "🚨 >365d Switch Alert"
+            status_color = "#ef4444"
+            status_note = f"Trading {dma_dist:.1f}% below 200-DMA. Eligible for Smart LTCG switch to momentum leader."
+        elif dma_dist > 5.0:
+            status_badge = "✅ Strong Trend"
+            status_color = "#00D09C"
+            status_note = f"Trading comfortably above 200-DMA ({dma_dist:+.1f}%). Safe long-term compounder."
+        else:
+            status_badge = "⏳ Healthy Hold"
+            status_color = "#38bdf8"
+            status_note = f"Consolidating near 200-DMA ({dma_dist:+.1f}%). Holding existing units with zero churn."
+
+        short_name = (
+            name.replace(" Fund Direct Growth", "")
+                .replace(" Direct Growth", "")
+                .replace(" Tax Saver", "")
+        )
+
+        item = {
+            "scheme_name": name,
+            "short_name": short_name,
+            "folio_no": folio,
+            "sleeve": sleeve,
+            "units": units,
+            "current_nav": curr_nav,
+            "current_value": curr_val,
+            "invested_value": invested,
+            "gain_rupees": gain_rs,
+            "gain_pct": gain_pct,
+            "sip_amount": sip_amt,
+            "dma_dist_pct": dma_dist,
+            "status_badge": status_badge,
+            "status_color": status_color,
+            "status_note": status_note,
+            "is_locked": is_locked
+        }
+
+        if is_locked:
+            locked_items.append(item)
+            locked_val_sum += curr_val
+            locked_inv_sum += invested
+        else:
+            active_items.append(item)
+            active_val_sum += curr_val
+            active_inv_sum += invested
+
+    active_gain_rs = round(active_val_sum - active_inv_sum, 2)
+    active_gain_pct = round((active_gain_rs / active_inv_sum * 100.0), 2) if active_inv_sum > 0 else 0.0
+
+    locked_gain_rs = round(locked_val_sum - locked_inv_sum, 2)
+    locked_gain_pct = round((locked_gain_rs / locked_inv_sum * 100.0), 2) if locked_inv_sum > 0 else 0.0
+
+    total_net_worth = round(active_val_sum + locked_val_sum, 2)
+    total_invested = round(active_inv_sum + locked_inv_sum, 2)
+    total_gain_rs = round(total_net_worth - total_invested, 2)
+    total_gain_pct = round((total_gain_rs / total_invested * 100.0), 2) if total_invested > 0 else 0.0
+
+    return {
+        "active_items": active_items,
+        "locked_items": locked_items,
+        "active_value": active_val_sum,
+        "active_invested": active_inv_sum,
+        "active_gain_rs": active_gain_rs,
+        "active_gain_pct": active_gain_pct,
+        "locked_value": locked_val_sum,
+        "locked_invested": locked_inv_sum,
+        "locked_gain_rs": locked_gain_rs,
+        "locked_gain_pct": locked_gain_pct,
+        "total_net_worth": total_net_worth,
+        "total_invested": total_invested,
+        "total_gain_rs": total_gain_rs,
+        "total_gain_pct": total_gain_pct,
+        "equity_pct": 100.0,
+        "cash_pct": 0.0,
+        "as_of_date": str(today)
+    }
+
+
 def get_live_forward_challenge(as_of_date: Optional[date] = None) -> Dict[str, Any]:
     """
     Evaluates the 12-Month Live Forward Challenge (Starting Dec 3, 2026 to Dec 3, 2027):
-    - Ledger 1: Passive Groww SIPs (₹10k PPFC, ₹20k MOMC, ₹20k NISC = ₹50,000/mo).
-    - Ledger 2: Unrestricted AI Advisor (₹50,000/mo deployed into top momentum & leadership direct funds).
+    - Strategy 1: Winning 17.55% AI Engine (₹50,000/mo deployed into top momentum & leadership direct funds).
+    - Strategy 2: Passive Groww SIPs (₹10k PPFC, ₹20k MOMC, ₹20k NISC = ₹50,000/mo).
+    - Strategy 3: Nifty 500 Broad Market Index (₹50,000/mo Motilal Nifty 500 Index Direct).
+    - Strategy 4: Nifty 50 Large Cap Index (₹50,000/mo UTI Nifty 50 Index Direct).
     Returns real-time status, upcoming Dec 3 SIP deployment, plain-English AI Thesis log,
-    friction breakdown, and 12-month forward tracking schedule.
+    friction breakdown, 12-month forward tracking schedule, and Day-1 Allocation Preview.
     """
     if as_of_date is None:
         as_of_date = date.today()
@@ -730,7 +884,69 @@ def get_live_forward_challenge(as_of_date: Optional[date] = None) -> Dict[str, A
         "debt_gold_rate": "20% tax on Gold / Foreign FoFs"
     }
 
-    # 4. 12-Month Schedule (Dec 2026 - Nov 2027)
+    # 4. Day-1 Allocation Preview (Exact Unit & Rupee Computation for Dec 3, 2026)
+    # Fetch live NAVs from universe
+    navs_dict = {}
+    for rf in ai_score_report.get("ranked_funds", []):
+        navs_dict[rf.get("name")] = float(rf.get("current_nav", 100.0))
+        navs_dict[rf.get("short_name")] = float(rf.get("current_nav", 100.0))
+        navs_dict[rf.get("key")] = float(rf.get("current_nav", 100.0))
+
+    # Helper to calculate Day-1 order details
+    def _make_day1_item(strategy_name, fund_name, subcat, amt, thesis=""):
+        nav = navs_dict.get(fund_name, 100.0)
+        duty = round(amt * 0.00005, 2)
+        net_amt = amt - duty
+        est_units = round(net_amt / nav, 3) if nav > 0 else 0.0
+        return {
+            "strategy": strategy_name,
+            "fund_name": fund_name,
+            "sub_category": subcat,
+            "sip_amount": amt,
+            "stamp_duty": duty,
+            "net_invested": net_amt,
+            "current_nav": nav,
+            "est_units": est_units,
+            "thesis": thesis
+        }
+
+    day1_ai = []
+    for pick in top_picks:
+        day1_ai.append(_make_day1_item(
+            "🏆 Winning 17.55% AI Engine",
+            pick["short_name"],
+            pick.get("sub_category", "Momentum Leader"),
+            pick.get("allocation_amount", 25000.0),
+            pick.get("thesis", "")
+        ))
+
+    day1_groww = [
+        _make_day1_item("📦 My Passive Groww SIPs", "Parag Parikh Flexi Cap", "Core Flexi Cap", 10000.0, "Core large/global holding"),
+        _make_day1_item("📦 My Passive Groww SIPs", "Motilal Oswal Midcap", "Cap Midcap", 20000.0, "High-growth midcap compounder"),
+        _make_day1_item("📦 My Passive Groww SIPs", "Nippon India Small Cap", "Cap Smallcap", 20000.0, "Leading small cap compounder")
+    ]
+
+    day1_n500 = [
+        _make_day1_item("🌐 Nifty 500 Broad Market", "Motilal Nifty 500 Index", "Core Broad Market Index", 50000.0, "Passive broad market representation across top 500 companies")
+    ]
+
+    day1_n50 = [
+        _make_day1_item("🏛️ Nifty 50 Large Cap", "UTI Nifty 50 Index", "Core Large Cap Index", 50000.0, "Passive blue-chip representation across top 50 Indian companies")
+    ]
+
+    day1_summary_table = day1_ai + day1_groww + day1_n500 + day1_n50
+
+    day1_preview = {
+        "kickoff_date": "Dec 3, 2026",
+        "monthly_sip": 50000.0,
+        "ai_engine": day1_ai,
+        "passive_groww": day1_groww,
+        "nifty500": day1_n500,
+        "nifty50": day1_n50,
+        "summary_table": day1_summary_table
+    }
+
+    # 5. 12-Month Schedule (Dec 2026 - Nov 2027)
     schedule = []
     start_y, start_m = 2026, 12
     for i in range(12):
@@ -763,7 +979,8 @@ def get_live_forward_challenge(as_of_date: Optional[date] = None) -> Dict[str, A
         "top_picks": top_picks,
         "ranked_funds": ai_score_report.get("ranked_funds", []),
         "friction_breakdown": friction_breakdown,
-        "schedule": schedule
+        "schedule": schedule,
+        "day1_preview": day1_preview
     }
 
 

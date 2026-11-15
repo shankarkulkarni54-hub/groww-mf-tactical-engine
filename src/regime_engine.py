@@ -97,6 +97,7 @@ __all__ = [
     "get_universe_nav_on",
     "score_unrestricted_universe",
     "check_smart_ltcg_switches",
+    "get_fund_chart_data",
     "format_inr",
     "compute_sleeve_regime",
     "update_all_regimes"
@@ -546,8 +547,117 @@ def check_smart_ltcg_switches(
     return alerts
 
 
+def get_fund_chart_data(
+    fund_key_or_name: str,
+    days: int = 365,
+    navs_dict: Optional[Dict[str, Dict[str, float]]] = None
+) -> Dict[str, Any]:
+    """
+    Returns time series data for interactive Plotly charts:
+    - dates: list of ISO date strings
+    - navs: list of historical daily NAV floats
+    - dma_200: list of 200-day simple moving averages
+    - ema_50: list of 50-day exponential moving averages
+    - current_nav, current_200_dma, current_50_ema, dma_dist_pct
+    - fund metadata (name, short_name, category, sub_category, amfi_code)
+    """
+    if navs_dict is None:
+        navs_dict = fetch_universe_navs()
 
+    target_meta = None
+    target_navs = None
 
+    if fund_key_or_name in UNRESTRICTED_UNIVERSE:
+        target_meta = UNRESTRICTED_UNIVERSE[fund_key_or_name]
+        target_navs = navs_dict.get(fund_key_or_name, {})
+    else:
+        for k, meta in UNRESTRICTED_UNIVERSE.items():
+            if (fund_key_or_name == meta["name"] or 
+                fund_key_or_name == meta["short_name"] or 
+                str(meta.get("amfi_code")) == str(fund_key_or_name)):
+                target_meta = meta
+                target_navs = navs_dict.get(k, {})
+                break
+
+    if target_meta is None:
+        elss_map = {
+            "Mirae Asset ELSS Tax Saver Fund Direct Growth": {
+                "name": "Mirae Asset ELSS Tax Saver Fund Direct Growth",
+                "short_name": "Mirae Asset ELSS",
+                "amfi_code": 135781,
+                "category": "EQUITY",
+                "sub_category": "ELSS Tax Saver (Locked)",
+                "benchmark": "^CRSLDX"
+            },
+            "Quant ELSS Tax Saver Fund Direct Growth": {
+                "name": "Quant ELSS Tax Saver Fund Direct Growth",
+                "short_name": "Quant ELSS",
+                "amfi_code": 120847,
+                "category": "EQUITY",
+                "sub_category": "ELSS Tax Saver (Locked)",
+                "benchmark": "^CRSLDX"
+            }
+        }
+        for ek, emeta in elss_map.items():
+            if fund_key_or_name in ek or fund_key_or_name == emeta["short_name"]:
+                target_meta = emeta
+                code = emeta["amfi_code"]
+                if code in _UNRESTRICTED_NAV_CACHE:
+                    target_navs = _UNRESTRICTED_NAV_CACHE[code]
+                else:
+                    try:
+                        r = requests.get(f"https://api.mfapi.in/mf/{code}", timeout=10)
+                        data = r.json().get("data", [])
+                        d_dict = {}
+                        for item in data:
+                            pts = item.get("date", "").split("-")
+                            if len(pts) == 3:
+                                iso = f"{pts[2]}-{pts[1]}-{pts[0]}"
+                                val = float(item.get("nav", 0))
+                                if val > 0:
+                                    d_dict[iso] = val
+                        _UNRESTRICTED_NAV_CACHE[code] = d_dict
+                        target_navs = d_dict
+                    except Exception:
+                        target_navs = {}
+                break
+
+    if not target_navs or not target_meta:
+        target_meta = UNRESTRICTED_UNIVERSE["MOMC"]
+        target_navs = navs_dict.get("MOMC", {})
+
+    s = pd.Series(target_navs, dtype=float)
+    s.index = pd.to_datetime(s.index)
+    s = s.sort_index()
+
+    dma200 = s.rolling(window=200, min_periods=30).mean()
+    ema50 = s.ewm(span=50, adjust=False).mean()
+
+    s_recent = s.tail(days)
+    dma_recent = dma200.loc[s_recent.index]
+    ema_recent = ema50.loc[s_recent.index]
+
+    dates_str = [d.strftime("%Y-%m-%d") for d in s_recent.index]
+    nav_vals = [round(float(v), 2) for v in s_recent.values]
+    dma_vals = [round(float(v), 2) if not pd.isna(v) else nav_vals[i] for i, v in enumerate(dma_recent.values)]
+    ema_vals = [round(float(v), 2) if not pd.isna(v) else nav_vals[i] for i, v in enumerate(ema_recent.values)]
+
+    latest_nav = nav_vals[-1] if nav_vals else 0.0
+    latest_200 = dma_vals[-1] if dma_vals else latest_nav
+    latest_50 = ema_vals[-1] if ema_vals else latest_nav
+    dma_dist = round(((latest_nav - latest_200) / latest_200 * 100.0), 2) if latest_200 > 0 else 0.0
+
+    return {
+        "dates": dates_str,
+        "navs": nav_vals,
+        "dma_200": dma_vals,
+        "ema_50": ema_vals,
+        "current_nav": latest_nav,
+        "current_200_dma": latest_200,
+        "current_50_ema": latest_50,
+        "dma_dist_pct": dma_dist,
+        "meta": target_meta
+    }
 
 
 def fetch_ticker_data_with_fallbacks(tickers: List[str], period: str = "2y") -> Tuple[Optional[pd.DataFrame], Optional[str]]:
