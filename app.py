@@ -39,7 +39,8 @@ from src.paper_ledger import (
     evaluate_tactical_decisions,
     calculate_friction_and_drag,
     get_live_portfolio_summary,
-    get_live_forward_challenge
+    get_live_forward_challenge,
+    log_monthly_execution
 )
 from src.telegram_bot import format_tactical_alert, send_telegram_alert
 from src.backtester import run_five_year_backtest
@@ -57,6 +58,9 @@ st.set_page_config(
 # =====================================================================
 if "theme_mode" not in st.session_state:
     st.session_state.theme_mode = "🌙 Dark"
+
+if "monthly_sip_budget" not in st.session_state:
+    st.session_state.monthly_sip_budget = 50000.0
 
 is_dark = (st.session_state.theme_mode == "🌙 Dark")
 
@@ -976,7 +980,7 @@ render_html(f"""
     <!-- Tile 4: Upcoming Dec 3 SIP -->
     <div class='kpi-tile' style='border-left: 3px solid #7C3AED;'>
         <div class='kpi-label'>Upcoming Dec 3 SIP</div>
-        <div class='kpi-value' style='font-size:1.20rem;'>{format_inr(50000)} Full Equity</div>
+        <div class='kpi-value' style='font-size:1.20rem;'>{format_inr(st.session_state.get('monthly_sip_budget', 50000.0))} {'Full Equity' if st.session_state.get('monthly_sip_budget', 50000.0) > 0 else 'Skipped'}</div>
         <div class='kpi-sub'>
             <span class='badge-pill pill-purple'>Top 2 Leaders</span>
             <span style='color:#64748B; font-size:0.70rem;'>Pharma & Midcap</span>
@@ -988,13 +992,31 @@ render_html(f"""
 # =====================================================================
 # 3. HERO ACTION BANNER: SCANNABLE 2-COLUMN SIP RECOMMENDATION CARD
 # =====================================================================
+col_hero_hdr, col_hero_input = st.columns([2.7, 1.3])
+with col_hero_hdr:
+    render_section_header("📅 Monthly SIP Allocation Directive", "Governed by Winning 17.55% AI Engine • Dec 3, 2026 Kickoff", margin_top=4)
+with col_hero_input:
+    active_budget = float(st.number_input(
+        "This Month's SIP Budget (₹)",
+        min_value=0,
+        max_value=500000,
+        value=int(st.session_state.get("monthly_sip_budget", 50000.0)),
+        step=5000,
+        key="hero_sip_budget_input",
+        help="Editable monthly investment amount (₹0 to ₹5,00,000). Set to ₹0 to simulate/log a skipped month. Dynamically computes 50/50 split across top AI leaders."
+    ))
+    st.session_state["monthly_sip_budget"] = active_budget
+
 is_outside_window = decisions.get("is_outside_sip_window", True)
 has_emergency_switch = any(s.get("action") == "SWITCH_TO_CASH" for s in decisions.get("switch_signals", []))
 is_action_window = decisions.get("is_sip_action_window", False)
 is_execution_day = decisions.get("is_sip_execution_day", False)
 smart_alerts = decisions.get("smart_ltcg_alerts", [])
 
-if has_emergency_switch:
+if active_budget <= 0:
+    badge_cls = "pill-slate"
+    badge_text = "⏸️ MONTH SKIPPED (₹0 SIP) — Zero Capital Deployed"
+elif has_emergency_switch:
     badge_cls = "pill-rose"
     badge_text = "🚨 EMERGENCY ACTION: Crash Exit Triggered"
 elif len(smart_alerts) > 0:
@@ -1010,8 +1032,9 @@ else:
     badge_cls = "pill-blue"
     badge_text = "🛡️ NO ACTION REQUIRED TODAY — Hold Existing Units"
 
-tot_eq = decisions.get("total_sip_equity", 50000.0)
-tot_cash = decisions.get("total_sip_cash", 0.0)
+tot_eq = active_budget
+tot_cash = 0.0
+stamp_duty = round(active_budget * 0.00005, 2) if active_budget > 0 else 0.0
 
 p1 = ai_picks[0] if len(ai_picks) > 0 else {}
 p2 = ai_picks[1] if len(ai_picks) > 1 else {}
@@ -1019,15 +1042,20 @@ p2 = ai_picks[1] if len(ai_picks) > 1 else {}
 p1_name = p1.get("short_name", "Nippon India Pharma")
 p1_subcat = p1.get("sub_category", "Sector Healthcare / Pharma")
 p1_score = p1.get("score", 61.8)
-p1_amt = p1.get("allocation_amount", 25000.0)
 
 p2_name = p2.get("short_name", "Motilal Oswal Midcap")
 p2_subcat = p2.get("sub_category", "Cap Midcap")
 p2_score = p2.get("score", 61.7)
-p2_amt = p2.get("allocation_amount", 25000.0)
+
+if active_budget <= 0:
+    p1_amt = 0.0
+    p2_amt = 0.0
+else:
+    p1_amt = round(active_budget * 0.50, 2)
+    p2_amt = round(active_budget * 0.50, 2)
 
 render_html(f"""
-<div class='hero-card'>
+<div class='hero-card' style='margin-top:6px;'>
     <div style='display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;'>
         <div>
             <div style='display:flex; align-items:center; gap:8px;'>
@@ -1035,7 +1063,7 @@ render_html(f"""
                 <span class='badge-pill pill-blue'>Dec 3, 2026 Kickoff</span>
             </div>
             <div style='font-size:0.78rem; color:{T["text_secondary"]}; margin-top:2px;'>
-                Governed by Winning 17.55% AI Engine • <span class='mono-num'>{format_inr(50000)}</span>/Month Capital
+                Governed by Winning 17.55% AI Engine • <span class='mono-num' style='font-weight:700; color:#059669;'>{format_inr(active_budget)}</span>/Month Capital ({'50/50 Split: ' + format_inr(p1_amt) + ' each' if active_budget > 0 else 'Month Skipped'})
             </div>
         </div>
         <div>
@@ -1056,7 +1084,7 @@ render_html(f"""
                 </div>
                 <div style='text-align:right;'>
                     <div class='mono-num' style='font-size:1.08rem; font-weight:800; color:#059669;'>{format_inr(p1_amt)}</div>
-                    <span class='badge-pill pill-emerald mono-num' style='font-size:0.68rem;'>Score {p1_score:.0f}/100</span>
+                    <span class='badge-pill pill-emerald mono-num' style='font-size:0.68rem;'>{'50% Split' if active_budget > 0 else 'Skipped'} • Score {p1_score:.0f}/100</span>
                 </div>
             </div>
             <div style='margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;'>
@@ -1078,7 +1106,7 @@ render_html(f"""
                 </div>
                 <div style='text-align:right;'>
                     <div class='mono-num' style='font-size:1.08rem; font-weight:800; color:#059669;'>{format_inr(p2_amt)}</div>
-                    <span class='badge-pill pill-emerald mono-num' style='font-size:0.68rem;'>Score {p2_score:.0f}/100</span>
+                    <span class='badge-pill pill-emerald mono-num' style='font-size:0.68rem;'>{'50% Split' if active_budget > 0 else 'Skipped'} • Score {p2_score:.0f}/100</span>
                 </div>
             </div>
             <div style='margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;'>
@@ -1099,7 +1127,7 @@ render_html(f"""
             <span style='font-size:0.75rem; color:{T["text_secondary"]};'>Zero churn triggered — all active units trade safely above 200-DMA bands.</span>
         </div>
         <div style='font-size:0.75rem; color:{T["text_muted"]};'>
-            Total Equity: <b class='mono-num' style='color:#059669;'>{format_inr(tot_eq)}</b> • Cash: <b class='mono-num' style='color:{T["text_muted"]};'>{format_inr(tot_cash)}</b> • Stamp Duty: <span class='mono-num'>₹2.50</span>
+            Total Equity: <b class='mono-num' style='color:#059669;'>{format_inr(tot_eq)}</b> • Cash: <b class='mono-num' style='color:{T["text_muted"]};'>{format_inr(tot_cash)}</b> • Stamp Duty: <span class='mono-num'>{format_inr(stamp_duty, decimals=2)}</span>
         </div>
     </div>
 </div>
@@ -1346,9 +1374,9 @@ with tab_holdings:
     # -------------------------------------------------------------
     # SECTION A: 12-MONTH LIVE FORWARD CHALLENGE PORTFOLIOS
     # -------------------------------------------------------------
-    render_section_header("🏆 Section A: 12-Month Live Forward Challenge Portfolios", "Starting Dec 3, 2026 • ₹50,000/Mo SIP on the 3rd • 4 Portfolios Tracked Side-by-Side")
+    render_section_header("🏆 Section A: 12-Month Live Forward Challenge Portfolios", f"Starting Dec 3, 2026 • {format_inr(active_budget)}/Mo SIP on the 3rd • 4 Portfolios Tracked Side-by-Side")
 
-    fwd = get_live_forward_challenge()
+    fwd = get_live_forward_challenge(monthly_sip=active_budget)
 
     # 4-Column Finology Comparison Grid
     render_html(f"""
@@ -1356,8 +1384,8 @@ with tab_holdings:
         <!-- Strategy 1: Winning AI Engine -->
         <div class='fin-card' style='border-top:3px solid #059669; padding:12px 14px;'>
             <div style='font-size:0.72rem; font-weight:700; color:#059669; text-transform:uppercase;'>🏆 Winning AI Engine</div>
-            <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(50000)}<span style='font-size:0.70rem; color:{T["text_secondary"]};'>/mo</span></div>
-            <div style='font-size:0.72rem; color:{T["text_secondary"]}; margin-top:4px;'>Top 2 Momentum Leaders (₹25k each)</div>
+            <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(active_budget)}<span style='font-size:0.70rem; color:{T["text_secondary"]};'>/mo</span></div>
+            <div style='font-size:0.72rem; color:{T["text_secondary"]}; margin-top:4px;'>{'Top 2 Leaders (' + format_inr(round(active_budget * 0.5, 2)) + ' each)' if active_budget > 0 else 'Month Skipped (₹0)'}</div>
             <div style='margin-top:8px;'>
                 <span class='badge-pill pill-emerald mono-num'>17.55% XIRR</span>
                 <span class='mono-num' style='font-size:0.68rem; color:{T["text_secondary"]}; margin-left:4px;'>-13.9% DD</span>
@@ -1367,8 +1395,8 @@ with tab_holdings:
         <!-- Strategy 2: My Passive Groww SIPs -->
         <div class='fin-card' style='border-top:3px solid #D97706; padding:12px 14px;'>
             <div style='font-size:0.72rem; font-weight:700; color:#D97706; text-transform:uppercase;'>📦 Passive Groww</div>
-            <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(50000)}<span style='font-size:0.70rem; color:{T["text_secondary"]};'>/mo</span></div>
-            <div style='font-size:0.72rem; color:{T["text_secondary"]}; margin-top:4px;'>PPFC ₹10k + MOMC ₹20k + NISC ₹20k</div>
+            <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(active_budget)}<span style='font-size:0.70rem; color:{T["text_secondary"]};'>/mo</span></div>
+            <div style='font-size:0.72rem; color:{T["text_secondary"]}; margin-top:4px;'>{'PPFC ' + format_inr(round(active_budget * 0.2, 2)) + ' + MOMC ' + format_inr(round(active_budget * 0.4, 2)) + ' + NISC ' + format_inr(round(active_budget * 0.4, 2)) if active_budget > 0 else 'Month Skipped (₹0)'}</div>
             <div style='margin-top:8px;'>
                 <span class='badge-pill pill-amber mono-num'>14.60% XIRR</span>
                 <span class='mono-num' style='font-size:0.68rem; color:{T["text_secondary"]}; margin-left:4px;'>-15.9% DD</span>
@@ -1378,8 +1406,8 @@ with tab_holdings:
         <!-- Strategy 3: Nifty 500 Broad Market -->
         <div class='fin-card' style='border-top:3px solid #2563EB; padding:12px 14px;'>
             <div style='font-size:0.72rem; font-weight:700; color:#2563EB; text-transform:uppercase;'>🌐 Nifty 500 Index</div>
-            <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(50000)}<span style='font-size:0.70rem; color:{T["text_secondary"]};'>/mo</span></div>
-            <div style='font-size:0.72rem; color:{T["text_secondary"]}; margin-top:4px;'>Motilal Nifty 500 Index Direct</div>
+            <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(active_budget)}<span style='font-size:0.70rem; color:{T["text_secondary"]};'>/mo</span></div>
+            <div style='font-size:0.72rem; color:{T["text_secondary"]}; margin-top:4px;'>{'Motilal Nifty 500 Index (100%)' if active_budget > 0 else 'Month Skipped (₹0)'}</div>
             <div style='margin-top:8px;'>
                 <span class='badge-pill pill-blue mono-num'>9.27% XIRR</span>
                 <span class='mono-num' style='font-size:0.68rem; color:{T["text_secondary"]}; margin-left:4px;'>-11.2% DD</span>
@@ -1389,8 +1417,8 @@ with tab_holdings:
         <!-- Strategy 4: Nifty 50 Large Cap -->
         <div class='fin-card' style='border-top:3px solid #7C3AED; padding:12px 14px;'>
             <div style='font-size:0.72rem; font-weight:700; color:#7C3AED; text-transform:uppercase;'>🏛️ Nifty 50 Index</div>
-            <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(50000)}<span style='font-size:0.70rem; color:{T["text_secondary"]};'>/mo</span></div>
-            <div style='font-size:0.72rem; color:{T["text_secondary"]}; margin-top:4px;'>UTI Nifty 50 Index Direct</div>
+            <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(active_budget)}<span style='font-size:0.70rem; color:{T["text_secondary"]};'>/mo</span></div>
+            <div style='font-size:0.72rem; color:{T["text_secondary"]}; margin-top:4px;'>{'UTI Nifty 50 Index (100%)' if active_budget > 0 else 'Month Skipped (₹0)'}</div>
             <div style='margin-top:8px;'>
                 <span class='badge-pill pill-purple mono-num'>7.49% XIRR</span>
                 <span class='mono-num' style='font-size:0.68rem; color:{T["text_secondary"]}; margin-left:4px;'>-11.4% DD</span>
@@ -1505,16 +1533,54 @@ with tab_chart:
     if "Simulator" in alpha_subtab:
         render_section_header("🔮 Interactive SIP & Corpus Simulator", "Project your future post-tax wealth under the Winning 17.55% AI Engine vs. Passive Groww vs. Nifty 500 vs. Nifty 50.")
 
-        sim_col1, sim_col2 = st.columns(2)
+        sim_col1, sim_col2, sim_col3 = st.columns(3)
         with sim_col1:
-            sim_sip = st.slider("Monthly SIP Amount (₹)", min_value=25000, max_value=100000, value=50000, step=5000)
+            sim_sip = st.slider(
+                "Starting Monthly SIP (₹)",
+                min_value=10000,
+                max_value=200000,
+                value=int(active_budget) if active_budget >= 10000 else 50000,
+                step=5000
+            )
         with sim_col2:
-            sim_horizon = st.selectbox("Investment Horizon", ["1 Year (12M)", "3 Years (36M)", "5 Years (60M)", "10 Years (120M)"], index=2)
+            sim_horizon = st.selectbox(
+                "Investment Horizon",
+                ["3 Years (36M)", "5 Years (60M)", "10 Years (120M)", "15 Years (180M)"],
+                index=1
+            )
+        with sim_col3:
+            sim_stepup_label = st.selectbox(
+                "Annual SIP Step-Up (%)",
+                ["0% Flat", "5% / yr", "10% / yr", "15% / yr"],
+                index=0
+            )
 
-        years_map = {"1 Year (12M)": 1, "3 Years (36M)": 3, "5 Years (60M)": 5, "10 Years (120M)": 10}
+        stepup_rates = {
+            "0% Flat": 0.0,
+            "5% / yr": 0.05,
+            "10% / yr": 0.10,
+            "15% / yr": 0.15
+        }
+        stepup_pct = stepup_rates.get(sim_stepup_label, 0.0)
+
+        years_map = {
+            "3 Years (36M)": 3,
+            "5 Years (60M)": 5,
+            "10 Years (120M)": 10,
+            "15 Years (180M)": 15
+        }
         n_years = years_map.get(sim_horizon, 5)
         n_months = n_years * 12
-        tot_invested_sim = sim_sip * n_months
+
+        # Step-up invested series
+        invested_curve = []
+        cum_invested = 0.0
+        for m in range(1, n_months + 1):
+            y_idx = (m - 1) // 12
+            m_sip = sim_sip * ((1.0 + stepup_pct) ** y_idx)
+            cum_invested += m_sip
+            invested_curve.append(round(cum_invested, 2))
+        tot_invested_sim = cum_invested
 
         strat_cagr = {
             "ai": 0.1755,
@@ -1528,7 +1594,9 @@ with tab_chart:
             i_m = (1.0 + r)**(1.0 / 12.0) - 1.0
             acc = 0.0
             for m in range(1, n_months + 1):
-                acc = (acc + sim_sip) * (1.0 + i_m)
+                y_idx = (m - 1) // 12
+                m_sip = sim_sip * ((1.0 + stepup_pct) ** y_idx)
+                acc = (acc + m_sip) * (1.0 + i_m)
                 curves[key].append(round(acc, 2))
 
         final_ai = curves["ai"][-1]
@@ -1536,46 +1604,94 @@ with tab_chart:
         final_n500 = curves["n500"][-1]
         final_n50 = curves["n50"][-1]
 
+        def compute_tax_and_net(gross: float, invested: float):
+            gain = max(0.0, gross - invested)
+            taxable_gain = max(0.0, gain - 125000.0)
+            ltcg_tax = round(taxable_gain * 0.125, 2)
+            net_cash = round(gross - ltcg_tax, 2)
+            return gain, ltcg_tax, net_cash
+
+        gain_ai, tax_ai, net_ai = compute_tax_and_net(final_ai, tot_invested_sim)
+        gain_groww, tax_groww, net_groww = compute_tax_and_net(final_groww, tot_invested_sim)
+        gain_n500, tax_n500, net_n500 = compute_tax_and_net(final_n500, tot_invested_sim)
+        gain_n50, tax_n50, net_n50 = compute_tax_and_net(final_n50, tot_invested_sim)
+
         alpha_vs_n500_sim = final_ai - final_n500
         alpha_vs_groww_sim = final_ai - final_groww
+        net_alpha_vs_n500 = net_ai - net_n500
+        net_alpha_vs_groww = net_ai - net_groww
 
         render_html(f"""
         <div style='display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin-top:10px; margin-bottom:12px;'>
+            <!-- Strategy 1: Winning AI Engine -->
             <div class='fin-card' style='border-top:3px solid #059669; padding:12px 14px;'>
-                <div style='font-size:0.72rem; color:#059669; font-weight:700;'>🏆 AI Engine (17.55%)</div>
-                <div class='mono-num' style='font-size:1.22rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(final_ai)}</div>
-                <div class='mono-num' style='font-size:0.70rem; color:#059669; margin-top:2px;'>Gain: +{format_inr(final_ai - tot_invested_sim)}</div>
+                <div style='display:flex; justify-content:space-between; align-items:center;'>
+                    <span style='font-size:0.72rem; color:#059669; font-weight:700;'>🏆 AI ENGINE (17.55%)</span>
+                    <span class='badge-pill pill-emerald' style='font-size:0.65rem;'>Top Alpha</span>
+                </div>
+                <div class='mono-num' style='font-size:1.24rem; font-weight:800; color:{T["text_primary"]}; margin-top:4px;'>{format_inr(final_ai)}</div>
+                <div style='font-size:0.70rem; color:{T["text_secondary"]}; margin-top:4px; line-height:1.5;'>
+                    Gain: <b class='mono-num' style='color:#059669;'>+{format_inr(gain_ai)}</b><br>
+                    Est. LTCG (12.5%): <span class='mono-num' style='color:#EF4444;'>-{format_inr(tax_ai)}</span><br>
+                    Net Cash-in-Hand: <b class='mono-num' style='color:{T["text_primary"]}; font-weight:700;'>{format_inr(net_ai)}</b>
+                </div>
             </div>
 
+            <!-- Strategy 2: Passive Groww -->
             <div class='fin-card' style='border-top:3px solid #D97706; padding:12px 14px;'>
-                <div style='font-size:0.72rem; color:#D97706; font-weight:700;'>📦 Passive Groww (14.60%)</div>
-                <div class='mono-num' style='font-size:1.22rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(final_groww)}</div>
-                <div class='mono-num' style='font-size:0.70rem; color:#D97706; margin-top:2px;'>Gain: +{format_inr(final_groww - tot_invested_sim)}</div>
+                <div style='display:flex; justify-content:space-between; align-items:center;'>
+                    <span style='font-size:0.72rem; color:#D97706; font-weight:700;'>📦 PASSIVE GROWW (14.60%)</span>
+                    <span class='badge-pill pill-amber' style='font-size:0.65rem;'>Passive</span>
+                </div>
+                <div class='mono-num' style='font-size:1.24rem; font-weight:800; color:{T["text_primary"]}; margin-top:4px;'>{format_inr(final_groww)}</div>
+                <div style='font-size:0.70rem; color:{T["text_secondary"]}; margin-top:4px; line-height:1.5;'>
+                    Gain: <b class='mono-num' style='color:#D97706;'>+{format_inr(gain_groww)}</b><br>
+                    Est. LTCG (12.5%): <span class='mono-num' style='color:#EF4444;'>-{format_inr(tax_groww)}</span><br>
+                    Net Cash-in-Hand: <b class='mono-num' style='color:{T["text_primary"]}; font-weight:700;'>{format_inr(net_groww)}</b>
+                </div>
             </div>
 
+            <!-- Strategy 3: Nifty 500 -->
             <div class='fin-card' style='border-top:3px solid #2563EB; padding:12px 14px;'>
-                <div style='font-size:0.72rem; color:#2563EB; font-weight:700;'>🌐 Nifty 500 (9.27%)</div>
-                <div class='mono-num' style='font-size:1.22rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(final_n500)}</div>
-                <div class='mono-num' style='font-size:0.70rem; color:#2563EB; margin-top:2px;'>Gain: +{format_inr(final_n500 - tot_invested_sim)}</div>
+                <div style='display:flex; justify-content:space-between; align-items:center;'>
+                    <span style='font-size:0.72rem; color:#2563EB; font-weight:700;'>🌐 NIFTY 500 (9.27%)</span>
+                    <span class='badge-pill pill-blue' style='font-size:0.65rem;'>Broad Index</span>
+                </div>
+                <div class='mono-num' style='font-size:1.24rem; font-weight:800; color:{T["text_primary"]}; margin-top:4px;'>{format_inr(final_n500)}</div>
+                <div style='font-size:0.70rem; color:{T["text_secondary"]}; margin-top:4px; line-height:1.5;'>
+                    Gain: <b class='mono-num' style='color:#2563EB;'>+{format_inr(gain_n500)}</b><br>
+                    Est. LTCG (12.5%): <span class='mono-num' style='color:#EF4444;'>-{format_inr(tax_n500)}</span><br>
+                    Net Cash-in-Hand: <b class='mono-num' style='color:{T["text_primary"]}; font-weight:700;'>{format_inr(net_n500)}</b>
+                </div>
             </div>
 
+            <!-- Strategy 4: Nifty 50 -->
             <div class='fin-card' style='border-top:3px solid #7C3AED; padding:12px 14px;'>
-                <div style='font-size:0.72rem; color:#7C3AED; font-weight:700;'>🏛️ Nifty 50 (7.49%)</div>
-                <div class='mono-num' style='font-size:1.22rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(final_n50)}</div>
-                <div class='mono-num' style='font-size:0.70rem; color:#7C3AED; margin-top:2px;'>Gain: +{format_inr(final_n50 - tot_invested_sim)}</div>
+                <div style='display:flex; justify-content:space-between; align-items:center;'>
+                    <span style='font-size:0.72rem; color:#7C3AED; font-weight:700;'>🏛️ NIFTY 50 (7.49%)</span>
+                    <span class='badge-pill pill-purple' style='font-size:0.65rem;'>Large Cap</span>
+                </div>
+                <div class='mono-num' style='font-size:1.24rem; font-weight:800; color:{T["text_primary"]}; margin-top:4px;'>{format_inr(final_n50)}</div>
+                <div style='font-size:0.70rem; color:{T["text_secondary"]}; margin-top:4px; line-height:1.5;'>
+                    Gain: <b class='mono-num' style='color:#7C3AED;'>+{format_inr(gain_n50)}</b><br>
+                    Est. LTCG (12.5%): <span class='mono-num' style='color:#EF4444;'>-{format_inr(tax_n50)}</span><br>
+                    Net Cash-in-Hand: <b class='mono-num' style='color:{T["text_primary"]}; font-weight:700;'>{format_inr(net_n50)}</b>
+                </div>
             </div>
         </div>
         """)
 
         # Callout Highlight Banner
         render_html(f"""
-        <div style='background:{T["pill_emerald_bg"]}; border:1px solid {T["pill_emerald_border"]}; border-radius:10px; padding:10px 16px; margin-bottom:14px;'>
-            <div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.86rem; font-weight:700; color:{T["accent_emerald"] if not is_dark else "#34D399"};'>
-                🚀 Projected Wealth Advantage: <span class='mono-num'>+{format_inr(alpha_vs_n500_sim)}</span> over Nifty 500!
+        <div style='background:{T["pill_emerald_bg"]}; border:1px solid {T["pill_emerald_border"]}; border-radius:10px; padding:12px 16px; margin-bottom:14px;'>
+            <div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.88rem; font-weight:700; color:{T["accent_emerald"] if not is_dark else "#34D399"};'>
+                🚀 Projected Wealth Advantage: <span class='mono-num'>+{format_inr(alpha_vs_n500_sim)}</span> Gross (<span class='mono-num'>+{format_inr(net_alpha_vs_n500)}</span> Net Post-Tax Cash) over Nifty 500!
             </div>
-            <div style='font-size:0.75rem; color:{T["text_secondary"]}; margin-top:2px;'>
-                Investing <b class='mono-num'>{format_inr(sim_sip)}/month</b> across <b>{n_years} years</b> (<span class='mono-num'>{format_inr(tot_invested_sim)}</span> total capital) yields 
-                <b class='mono-num'>+{format_inr(alpha_vs_n500_sim)}</b> more wealth than Nifty 500 and <b class='mono-num'>+{format_inr(alpha_vs_groww_sim)}</b> more than passive Groww SIPs.
+            <div style='font-size:0.75rem; color:{T["text_secondary"]}; margin-top:4px; line-height:1.5;'>
+                Starting at <b class='mono-num'>{format_inr(sim_sip)}/month</b> with <b>{sim_stepup_label}</b> annual step-up over <b>{n_years} years</b> (<span class='mono-num'>{format_inr(tot_invested_sim)}</span> total capital):<br>
+                • <b>Gross Corpus:</b> <b class='mono-num' style='color:#059669;'>{format_inr(final_ai)}</b> vs Nifty 500 <b class='mono-num'>{format_inr(final_n500)}</b> (<b>+{format_inr(alpha_vs_n500_sim)}</b> alpha)<br>
+                • <b>Net Cash-in-Hand:</b> <b class='mono-num' style='color:#059669;'>{format_inr(net_ai)}</b> vs Nifty 500 <b class='mono-num'>{format_inr(net_n500)}</b> (<b>+{format_inr(net_alpha_vs_n500)}</b> in pocket after 12.5% LTCG tax above ₹1.25L exemption)<br>
+                • <b>Vs Passive Groww:</b> Delivers <b class='mono-num' style='color:#059669;'>+{format_inr(net_alpha_vs_groww)}</b> higher net cash-in-hand than continuing passive SIPs.
             </div>
         </div>
         """)
@@ -1625,11 +1741,11 @@ with tab_chart:
 
         fig_sim.add_trace(go.Scatter(
             x=list(range(1, n_months + 1)),
-            y=[sim_sip * m for m in range(1, n_months + 1)],
+            y=invested_curve,
             mode="lines",
-            name="Capital Invested",
-            line=dict(color="#94A3B8", width=1.2, dash="dot"),
-            customdata=[format_inr(sim_sip * m) for m in range(1, n_months + 1)],
+            name=f"Capital Invested ({sim_stepup_label})",
+            line=dict(color="#94A3B8", width=1.4, dash="dot"),
+            customdata=[format_inr(v) for v in invested_curve],
             hovertemplate="Invested: %{customdata}<extra></extra>"
         ))
 
@@ -1651,7 +1767,7 @@ with tab_chart:
     # 2. 12-MONTH LIVE FORWARD CHALLENGE TRACKER
     # -------------------------------------------------------------
     elif "Challenge" in alpha_subtab:
-        fwd = get_live_forward_challenge()
+        fwd = get_live_forward_challenge(monthly_sip=active_budget)
 
         render_html(f"""
         <div class='fin-card' style='border-top:3px solid #2563EB;'>
@@ -1659,13 +1775,13 @@ with tab_chart:
                 <div>
                     <div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.05rem; font-weight:800; color:{T["text_primary"]};'>🏆 12-Month Live Forward Challenge</div>
                     <div style='font-size:0.78rem; color:{T["text_secondary"]}; margin-top:2px;'>
-                        Passive Groww SIPs (₹50k/Mo) vs. Unrestricted AI Mutual Fund Advisor
+                        Passive Groww SIPs ({format_inr(active_budget)}/Mo) vs. Unrestricted AI Mutual Fund Advisor
                     </div>
                 </div>
                 <span class='badge-pill pill-blue'>{fwd['status_label']}</span>
             </div>
             <div style='font-size:0.78rem; color:{T["text_secondary"]}; margin-top:8px; line-height:1.5;'>
-                Starting <b>Dec 3, 2026</b>, ₹50,000 will be deployed forward on the 3rd of every month across 12 months (<span class='mono-num'>{format_inr(600000)}</span> total).
+                Starting <b>Dec 3, 2026</b>, <span class='mono-num'>{format_inr(active_budget)}</span> will be deployed forward on the 3rd of every month across 12 months (<span class='mono-num'>{format_inr(active_budget * 12)}</span> total).
                 Strictly tracking <b>FIFO tax lots</b>, <b>0.005% stamp duty</b>, exit loads, and actual Indian capital gains taxes.
             </div>
         </div>
@@ -1824,7 +1940,7 @@ with tab_trades:
     render_section_header("📝 Transaction Log & Execution Queue", "Clean audit trail of upcoming kickoff orders and settled portfolio transactions.")
 
     render_section_header("📅 Upcoming Dec 3, 2026 Kickoff Orders", margin_top=8)
-    fwd = get_live_forward_challenge()
+    fwd = get_live_forward_challenge(monthly_sip=active_budget)
     day1_items = fwd.get("day1_preview", {}).get("ai_engine", [])
 
     q_rows = []
@@ -1894,6 +2010,103 @@ with tab_settings:
                 run_five_year_backtest(force_refresh=True)
                 st.success("Cache refreshed!")
                 st.rerun()
+
+    # -------------------------------------------------------------
+    # MONTHLY SIP LIVE EXECUTION LOGGER
+    # -------------------------------------------------------------
+    st.markdown("---")
+    render_section_header("📝 Monthly SIP Live Execution Logger", "Execute and log monthly investments across Winning AI Engine and all 3 benchmark portfolios with synchronized trade dates.")
+
+    exec_col1, exec_col2, exec_col3 = st.columns([1.5, 1.2, 1.5])
+    with exec_col1:
+        log_budget = float(st.number_input(
+            "This Month's SIP Budget (₹)",
+            min_value=0,
+            max_value=500000,
+            value=int(st.session_state.get("monthly_sip_budget", 50000.0)),
+            step=5000,
+            key="actions_sip_budget_logger",
+            help="Monthly capital to execute. Set to ₹0 to record a skipped month audit milestone."
+        ))
+    with exec_col2:
+        log_trade_date = st.date_input(
+            "Trade Execution Date",
+            value=date.today(),
+            key="actions_sip_trade_date",
+            help="Date of trade execution (NAV on or before this date will be retrieved)."
+        )
+    with exec_col3:
+        log_notes = st.text_input(
+            "Execution Notes / Memo",
+            value="Monthly Scheduled SIP Execution",
+            key="actions_sip_notes",
+            help="Optional audit memo recorded in transaction ledger."
+        )
+
+    # 4-Way Allocation Preview before committing
+    p1_split_amt = round(log_budget * 0.50, 2)
+    p2_split_amt = round(log_budget * 0.50, 2)
+    groww_p1 = round(log_budget * 0.20, 2)
+    groww_p2 = round(log_budget * 0.40, 2)
+    groww_p3 = round(log_budget * 0.40, 2)
+
+    if log_budget <= 0:
+        render_html(f"""
+        <div style='background:{T["bg_subtle"]}; border:1px dashed {T["border_light"]}; border-radius:10px; padding:12px 14px; margin: 10px 0;'>
+            <div style='color:{T["accent_amber"]}; font-weight:700; font-size:0.85rem;'>⏸️ Month Skipped Notice (₹0.00 Allocation)</div>
+            <div style='color:{T["text_secondary"]}; font-size:0.75rem; margin-top:2px;'>
+                Logging ₹0 will record a settled audit milestone (<code>SIP_SKIPPED</code>) across all 4 portfolios on <b>{log_trade_date.strftime("%d %b %Y")}</b>. Portfolio units and cash remain untouched, preserving pristine XIRR parity.
+            </div>
+        </div>
+        """)
+    else:
+        render_html(f"""
+        <div style='background:{T["bg_subtle"]}; border:1px solid {T["border"]}; border-radius:10px; padding:12px 14px; margin: 10px 0;'>
+            <div style='font-size:0.82rem; font-weight:700; color:{T["text_primary"]}; margin-bottom:8px;'>
+                🔍 Execution Preview across 4 Portfolios ({format_inr(log_budget)} on {log_trade_date.strftime("%d %b %Y")}):
+            </div>
+            <div style='display:grid; grid-template-columns: repeat(4, 1fr); gap:8px;'>
+                <div style='background:{T["bg_card"]}; padding:8px 10px; border-radius:6px; border-top:2px solid #059669;'>
+                    <div style='font-size:0.70rem; color:#059669; font-weight:700;'>🏆 AI ENGINE (50/50)</div>
+                    <div class='mono-num' style='font-size:0.88rem; font-weight:800; color:{T["text_primary"]};'>{format_inr(log_budget)}</div>
+                    <div style='font-size:0.68rem; color:{T["text_muted"]}; margin-top:2px;'>#1 Leader: {format_inr(p1_split_amt)}<br>#2 Leader: {format_inr(p2_split_amt)}</div>
+                </div>
+                <div style='background:{T["bg_card"]}; padding:8px 10px; border-radius:6px; border-top:2px solid #D97706;'>
+                    <div style='font-size:0.70rem; color:#D97706; font-weight:700;'>📦 PASSIVE GROWW</div>
+                    <div class='mono-num' style='font-size:0.88rem; font-weight:800; color:{T["text_primary"]};'>{format_inr(log_budget)}</div>
+                    <div style='font-size:0.68rem; color:{T["text_muted"]}; margin-top:2px;'>PPFC: {format_inr(groww_p1)}<br>MOMC: {format_inr(groww_p2)} • NISC: {format_inr(groww_p3)}</div>
+                </div>
+                <div style='background:{T["bg_card"]}; padding:8px 10px; border-radius:6px; border-top:2px solid #2563EB;'>
+                    <div style='font-size:0.70rem; color:#2563EB; font-weight:700;'>🌐 NIFTY 500 (100%)</div>
+                    <div class='mono-num' style='font-size:0.88rem; font-weight:800; color:{T["text_primary"]};'>{format_inr(log_budget)}</div>
+                    <div style='font-size:0.68rem; color:{T["text_muted"]}; margin-top:2px;'>Motilal Nifty 500: {format_inr(log_budget)}</div>
+                </div>
+                <div style='background:{T["bg_card"]}; padding:8px 10px; border-radius:6px; border-top:2px solid #7C3AED;'>
+                    <div style='font-size:0.70rem; color:#7C3AED; font-weight:700;'>🏛️ NIFTY 50 (100%)</div>
+                    <div class='mono-num' style='font-size:0.88rem; font-weight:800; color:{T["text_primary"]};'>{format_inr(log_budget)}</div>
+                    <div style='font-size:0.68rem; color:{T["text_muted"]}; margin-top:2px;'>UTI Nifty 50: {format_inr(log_budget)}</div>
+                </div>
+            </div>
+        </div>
+        """)
+
+    col_btn, _ = st.columns([1.5, 2.5])
+    with col_btn:
+        btn_label = f"🚀 Execute & Log {format_inr(log_budget)} Across Portfolios" if log_budget > 0 else f"⏸️ Log Skipped Month ({log_trade_date.strftime('%b %Y')})"
+        if st.button(btn_label, type="primary", use_container_width=True):
+            with st.spinner("Recording portfolio transactions with fair trade-date alignment..."):
+                exec_result = log_monthly_execution(
+                    trade_date=log_trade_date,
+                    sip_budget=float(log_budget),
+                    notes=log_notes,
+                    db=db
+                )
+                if exec_result.get("status") == "SUCCESS":
+                    st.success(f"✅ Successfully logged {exec_result.get('transactions_logged')} transactions on {exec_result.get('trade_date')}!")
+                    st.session_state["monthly_sip_budget"] = float(log_budget)
+                    st.rerun()
+                else:
+                    st.error(f"Execution failed: {exec_result.get('error')}")
 
     # Cloud Deployment Info
     st.markdown("---")

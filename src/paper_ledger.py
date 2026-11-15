@@ -16,6 +16,8 @@ try:
         score_unrestricted_universe,
         UNRESTRICTED_UNIVERSE,
         check_smart_ltcg_switches,
+        fetch_universe_navs,
+        get_universe_nav_on,
         format_inr
     )
 except ImportError:
@@ -23,6 +25,8 @@ except ImportError:
         score_unrestricted_universe,
         UNRESTRICTED_UNIVERSE,
         check_smart_ltcg_switches,
+        fetch_universe_navs,
+        get_universe_nav_on,
         format_inr
     )
 
@@ -42,6 +46,7 @@ __all__ = [
     "get_dual_ledger_holdings",
     "get_live_portfolio_summary",
     "get_live_forward_challenge",
+    "log_monthly_execution",
     "fetch_scheme_nav_history",
     "get_nav_on_or_before"
 ]
@@ -798,13 +803,17 @@ def get_live_portfolio_summary(db=None) -> Dict[str, Any]:
     }
 
 
-def get_live_forward_challenge(as_of_date: Optional[date] = None) -> Dict[str, Any]:
+def get_live_forward_challenge(
+    as_of_date: Optional[date] = None,
+    monthly_sip: float = 50000.0
+) -> Dict[str, Any]:
     """
     Evaluates the 12-Month Live Forward Challenge (Starting Dec 3, 2026 to Dec 3, 2027):
-    - Strategy 1: Winning 17.55% AI Engine (₹50,000/mo deployed into top momentum & leadership direct funds).
-    - Strategy 2: Passive Groww SIPs (₹10k PPFC, ₹20k MOMC, ₹20k NISC = ₹50,000/mo).
-    - Strategy 3: Nifty 500 Broad Market Index (₹50,000/mo Motilal Nifty 500 Index Direct).
-    - Strategy 4: Nifty 50 Large Cap Index (₹50,000/mo UTI Nifty 50 Index Direct).
+    - Strategy 1: Winning 17.55% AI Engine (50/50 split across top momentum & leadership direct funds).
+    - Strategy 2: Passive Groww SIPs (20% PPFC, 40% MOMC, 40% NISC).
+    - Strategy 3: Nifty 500 Broad Market Index (100% Motilal Nifty 500 Index Direct).
+    - Strategy 4: Nifty 50 Large Cap Index (100% UTI Nifty 50 Index Direct).
+    Supports variable monthly SIP amounts (e.g. ₹0 for skipped months, ₹25k, ₹50k, or ₹1L+).
     Returns real-time status, upcoming Dec 3 SIP deployment, plain-English AI Thesis log,
     friction breakdown, 12-month forward tracking schedule, and Day-1 Allocation Preview.
     """
@@ -833,21 +842,28 @@ def get_live_forward_challenge(as_of_date: Optional[date] = None) -> Dict[str, A
     top_picks = ai_score_report.get("top_picks", [])
     thesis_summary = ai_score_report.get("thesis_summary", "")
 
+    # Proportional split calculation based on monthly_sip
+    parag_amt = round(monthly_sip * 0.20, 2)
+    motilal_amt = round(monthly_sip * 0.40, 2)
+    nippon_amt = round(monthly_sip * 0.40, 2)
+
     # 2. Monthly SIP Deployments for Dec 3, 2026:
     # Strategy A: Passive Groww SIPs
     passive_plan = [
-        {"name": "Parag Parikh Flexi Cap Direct", "amount": 10000.0, "category": "Core Flexi Cap", "folio": "1039482"},
-        {"name": "Motilal Oswal Midcap Direct", "amount": 20000.0, "category": "Mid Cap", "folio": "1048291"},
-        {"name": "Nippon India Small Cap Direct", "amount": 20000.0, "category": "Small Cap", "folio": "1059203"}
+        {"name": "Parag Parikh Flexi Cap Direct", "amount": parag_amt, "category": "Core Flexi Cap", "folio": "1039482"},
+        {"name": "Motilal Oswal Midcap Direct", "amount": motilal_amt, "category": "Mid Cap", "folio": "1048291"},
+        {"name": "Nippon India Small Cap Direct", "amount": nippon_amt, "category": "Small Cap", "folio": "1059203"}
     ]
 
-    # Strategy B: Unrestricted AI Advisor
+    # Strategy B: Unrestricted AI Advisor (50% / 50% split across Top 2 leaders)
     ai_plan = []
+    n_picks = len(top_picks)
     for pick in top_picks:
+        pick_amt = round(monthly_sip * (0.50 if n_picks > 1 else 1.0), 2)
         ai_plan.append({
             "name": pick["short_name"],
             "full_name": pick["name"],
-            "amount": pick["allocation_amount"],
+            "amount": pick_amt,
             "category": pick["sub_category"],
             "score": pick["score"],
             "thesis": pick["thesis"]
@@ -857,7 +873,7 @@ def get_live_forward_challenge(as_of_date: Optional[date] = None) -> Dict[str, A
     nifty50_plan = {
         "name": "UTI Nifty 50 Index Fund Direct Growth",
         "short_name": "UTI Nifty 50 Index",
-        "amount": 50000.0,
+        "amount": round(monthly_sip, 2),
         "category": "Core Large Cap Index",
         "amfi_code": 120716
     }
@@ -866,17 +882,18 @@ def get_live_forward_challenge(as_of_date: Optional[date] = None) -> Dict[str, A
     nifty500_plan = {
         "name": "Motilal Oswal Nifty 500 Index Fund Direct Growth",
         "short_name": "Motilal Nifty 500 Index",
-        "amount": 50000.0,
+        "amount": round(monthly_sip, 2),
         "category": "Core Broad Market Index",
         "amfi_code": 147625
     }
 
     # 3. Transparent Friction & Tax Drag Breakdown
+    stamp_duty_amount = round(monthly_sip * 0.00005, 2)
     friction_breakdown = {
-        "monthly_sip": 50000.0,
+        "monthly_sip": round(monthly_sip, 2),
         "stamp_duty_pct": 0.005,
-        "stamp_duty_amount": 2.50,
-        "net_invested_per_month": 49997.50,
+        "stamp_duty_amount": stamp_duty_amount,
+        "net_invested_per_month": round(monthly_sip - stamp_duty_amount, 2),
         "exit_load_on_fresh_sips": 0.0,
         "exit_load_note": "0% Exit Load on fresh monthly deployments (smart switching prioritizes fresh SIP capital over churning existing units).",
         "stcg_rate_equity": "20% STCG on units redeemed <= 365 days",
@@ -912,33 +929,34 @@ def get_live_forward_challenge(as_of_date: Optional[date] = None) -> Dict[str, A
 
     day1_ai = []
     for pick in top_picks:
+        pick_amt = round(monthly_sip * (0.50 if n_picks > 1 else 1.0), 2)
         day1_ai.append(_make_day1_item(
             "🏆 Winning 17.55% AI Engine",
             pick["short_name"],
             pick.get("sub_category", "Momentum Leader"),
-            pick.get("allocation_amount", 25000.0),
+            pick_amt,
             pick.get("thesis", "")
         ))
 
     day1_groww = [
-        _make_day1_item("📦 My Passive Groww SIPs", "Parag Parikh Flexi Cap", "Core Flexi Cap", 10000.0, "Core large/global holding"),
-        _make_day1_item("📦 My Passive Groww SIPs", "Motilal Oswal Midcap", "Cap Midcap", 20000.0, "High-growth midcap compounder"),
-        _make_day1_item("📦 My Passive Groww SIPs", "Nippon India Small Cap", "Cap Smallcap", 20000.0, "Leading small cap compounder")
+        _make_day1_item("📦 My Passive Groww SIPs", "Parag Parikh Flexi Cap", "Core Flexi Cap", parag_amt, "Core large/global holding"),
+        _make_day1_item("📦 My Passive Groww SIPs", "Motilal Oswal Midcap", "Cap Midcap", motilal_amt, "High-growth midcap compounder"),
+        _make_day1_item("📦 My Passive Groww SIPs", "Nippon India Small Cap", "Cap Smallcap", nippon_amt, "Leading small cap compounder")
     ]
 
     day1_n500 = [
-        _make_day1_item("🌐 Nifty 500 Broad Market", "Motilal Nifty 500 Index", "Core Broad Market Index", 50000.0, "Passive broad market representation across top 500 companies")
+        _make_day1_item("🌐 Nifty 500 Broad Market", "Motilal Nifty 500 Index", "Core Broad Market Index", round(monthly_sip, 2), "Passive broad market representation across top 500 companies")
     ]
 
     day1_n50 = [
-        _make_day1_item("🏛️ Nifty 50 Large Cap", "UTI Nifty 50 Index", "Core Large Cap Index", 50000.0, "Passive blue-chip representation across top 50 Indian companies")
+        _make_day1_item("🏛️ Nifty 50 Large Cap", "UTI Nifty 50 Index", "Core Large Cap Index", round(monthly_sip, 2), "Passive blue-chip representation across top 50 Indian companies")
     ]
 
     day1_summary_table = day1_ai + day1_groww + day1_n500 + day1_n50
 
     day1_preview = {
         "kickoff_date": "Dec 3, 2026",
-        "monthly_sip": 50000.0,
+        "monthly_sip": round(monthly_sip, 2),
         "ai_engine": day1_ai,
         "passive_groww": day1_groww,
         "nifty500": day1_n500,
@@ -956,9 +974,9 @@ def get_live_forward_challenge(as_of_date: Optional[date] = None) -> Dict[str, A
         schedule.append({
             "month_num": i + 1,
             "date": sip_dt.strftime("%d %b %Y"),
-            "sip_amount": 50000.0,
-            "passive_allocation": "PPFC ₹10k + MOMC ₹20k + NISC ₹20k",
-            "ai_allocation_status": "Top 2 Leadership Funds (Determined on 1st-2nd)",
+            "sip_amount": round(monthly_sip, 2),
+            "passive_allocation": f"PPFC {format_inr(parag_amt)} + MOMC {format_inr(motilal_amt)} + NISC {format_inr(nippon_amt)}" if monthly_sip > 0 else "Skipped Month (₹0)",
+            "ai_allocation_status": "Top 2 Leadership Funds (50/50 Split)" if monthly_sip > 0 else "Skipped Month (₹0)",
             "status": "Scheduled" if sip_dt > as_of_date else "Completed"
         })
 
@@ -970,7 +988,7 @@ def get_live_forward_challenge(as_of_date: Optional[date] = None) -> Dict[str, A
         "status_color": status_color,
         "is_active": is_active,
         "total_challenge_months": 12,
-        "total_planned_capital": 600000.0,
+        "total_planned_capital": round(monthly_sip * 12, 2),
         "passive_plan": passive_plan,
         "ai_plan": ai_plan,
         "nifty50_plan": nifty50_plan,
@@ -981,6 +999,204 @@ def get_live_forward_challenge(as_of_date: Optional[date] = None) -> Dict[str, A
         "friction_breakdown": friction_breakdown,
         "schedule": schedule,
         "day1_preview": day1_preview
+    }
+
+
+def log_monthly_execution(
+    trade_date: Optional[date] = None,
+    sip_budget: float = 50000.0,
+    notes: str = "",
+    db = None
+) -> Dict[str, Any]:
+    """
+    Executes and logs a live monthly SIP into Supabase / local database across:
+    1. Winning AI Engine (50/50 split between Top 2 momentum leaders)
+    2. Passive Groww SIPs (20% PPFC, 40% MOMC, 40% NISC)
+    3. Nifty 500 Broad Market Index (100% Motilal Nifty 500 Index Direct)
+    4. Nifty 50 Large Cap Index (100% UTI Nifty 50 Index Direct)
+
+    All 4 strategies are recorded with the exact same trade_date and proportional rupee amount,
+    guaranteeing that XIRR calculations remain 100% fair and synchronized even if a month is
+    reduced, stepped-up, or skipped (₹0).
+    """
+    if db is None:
+        db = get_db()
+    if trade_date is None:
+        trade_date = date.today()
+
+    stamp_duty_pct = 0.00005  # 0.005% Indian MF Stamp Duty
+
+    # 1. Evaluate top momentum leaders as of trade_date
+    ai_score_report = score_unrestricted_universe(trade_date)
+    top_picks = ai_score_report.get("top_picks", [])
+    if len(top_picks) == 0:
+        p1_key, p2_key = "MOMC", "NISC"
+    elif len(top_picks) == 1:
+        p1_key = top_picks[0]["fund_key"]
+        p2_key = top_picks[0]["fund_key"]
+    else:
+        p1_key = top_picks[0]["fund_key"]
+        p2_key = top_picks[1]["fund_key"]
+
+    p1_meta = UNRESTRICTED_UNIVERSE.get(p1_key, {})
+    p2_meta = UNRESTRICTED_UNIVERSE.get(p2_key, {})
+
+    # Fetch live NAVs
+    navs_dict = fetch_universe_navs()
+    p1_nav = get_universe_nav_on(navs_dict.get(p1_key, {}), trade_date)
+    p2_nav = get_universe_nav_on(navs_dict.get(p2_key, {}), trade_date)
+    ppfc_nav = get_universe_nav_on(navs_dict.get("PPFC", {}), trade_date)
+    momc_nav = get_universe_nav_on(navs_dict.get("MOMC", {}), trade_date)
+    nisc_nav = get_universe_nav_on(navs_dict.get("NISC", {}), trade_date)
+    n500_nav = get_universe_nav_on(navs_dict.get("MO_NIFTY500", {}), trade_date)
+    n50_nav = get_universe_nav_on(navs_dict.get("UTI_NIFTY50", {}), trade_date)
+
+    logged_txs = []
+    settle_date = trade_date + timedelta(days=1)
+
+    if sip_budget <= 0.0:
+        # Skipped month audit logging across all 4 portfolios
+        skipped_notes = f"Skipped Monthly SIP (₹0 deployed on {trade_date.isoformat()}). {notes}".strip()
+        ledgers = [
+            ("TACTICAL", "Winning AI Engine — Skipped Month", 0),
+            ("PASSIVE", "Passive Groww SIPs — Skipped Month", 0),
+            ("NIFTY_500", "Nifty 500 Broad Market — Skipped Month", 0),
+            ("NIFTY_50", "Nifty 50 Large Cap — Skipped Month", 0)
+        ]
+        for led, name, code in ledgers:
+            tx = {
+                "ledger": led,
+                "trade_date": trade_date.isoformat(),
+                "settlement_date": trade_date.isoformat(),
+                "scheme_name": name,
+                "scheme_code": code,
+                "transaction_type": "SIP_SKIPPED",
+                "amount": 0.0,
+                "units": 0.0,
+                "nav": 0.0,
+                "exit_load_amount": 0.0,
+                "stcg_tax": 0.0,
+                "ltcg_tax": 0.0,
+                "net_cash_impact": 0.0,
+                "notes": skipped_notes,
+                "status": "SETTLED"
+            }
+            res = db.add_transaction(tx)
+            logged_txs.append(res or tx)
+    else:
+        # 1. Strategy 1: Winning AI Engine (50/50 split across top 2 leaders)
+        ai_split = [
+            (p1_meta.get("name", "Fund #1"), p1_meta.get("amfi_code", 0), sip_budget * 0.50, p1_nav, f"AI Leader #1 (50% Split). {notes}".strip()),
+            (p2_meta.get("name", "Fund #2"), p2_meta.get("amfi_code", 0), sip_budget * 0.50, p2_nav, f"AI Leader #2 (50% Split). {notes}".strip())
+        ]
+        for s_name, code, amt, nav, note_str in ai_split:
+            duty = round(amt * stamp_duty_pct, 2)
+            net_amt = amt - duty
+            units = round(net_amt / nav, 4) if nav > 0 else 0.0
+            tx = {
+                "ledger": "TACTICAL",
+                "trade_date": trade_date.isoformat(),
+                "settlement_date": settle_date.isoformat(),
+                "scheme_name": s_name,
+                "scheme_code": code,
+                "transaction_type": "SIP_EQUITY",
+                "amount": amt,
+                "units": units,
+                "nav": nav,
+                "exit_load_amount": 0.0,
+                "stcg_tax": 0.0,
+                "ltcg_tax": 0.0,
+                "net_cash_impact": -amt,
+                "notes": note_str,
+                "status": "SETTLED"
+            }
+            res = db.add_transaction(tx)
+            logged_txs.append(res or tx)
+
+        # 2. Strategy 2: Passive Groww SIPs (20% PPFC, 40% MOMC, 40% NISC)
+        groww_split = [
+            ("Parag Parikh Flexi Cap Fund Direct Growth", 122639, sip_budget * 0.20, ppfc_nav, f"Passive Flexicap (20%). {notes}".strip()),
+            ("Motilal Oswal Midcap Fund Direct Growth", 127042, sip_budget * 0.40, momc_nav, f"Passive Midcap (40%). {notes}".strip()),
+            ("Nippon India Small Cap Fund Direct Growth", 118778, sip_budget * 0.40, nisc_nav, f"Passive Smallcap (40%). {notes}".strip())
+        ]
+        for s_name, code, amt, nav, note_str in groww_split:
+            duty = round(amt * stamp_duty_pct, 2)
+            net_amt = amt - duty
+            units = round(net_amt / nav, 4) if nav > 0 else 0.0
+            tx = {
+                "ledger": "PASSIVE",
+                "trade_date": trade_date.isoformat(),
+                "settlement_date": settle_date.isoformat(),
+                "scheme_name": s_name,
+                "scheme_code": code,
+                "transaction_type": "SIP_EQUITY",
+                "amount": amt,
+                "units": units,
+                "nav": nav,
+                "exit_load_amount": 0.0,
+                "stcg_tax": 0.0,
+                "ltcg_tax": 0.0,
+                "net_cash_impact": -amt,
+                "notes": note_str,
+                "status": "SETTLED"
+            }
+            res = db.add_transaction(tx)
+            logged_txs.append(res or tx)
+
+        # 3. Strategy 3: Nifty 500 Broad Market Index (100%)
+        n500_duty = round(sip_budget * stamp_duty_pct, 2)
+        n500_net = sip_budget - n500_duty
+        n500_units = round(n500_net / n500_nav, 4) if n500_nav > 0 else 0.0
+        tx_n500 = {
+            "ledger": "NIFTY_500",
+            "trade_date": trade_date.isoformat(),
+            "settlement_date": settle_date.isoformat(),
+            "scheme_name": "Motilal Oswal Nifty 500 Index Fund Direct Growth",
+            "scheme_code": 147625,
+            "transaction_type": "SIP_EQUITY",
+            "amount": sip_budget,
+            "units": n500_units,
+            "nav": n500_nav,
+            "exit_load_amount": 0.0,
+            "stcg_tax": 0.0,
+            "ltcg_tax": 0.0,
+            "net_cash_impact": -sip_budget,
+            "notes": f"Passive Nifty 500 Index SIP (100%). {notes}".strip(),
+            "status": "SETTLED"
+        }
+        res_n500 = db.add_transaction(tx_n500)
+        logged_txs.append(res_n500 or tx_n500)
+
+        # 4. Strategy 4: Nifty 50 Large Cap Index (100%)
+        n50_duty = round(sip_budget * stamp_duty_pct, 2)
+        n50_net = sip_budget - n50_duty
+        n50_units = round(n50_net / n50_nav, 4) if n50_nav > 0 else 0.0
+        tx_n50 = {
+            "ledger": "NIFTY_50",
+            "trade_date": trade_date.isoformat(),
+            "settlement_date": settle_date.isoformat(),
+            "scheme_name": "UTI Nifty 50 Index Fund Direct Growth",
+            "scheme_code": 120716,
+            "transaction_type": "SIP_EQUITY",
+            "amount": sip_budget,
+            "units": n50_units,
+            "nav": n50_nav,
+            "exit_load_amount": 0.0,
+            "stcg_tax": 0.0,
+            "ltcg_tax": 0.0,
+            "net_cash_impact": -sip_budget,
+            "notes": f"Passive Nifty 50 Index SIP (100%). {notes}".strip(),
+            "status": "SETTLED"
+        }
+        res_n50 = db.add_transaction(tx_n50)
+        logged_txs.append(res_n50 or tx_n50)
+
+    return {
+        "status": "SUCCESS",
+        "trade_date": str(trade_date),
+        "sip_budget": sip_budget,
+        "transactions_logged": len(logged_txs),
+        "details": logged_txs
     }
 
 
