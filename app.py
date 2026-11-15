@@ -53,10 +53,12 @@ st.set_page_config(
 )
 
 # =====================================================================
-# THEME SWITCHER & TOP HEADER BRAND STRIP (DEFAULT: DARK MODE)
+# THEME STATE INITIALIZATION (DEFAULT: DARK MODE)
 # =====================================================================
 if "theme_mode" not in st.session_state:
     st.session_state.theme_mode = "🌙 Dark"
+
+is_dark = (st.session_state.theme_mode == "🌙 Dark")
 
 # Calculate Cut-off Countdown
 now_ist = datetime.now()
@@ -66,30 +68,6 @@ if now_ist < cutoff_time:
     cutoff_text = f"🟢 3 PM Cut-off: {mins_left}m Left"
 else:
     cutoff_text = "🟢 3 PM Cut-off"
-
-# Theme Toggle Radio in Top Header (Beside Share)
-st.markdown("<div id='theme-toggle-anchor'></div>", unsafe_allow_html=True)
-theme_choice = st.radio(
-    "Theme Switcher",
-    options=["🌙 Dark", "☀️ Light"],
-    index=0 if st.session_state.theme_mode == "🌙 Dark" else 1,
-    horizontal=True,
-    label_visibility="collapsed",
-    key="theme_switcher_radio"
-)
-st.session_state.theme_mode = theme_choice
-is_dark = (st.session_state.theme_mode == "🌙 Dark")
-
-# Header Brand & Live Status Strip (Left of Share)
-st.markdown(f"""
-<div class='header-brand-strip'>
-    <span class='header-brand-title'>📈 Tactical MF Engine</span>
-    <span class='header-brand-sep'>|</span>
-    <span class='header-brand-sub'>Groww Direct • 17.55% AI Momentum</span>
-    <span class='header-brand-sep'>|</span>
-    <span class='header-brand-badge'>{cutoff_text}</span>
-</div>
-""", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------
 # DESIGN TOKENS (DYNAMIC DARK & LIGHT THEME)
@@ -105,14 +83,14 @@ if is_dark:
         "border": "#1E293B",
         "border_light": "#334155",
         "text_primary": "#F8FAFC",
-        "text_secondary": "#94A3B8",
-        "text_muted": "#64748B",
+        "text_secondary": "#CBD5E1",
+        "text_muted": "#94A3B8",
         "accent_blue": "#3B82F6",
         "accent_emerald": "#10B981",
         "accent_amber": "#F59E0B",
         "accent_rose": "#EF4444",
         "header_bg": "rgba(9, 13, 22, 0.95)",
-        "tab_unselected_color": "#94A3B8",
+        "tab_unselected_color": "#CBD5E1",
         "tab_unselected_bg": "transparent",
         "tab_active_bg": "#1E293B",
         "tab_active_color": "#60A5FA",
@@ -267,19 +245,33 @@ st.markdown(f"""
         color: {T['text_primary']} !important;
     }}
 
-    /* Headings & Editorial Typography */
+    /* Headings & Editorial Typography - Bright White in Dark Mode */
     h1, h2, h3, h4, h5, h6,
-    .section-title,
-    .hero-title,
-    .fin-title,
+    .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4,
+    [data-testid="stHeadingWithActionElements"],
+    [data-testid="stHeadingWithActionElements"] h1,
+    [data-testid="stHeadingWithActionElements"] h2,
+    [data-testid="stHeadingWithActionElements"] h3,
+    [data-testid="stHeadingWithActionElements"] h4,
     div[data-testid="stMarkdownContainer"] h1,
     div[data-testid="stMarkdownContainer"] h2,
     div[data-testid="stMarkdownContainer"] h3,
-    div[data-testid="stMarkdownContainer"] h4 {{
+    div[data-testid="stMarkdownContainer"] h4,
+    .section-title,
+    .hero-title,
+    .fin-title {{
         font-family: 'Plus Jakarta Sans', sans-serif !important;
         font-weight: 700 !important;
         color: {T['text_primary']} !important;
         letter-spacing: -0.02em !important;
+    }}
+
+    /* Body & Caption Paragraphs - Crisp Light Slate in Dark Mode */
+    p, span, label, li,
+    div[data-testid="stMarkdownContainer"] p,
+    .stCaption, div[data-testid="stCaptionContainer"] p {{
+        color: {T['text_secondary']} !important;
+        font-family: 'Inter', sans-serif !important;
     }}
 
     /* Tabular Rupee & Numeric Figures (JetBrains Mono) */
@@ -289,15 +281,15 @@ st.markdown(f"""
         font-feature-settings: 'tnum' 1 !important;
     }}
 
-    /* Pulled-Up Container Clearance Below Fixed Header */
+    /* Main Container Padding: Clean clearance below fixed header */
     section.main {{
-        padding-top: 3.5rem !important;
+        padding-top: 0 !important;
     }}
     div[data-testid="stMainBlockContainer"],
     div[data-testid="stAppViewBlockContainer"],
     .block-container {{
         max-width: 100% !important;
-        padding-top: 1.2rem !important;
+        padding-top: 3.6rem !important;
         padding-bottom: 3.5rem !important;
         padding-left: 2.2rem !important;
         padding-right: 2.2rem !important;
@@ -310,12 +302,12 @@ st.markdown(f"""
         .block-container {{
             padding-left: 1rem !important;
             padding-right: 1rem !important;
-            padding-top: 0.8rem !important;
+            padding-top: 3.2rem !important;
         }}
     }}
 
     /* -------------------------------------------------------------
-       2. TOP HEADER BAR, BRAND STRIP & COMPACT THEME TOGGLE
+       2. TOP HEADER BAR & STREAMLIT CONTROLS
        ------------------------------------------------------------- */
     header[data-testid="stHeader"] {{
         background: {T['header_bg']} !important;
@@ -361,129 +353,57 @@ st.markdown(f"""
         color: {T['text_primary']} !important;
     }}
 
-    /* Brand Strip in Header Bar */
-    .header-brand-strip {{
-        position: fixed !important;
-        top: 0 !important;
-        left: 2.2rem !important;
-        height: 3.5rem !important;
-        display: flex !important;
-        align-items: center !important;
-        gap: 12px !important;
-        z-index: 999998 !important;
-        pointer-events: auto !important;
-        font-family: 'Plus Jakarta Sans', sans-serif !important;
-    }}
-
-    .header-brand-title {{
-        font-size: 0.95rem !important;
-        font-weight: 800 !important;
-        color: {T['text_primary']} !important;
-        letter-spacing: -0.02em !important;
-    }}
-
-    .header-brand-sep {{
-        color: {T['border_light']} !important;
-        font-size: 0.85rem !important;
-    }}
-
-    .header-brand-sub {{
-        font-family: 'Inter', sans-serif !important;
-        font-size: 0.80rem !important;
-        font-weight: 500 !important;
-        color: {T['text_secondary']} !important;
-    }}
-
-    .header-brand-badge {{
-        background: {T['pill_emerald_bg']} !important;
-        border: 1px solid {T['pill_emerald_border']} !important;
-        color: {T['pill_emerald_text']} !important;
-        font-family: 'Inter', sans-serif !important;
-        font-size: 0.72rem !important;
-        font-weight: 700 !important;
-        padding: 3px 9px !important;
-        border-radius: 9999px !important;
-        letter-spacing: 0.02em !important;
-    }}
-
-    /* Compact Theme Toggle Radio (Beside Share) */
-    div[data-testid="stRadio"]:has(input[value="🌙 Dark"]) {{
-        position: fixed !important;
-        top: 0.65rem !important;
-        right: 175px !important;
-        z-index: 999999 !important;
+    /* Dedicated Fully-Visible Right-Aligned Theme Toggle Pill */
+    div[data-testid="stRadio"]:is(:has(input[value="🌙 Dark"]), :has(input[value*="Dark"])) {{
         margin: 0 !important;
-        padding: 0 !important;
+        padding: 4px 0 !important;
+        display: flex !important;
+        justify-content: flex-end !important;
+        position: static !important;
+        z-index: 10 !important;
     }}
 
-    div[data-testid="stRadio"]:has(input[value="🌙 Dark"]) div[role="radiogroup"] {{
+    div[data-testid="stRadio"]:is(:has(input[value="🌙 Dark"]), :has(input[value*="Dark"])) div[role="radiogroup"] {{
         display: inline-flex !important;
         flex-direction: row !important;
         background: {T['toggle_bg']} !important;
         border: 1px solid {T['toggle_border']} !important;
-        border-radius: 20px !important;
-        padding: 2px 3px !important;
-        gap: 2px !important;
+        border-radius: 9999px !important;
+        padding: 3px 4px !important;
+        gap: 3px !important;
         box-shadow: {T['shadow_sm']} !important;
     }}
 
-    div[data-testid="stRadio"]:has(input[value="🌙 Dark"]) div[role="radiogroup"] label {{
+    div[data-testid="stRadio"]:is(:has(input[value="🌙 Dark"]), :has(input[value*="Dark"])) div[role="radiogroup"] label {{
         margin: 0 !important;
-        padding: 3px 10px !important;
-        border-radius: 16px !important;
+        padding: 4px 14px !important;
+        border-radius: 9999px !important;
         cursor: pointer !important;
         background: transparent !important;
-        transition: all 0.15s ease !important;
+        transition: all 0.15s ease-in-out !important;
     }}
 
-    div[data-testid="stRadio"]:has(input[value="🌙 Dark"]) div[role="radiogroup"] label > div:first-child {{
+    div[data-testid="stRadio"]:is(:has(input[value="🌙 Dark"]), :has(input[value*="Dark"])) div[role="radiogroup"] label > div:first-child {{
         display: none !important;
     }}
 
-    div[data-testid="stRadio"]:has(input[value="🌙 Dark"]) div[role="radiogroup"] label div p {{
+    div[data-testid="stRadio"]:is(:has(input[value="🌙 Dark"]), :has(input[value*="Dark"])) div[role="radiogroup"] label div p {{
         font-family: 'Inter', sans-serif !important;
-        font-size: 0.76rem !important;
+        font-size: 0.78rem !important;
         font-weight: 600 !important;
         color: {T['text_secondary']} !important;
         margin: 0 !important;
+        line-height: 1.2 !important;
     }}
 
-    div[data-testid="stRadio"]:has(input[value="🌙 Dark"]) div[role="radiogroup"] label:has(input:checked) {{
+    div[data-testid="stRadio"]:is(:has(input[value="🌙 Dark"]), :has(input[value*="Dark"])) div[role="radiogroup"] label:has(input:checked) {{
         background: {T['toggle_active_bg']} !important;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.15) !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25) !important;
     }}
 
-    div[data-testid="stRadio"]:has(input[value="🌙 Dark"]) div[role="radiogroup"] label:has(input:checked) div p {{
+    div[data-testid="stRadio"]:is(:has(input[value="🌙 Dark"]), :has(input[value*="Dark"])) div[role="radiogroup"] label:has(input:checked) div p {{
         color: {T['toggle_active_text']} !important;
         font-weight: 700 !important;
-    }}
-
-    @media (max-width: 900px) {{
-        .header-brand-strip .header-brand-sub,
-        .header-brand-strip .header-brand-sep:nth-of-type(1) {{
-            display: none !important;
-        }}
-        div[data-testid="stRadio"]:has(input[value="🌙 Dark"]) {{
-            right: 120px !important;
-        }}
-    }}
-
-    @media (max-width: 640px) {{
-        .header-brand-strip {{
-            left: 0.8rem !important;
-            gap: 6px !important;
-        }}
-        .header-brand-strip .header-brand-title {{
-            font-size: 0.82rem !important;
-        }}
-        .header-brand-strip .header-brand-badge {{
-            font-size: 0.65rem !important;
-            padding: 2px 6px !important;
-        }}
-        div[data-testid="stRadio"]:has(input[value="🌙 Dark"]) {{
-            right: 48px !important;
-            top: 0.60rem !important;
-        }}
     }}
 
     /* -------------------------------------------------------------
@@ -897,17 +817,18 @@ st.markdown(f"""
         border-color: {T['border']} !important;
     }}
     div[style*="color:#0F172A"],
-    div[style*="color: #0F172A"],
-    span[style*="color:#0F172A"],
-    span[style*="color: #0F172A"],
-    b[style*="color:#0F172A"],
-    b[style*="color: #0F172A"] {{
+    div[style*="0F172A"],
+    div[style*="0f172a"],
+    span[style*="0F172A"],
+    span[style*="0f172a"],
+    b[style*="0F172A"],
+    b[style*="0f172a"] {{
         color: {T['text_primary']} !important;
     }}
-    div[style*="color:#64748B"],
-    div[style*="color: #64748B"],
-    span[style*="color:#64748B"],
-    span[style*="color: #64748B"] {{
+    div[style*="64748B"],
+    div[style*="64748b"],
+    span[style*="64748B"],
+    span[style*="64748b"] {{
         color: {T['text_secondary']} !important;
     }}
     div[style*="border:1px solid #E2E8F0"],
@@ -935,14 +856,25 @@ def render_html(html_str: str):
                    .replace("border: 1px solid #E2E8F0", "border: 1px solid #1E293B")
                    .replace("color:#0F172A", "color:#F8FAFC")
                    .replace("color: #0F172A", "color: #F8FAFC")
+                   .replace("color:#0f172a", "color:#F8FAFC")
+                   .replace("color: #0f172a", "color: #F8FAFC")
                    .replace("color:#334155", "color:#CBD5E1")
                    .replace("color: #334155", "color: #CBD5E1")
-                   .replace("color:#475569", "color:#94A3B8")
-                   .replace("color: #475569", "color: #94A3B8")
-                   .replace("color:#64748B", "color:#94A3B8")
-                   .replace("color: #64748B", "color: #94A3B8")
+                   .replace("color:#475569", "color:#CBD5E1")
+                   .replace("color: #475569", "color: #CBD5E1")
+                   .replace("color:#64748B", "color:#CBD5E1")
+                   .replace("color: #64748B", "color: #CBD5E1")
         )
     st.markdown(cleaned, unsafe_allow_html=True)
+
+
+def render_section_header(title: str, caption: str = None, margin_top: int = 0):
+    """Renders a section header and optional caption respecting active theme colors."""
+    mt = f"margin-top:{margin_top}px;" if margin_top > 0 else ""
+    c_primary = T["text_primary"]
+    render_html(f"""<div style='font-family:"Plus Jakarta Sans", sans-serif; font-size:1.05rem; font-weight:800; color:{c_primary}; {mt} margin-bottom:2px;'>{title}</div>""")
+    if caption:
+        st.caption(caption)
 
 
 def init_app():
@@ -958,6 +890,39 @@ def init_app():
 
 db, scores, portfolio_sum = init_app()
 decisions = evaluate_tactical_decisions(scores)
+
+# =====================================================================
+# 1. DEDICATED TOP ACTION STRIP (BRAND & RIGHT-ALIGNED THEME SWITCHER)
+# =====================================================================
+top_strip_left, top_strip_right = st.columns([3, 1])
+with top_strip_left:
+    render_html(f"""
+    <div style='display:flex; align-items:center; gap:10px; padding:4px 0;'>
+        <span style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.15rem; font-weight:800; color:{T["text_primary"]}; letter-spacing:-0.02em;'>
+            📈 Tactical MF Engine
+        </span>
+        <span style='color:{T["border_light"]}; font-size:0.9rem;'>|</span>
+        <span style='font-family:\"Inter\", sans-serif; font-size:0.82rem; color:{T["text_secondary"]}; font-weight:500;'>
+            Groww Direct Portfolios • <b style='color:{T["accent_blue"]};'>17.55% AI Momentum</b>
+        </span>
+        <span style='color:{T["border_light"]}; font-size:0.9rem;'>|</span>
+        <span class='badge-pill pill-emerald' style='font-size:0.75rem; font-weight:700;'>
+            {cutoff_text}
+        </span>
+    </div>
+    """)
+with top_strip_right:
+    theme_choice = st.radio(
+        "Theme Switcher",
+        options=["🌙 Dark", "☀️ Light"],
+        index=0 if st.session_state.theme_mode == "🌙 Dark" else 1,
+        horizontal=True,
+        label_visibility="collapsed",
+        key="theme_switcher_radio"
+    )
+    if theme_choice != st.session_state.theme_mode:
+        st.session_state.theme_mode = theme_choice
+        st.rerun()
 
 # =====================================================================
 # 2. COMPACT HORIZONTAL KPI RIBBON (4 TILES SIDE-BY-SIDE)
@@ -1066,10 +1031,10 @@ render_html(f"""
     <div style='display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;'>
         <div>
             <div style='display:flex; align-items:center; gap:8px;'>
-                <span style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.02rem; font-weight:800; color:#0F172A;'>📅 Monthly SIP Allocation Directive</span>
+                <span style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.02rem; font-weight:800; color:{T["text_primary"]};'>📅 Monthly SIP Allocation Directive</span>
                 <span class='badge-pill pill-blue'>Dec 3, 2026 Kickoff</span>
             </div>
-            <div style='font-size:0.78rem; color:#64748B; margin-top:2px;'>
+            <div style='font-size:0.78rem; color:{T["text_secondary"]}; margin-top:2px;'>
                 Governed by Winning 17.55% AI Engine • <span class='mono-num'>{format_inr(50000)}</span>/Month Capital
             </div>
         </div>
@@ -1083,11 +1048,11 @@ render_html(f"""
     <!-- 2-Column Scannable Recommendation Bento -->
     <div style='display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:14px;'>
         <!-- Pick 1: Nippon India Pharma -->
-        <div style='background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:12px 14px;'>
+        <div style='background:{T["bg_subtle"]}; border:1px solid {T["border"]}; border-radius:10px; padding:12px 14px;'>
             <div style='display:flex; justify-content:space-between; align-items:flex-start;'>
                 <div>
-                    <div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.92rem; font-weight:700; color:#0F172A;'>{p1_name}</div>
-                    <div style='font-size:0.72rem; color:#64748B;'>{p1_subcat}</div>
+                    <div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.92rem; font-weight:700; color:{T["text_primary"]};'>{p1_name}</div>
+                    <div style='font-size:0.72rem; color:{T["text_secondary"]};'>{p1_subcat}</div>
                 </div>
                 <div style='text-align:right;'>
                     <div class='mono-num' style='font-size:1.08rem; font-weight:800; color:#059669;'>{format_inr(p1_amt)}</div>
@@ -1099,17 +1064,17 @@ render_html(f"""
                 <span class='badge-pill pill-slate mono-num'>90d Return +2.8%</span>
                 <span class='badge-pill pill-emerald'>0% Exit Load</span>
             </div>
-            <div style='font-size:0.75rem; color:#475569; margin-top:8px; line-height:1.4;'>
+            <div style='font-size:0.75rem; color:{T["text_secondary"]}; margin-top:8px; line-height:1.4;'>
                 <b>Why Picked:</b> Sector momentum leader with structural breakout above 200-DMA.
             </div>
         </div>
 
         <!-- Pick 2: Motilal Oswal Midcap -->
-        <div style='background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:12px 14px;'>
+        <div style='background:{T["bg_subtle"]}; border:1px solid {T["border"]}; border-radius:10px; padding:12px 14px;'>
             <div style='display:flex; justify-content:space-between; align-items:flex-start;'>
                 <div>
-                    <div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.92rem; font-weight:700; color:#0F172A;'>{p2_name}</div>
-                    <div style='font-size:0.72rem; color:#64748B;'>{p2_subcat}</div>
+                    <div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.92rem; font-weight:700; color:{T["text_primary"]};'>{p2_name}</div>
+                    <div style='font-size:0.72rem; color:{T["text_secondary"]};'>{p2_subcat}</div>
                 </div>
                 <div style='text-align:right;'>
                     <div class='mono-num' style='font-size:1.08rem; font-weight:800; color:#059669;'>{format_inr(p2_amt)}</div>
@@ -1121,20 +1086,20 @@ render_html(f"""
                 <span class='badge-pill pill-slate mono-num'>90d Return +2.2%</span>
                 <span class='badge-pill pill-emerald'>0% Exit Load</span>
             </div>
-            <div style='font-size:0.75rem; color:#475569; margin-top:8px; line-height:1.4;'>
+            <div style='font-size:0.75rem; color:{T["text_secondary"]}; margin-top:8px; line-height:1.4;'>
                 <b>Why Picked:</b> High-alpha midcap compounder with strong relative strength vs Nifty 50.
             </div>
         </div>
     </div>
 
     <!-- Smart LTCG & Execution Footnote -->
-    <div style='margin-top:12px; padding-top:10px; border-top:1px solid #F1F5F9; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;'>
+    <div style='margin-top:12px; padding-top:10px; border-top:1px solid {T["border"]}; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;'>
         <div style='display:flex; align-items:center; gap:6px;'>
             <span class='badge-pill pill-emerald'>🛡️ Smart LTCG Status</span>
-            <span style='font-size:0.75rem; color:#475569;'>Zero churn triggered — all active units trade safely above 200-DMA bands.</span>
+            <span style='font-size:0.75rem; color:{T["text_secondary"]};'>Zero churn triggered — all active units trade safely above 200-DMA bands.</span>
         </div>
-        <div style='font-size:0.75rem; color:#64748B;'>
-            Total Equity: <b class='mono-num' style='color:#059669;'>{format_inr(tot_eq)}</b> • Cash: <b class='mono-num' style='color:#64748B;'>{format_inr(tot_cash)}</b> • Stamp Duty: <span class='mono-num'>₹2.50</span>
+        <div style='font-size:0.75rem; color:{T["text_muted"]};'>
+            Total Equity: <b class='mono-num' style='color:#059669;'>{format_inr(tot_eq)}</b> • Cash: <b class='mono-num' style='color:{T["text_muted"]};'>{format_inr(tot_cash)}</b> • Stamp Duty: <span class='mono-num'>₹2.50</span>
         </div>
     </div>
 </div>
@@ -1151,8 +1116,7 @@ tab_regimes, tab_holdings, tab_chart, tab_trades, tab_settings = st.tabs([
 # TAB 1: REGIMES & INTERACTIVE MOMENTUM SCREENER
 # =====================================================================
 with tab_regimes:
-    st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.05rem; font-weight:800; color:#0F172A; margin-bottom:2px;'>🎯 Market Regime Breakdown (0–100)</div>", unsafe_allow_html=True)
-    st.caption("50% Technicals (200-DMA, 50-EMA, RSI, ATR, VIX) + 50% Fundamentals (PE Z-score, PB, Yield Spread)")
+    render_section_header("🎯 Market Regime Breakdown (0–100)", "50% Technicals (200-DMA, 50-EMA, RSI, ATR, VIX) + 50% Fundamentals (PE Z-score, PB, Yield Spread)")
 
     # 3-Column Macro Sleeve Cards
     sleeve_cols = st.columns(3)
@@ -1177,15 +1141,15 @@ with tab_regimes:
             render_html(f"""
             <div class='fin-card' style='padding:12px 14px;'>
                 <div style='display:flex; justify-content:space-between; align-items:center;'>
-                    <div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.88rem; font-weight:700; color:#0F172A;'>{s_title}</div>
+                    <div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.88rem; font-weight:700; color:{T["text_primary"]};'>{s_title}</div>
                     <span class='badge-pill {status_cls}'>{status}</span>
                 </div>
-                <div style='font-size:0.70rem; color:#64748B; margin-top:2px;'>{s_fund}</div>
+                <div style='font-size:0.70rem; color:{T["text_secondary"]}; margin-top:2px;'>{s_fund}</div>
 
-                <div style='display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-top:10px; background:#F8FAFC; padding:8px 10px; border-radius:8px; border:1px solid #E2E8F0;'>
+                <div style='display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-top:10px; background:{T["bg_subtle"]}; padding:8px 10px; border-radius:8px; border:1px solid {T["border"]};'>
                     <div>
-                        <div style='font-size:0.65rem; color:#64748B; text-transform:uppercase;'>Spot Score</div>
-                        <div class='mono-num' style='font-size:1.15rem; font-weight:800; color:#0F172A;'>{spot:.1f}</div>
+                        <div style='font-size:0.65rem; color:{T["text_secondary"]}; text-transform:uppercase;'>Spot Score</div>
+                        <div class='mono-num' style='font-size:1.15rem; font-weight:800; color:{T["text_primary"]};'>{spot:.1f}</div>
                     </div>
                     <div>
                         <div style='font-size:0.65rem; color:#2563EB; text-transform:uppercase;'>30d Average</div>
@@ -1193,10 +1157,10 @@ with tab_regimes:
                     </div>
                 </div>
 
-                <div style='display:flex; justify-content:space-between; margin-top:8px; font-size:0.72rem; color:#64748B;'>
-                    <span>200-DMA: <b class='mono-num' style='color:#0F172A;'>{dma_sign}{dma_dist:.1f}%</b></span>
-                    <span>RSI: <b class='mono-num' style='color:#0F172A;'>{rsi:.1f}</b></span>
-                    <span>VIX: <b class='mono-num' style='color:#0F172A;'>{vix:.1f}</b></span>
+                <div style='display:flex; justify-content:space-between; margin-top:8px; font-size:0.72rem; color:{T["text_secondary"]};'>
+                    <span>200-DMA: <b class='mono-num' style='color:{T["text_primary"]};'>{dma_sign}{dma_dist:.1f}%</b></span>
+                    <span>RSI: <b class='mono-num' style='color:{T["text_primary"]};'>{rsi:.1f}</b></span>
+                    <span>VIX: <b class='mono-num' style='color:{T["text_primary"]};'>{vix:.1f}</b></span>
                 </div>
             </div>
             """)
@@ -1204,8 +1168,7 @@ with tab_regimes:
     # -------------------------------------------------------------
     # INTERACTIVE UNIVERSE MOMENTUM SCREENER
     # -------------------------------------------------------------
-    st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.05rem; font-weight:800; color:#0F172A; margin-top:18px; margin-bottom:2px;'>🔍 Interactive Universe Momentum & 200-DMA Screener</div>", unsafe_allow_html=True)
-    st.caption("Scans direct Indian mutual funds across Core, Thematic, Commodities & Global sleeves.")
+    render_section_header("🔍 Interactive Universe Momentum & 200-DMA Screener", "Scans direct Indian mutual funds across Core, Thematic, Commodities & Global sleeves.", margin_top=18)
 
     rep = score_unrestricted_universe()
     ranked_funds = rep.get("ranked_funds", [])
@@ -1298,8 +1261,7 @@ with tab_regimes:
     # -------------------------------------------------------------
     # LIGHT-CANVAS PRICE VS 200-DMA & 50-EMA TREND INSPECTOR
     # -------------------------------------------------------------
-    st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.05rem; font-weight:800; color:#0F172A; margin-top:20px; margin-bottom:2px;'>📈 Technical Trend & Moving Averages Inspector</div>", unsafe_allow_html=True)
-    st.caption("Clean light-canvas Plotly chart showing daily NAV, 200-day trend gate, and 50-day momentum.")
+    render_section_header("📈 Technical Trend & Moving Averages Inspector", "Clean light-canvas Plotly chart showing daily NAV, 200-day trend gate, and 50-day momentum.", margin_top=20)
 
     fund_keys = [f["key"] for f in ranked_funds]
     fund_names = {f["key"]: f"{f['short_name']} ({f['sub_category']})" for f in ranked_funds}
@@ -1370,9 +1332,9 @@ with tab_regimes:
 
         d_sign = "+" if c_data['dma_dist_pct'] >= 0 else ""
         render_html(f"""
-        <div style='background:#FFFFFF; border:1px solid #E2E8F0; border-radius:8px; padding:8px 14px; display:flex; justify-content:space-between; align-items:center; font-size:0.78rem;'>
-            <span>Latest NAV: <b class='mono-num' style='color:#0F172A;'>{format_inr(c_data['current_nav'], decimals=2)}</b></span>
-            <span>200-DMA: <b class='mono-num' style='color:#64748B;'>{format_inr(c_data['current_200_dma'], decimals=2)}</b></span>
+        <div style='background:{T["bg_card"]}; border:1px solid {T["border"]}; border-radius:8px; padding:8px 14px; display:flex; justify-content:space-between; align-items:center; font-size:0.78rem;'>
+            <span>Latest NAV: <b class='mono-num' style='color:{T["text_primary"]};'>{format_inr(c_data['current_nav'], decimals=2)}</b></span>
+            <span>200-DMA: <b class='mono-num' style='color:{T["text_secondary"]};'>{format_inr(c_data['current_200_dma'], decimals=2)}</b></span>
             <span>Distance from 200-DMA: <b class='mono-num' style='color:{"#059669" if c_data["dma_dist_pct"]>=0 else "#DC2626"};'>{d_sign}{c_data['dma_dist_pct']:.2f}%</b></span>
         </div>
         """)
@@ -1384,8 +1346,7 @@ with tab_holdings:
     # -------------------------------------------------------------
     # SECTION A: 12-MONTH LIVE FORWARD CHALLENGE PORTFOLIOS
     # -------------------------------------------------------------
-    st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.05rem; font-weight:800; color:#0F172A; margin-bottom:2px;'>🏆 Section A: 12-Month Live Forward Challenge Portfolios</div>", unsafe_allow_html=True)
-    st.caption("Starting Dec 3, 2026 • ₹50,000/Mo SIP on the 3rd • 4 Portfolios Tracked Side-by-Side")
+    render_section_header("🏆 Section A: 12-Month Live Forward Challenge Portfolios", "Starting Dec 3, 2026 • ₹50,000/Mo SIP on the 3rd • 4 Portfolios Tracked Side-by-Side")
 
     fwd = get_live_forward_challenge()
 
@@ -1395,52 +1356,51 @@ with tab_holdings:
         <!-- Strategy 1: Winning AI Engine -->
         <div class='fin-card' style='border-top:3px solid #059669; padding:12px 14px;'>
             <div style='font-size:0.72rem; font-weight:700; color:#059669; text-transform:uppercase;'>🏆 Winning AI Engine</div>
-            <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(50000)}<span style='font-size:0.70rem; color:#64748B;'>/mo</span></div>
-            <div style='font-size:0.72rem; color:#475569; margin-top:4px;'>Top 2 Momentum Leaders (₹25k each)</div>
+            <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(50000)}<span style='font-size:0.70rem; color:{T["text_secondary"]};'>/mo</span></div>
+            <div style='font-size:0.72rem; color:{T["text_secondary"]}; margin-top:4px;'>Top 2 Momentum Leaders (₹25k each)</div>
             <div style='margin-top:8px;'>
                 <span class='badge-pill pill-emerald mono-num'>17.55% XIRR</span>
-                <span class='mono-num' style='font-size:0.68rem; color:#64748B; margin-left:4px;'>-13.9% DD</span>
+                <span class='mono-num' style='font-size:0.68rem; color:{T["text_secondary"]}; margin-left:4px;'>-13.9% DD</span>
             </div>
         </div>
 
         <!-- Strategy 2: My Passive Groww SIPs -->
         <div class='fin-card' style='border-top:3px solid #D97706; padding:12px 14px;'>
             <div style='font-size:0.72rem; font-weight:700; color:#D97706; text-transform:uppercase;'>📦 Passive Groww</div>
-            <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(50000)}<span style='font-size:0.70rem; color:#64748B;'>/mo</span></div>
-            <div style='font-size:0.72rem; color:#475569; margin-top:4px;'>PPFC ₹10k + MOMC ₹20k + NISC ₹20k</div>
+            <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(50000)}<span style='font-size:0.70rem; color:{T["text_secondary"]};'>/mo</span></div>
+            <div style='font-size:0.72rem; color:{T["text_secondary"]}; margin-top:4px;'>PPFC ₹10k + MOMC ₹20k + NISC ₹20k</div>
             <div style='margin-top:8px;'>
                 <span class='badge-pill pill-amber mono-num'>14.60% XIRR</span>
-                <span class='mono-num' style='font-size:0.68rem; color:#64748B; margin-left:4px;'>-15.9% DD</span>
+                <span class='mono-num' style='font-size:0.68rem; color:{T["text_secondary"]}; margin-left:4px;'>-15.9% DD</span>
             </div>
         </div>
 
         <!-- Strategy 3: Nifty 500 Broad Market -->
         <div class='fin-card' style='border-top:3px solid #2563EB; padding:12px 14px;'>
             <div style='font-size:0.72rem; font-weight:700; color:#2563EB; text-transform:uppercase;'>🌐 Nifty 500 Index</div>
-            <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(50000)}<span style='font-size:0.70rem; color:#64748B;'>/mo</span></div>
-            <div style='font-size:0.72rem; color:#475569; margin-top:4px;'>Motilal Nifty 500 Index Direct</div>
+            <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(50000)}<span style='font-size:0.70rem; color:{T["text_secondary"]};'>/mo</span></div>
+            <div style='font-size:0.72rem; color:{T["text_secondary"]}; margin-top:4px;'>Motilal Nifty 500 Index Direct</div>
             <div style='margin-top:8px;'>
                 <span class='badge-pill pill-blue mono-num'>9.27% XIRR</span>
-                <span class='mono-num' style='font-size:0.68rem; color:#64748B; margin-left:4px;'>-11.2% DD</span>
+                <span class='mono-num' style='font-size:0.68rem; color:{T["text_secondary"]}; margin-left:4px;'>-11.2% DD</span>
             </div>
         </div>
 
         <!-- Strategy 4: Nifty 50 Large Cap -->
         <div class='fin-card' style='border-top:3px solid #7C3AED; padding:12px 14px;'>
             <div style='font-size:0.72rem; font-weight:700; color:#7C3AED; text-transform:uppercase;'>🏛️ Nifty 50 Index</div>
-            <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(50000)}<span style='font-size:0.70rem; color:#64748B;'>/mo</span></div>
-            <div style='font-size:0.72rem; color:#475569; margin-top:4px;'>UTI Nifty 50 Index Direct</div>
+            <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(50000)}<span style='font-size:0.70rem; color:{T["text_secondary"]};'>/mo</span></div>
+            <div style='font-size:0.72rem; color:{T["text_secondary"]}; margin-top:4px;'>UTI Nifty 50 Index Direct</div>
             <div style='margin-top:8px;'>
                 <span class='badge-pill pill-purple mono-num'>7.49% XIRR</span>
-                <span class='mono-num' style='font-size:0.68rem; color:#64748B; margin-left:4px;'>-11.4% DD</span>
+                <span class='mono-num' style='font-size:0.68rem; color:{T["text_secondary"]}; margin-left:4px;'>-11.4% DD</span>
             </div>
         </div>
     </div>
     """)
 
     # Compact, Sortable Interactive Table for Dec 3rd Day-1 Allocation Preview
-    st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.95rem; font-weight:700; color:#0F172A; margin-top:6px; margin-bottom:2px;'>🔍 Dec 3, 2026 Day-1 Allocation Preview</div>", unsafe_allow_html=True)
-    st.caption("Net invested capital after 0.005% stamp duty, live NAVs, and estimated units credited on launch day.")
+    render_section_header("🔍 Dec 3, 2026 Day-1 Allocation Preview", "Net invested capital after 0.005% stamp duty, live NAVs, and estimated units credited on launch day.", margin_top=6)
 
     day1 = fwd.get("day1_preview", {})
     day1_filter = st.selectbox(
@@ -1478,8 +1438,7 @@ with tab_holdings:
     # -------------------------------------------------------------
     # SECTION B: MY EXISTING GROWW CORE & LOCKED ELSS SCORECARD
     # -------------------------------------------------------------
-    st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.05rem; font-weight:800; color:#0F172A; margin-top:20px; margin-bottom:2px;'>💼 Section B: My Existing Groww Core & Locked ELSS Holdings</div>", unsafe_allow_html=True)
-    st.caption("Clean, live valuation of active portfolio and segregated tax-saver holdings (100% direct equity, zero cash drag).")
+    render_section_header("💼 Section B: My Existing Groww Core & Locked ELSS Holdings", "Clean, live valuation of active portfolio and segregated tax-saver holdings (100% direct equity, zero cash drag).", margin_top=20)
 
     active_items = portfolio_sum.get("active_items", [])
     locked_items = portfolio_sum.get("locked_items", [])
@@ -1518,10 +1477,10 @@ with tab_holdings:
     active_val = portfolio_sum.get("active_value", 1558114.0)
     locked_val = portfolio_sum.get("locked_value", 366540.0)
     render_html(f"""
-    <div style='background:#FFFFFF; border:1px solid #E2E8F0; border-radius:10px; padding:10px 16px; margin-top:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; font-size:0.78rem;'>
+    <div style='background:{T["bg_card"]}; border:1px solid {T["border"]}; border-radius:10px; padding:10px 16px; margin-top:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; font-size:0.78rem;'>
         <span>Active Tradable (4 Funds): <b class='mono-num' style='color:#059669;'>{format_inr(active_val)}</b></span>
-        <span>Locked ELSS (2 Funds): <b class='mono-num' style='color:#64748B;'>{format_inr(locked_val)}</b></span>
-        <span>Total Net Worth: <b class='mono-num' style='color:#0F172A;'>{format_inr(tot_net_worth)}</b> (100% Equity, Zero Cash Drag)</span>
+        <span>Locked ELSS (2 Funds): <b class='mono-num' style='color:{T["text_secondary"]};'>{format_inr(locked_val)}</b></span>
+        <span>Total Net Worth: <b class='mono-num' style='color:{T["text_primary"]};'>{format_inr(tot_net_worth)}</b> (100% Equity, Zero Cash Drag)</span>
     </div>
     """)
 
@@ -1544,8 +1503,7 @@ with tab_chart:
     # 1. INTERACTIVE SIP & CORPUS SIMULATOR
     # -------------------------------------------------------------
     if "Simulator" in alpha_subtab:
-        st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.05rem; font-weight:800; color:#0F172A; margin-bottom:2px;'>🔮 Interactive SIP & Corpus Simulator</div>", unsafe_allow_html=True)
-        st.caption("Project your future post-tax wealth under the Winning 17.55% AI Engine vs. Passive Groww vs. Nifty 500 vs. Nifty 50.")
+        render_section_header("🔮 Interactive SIP & Corpus Simulator", "Project your future post-tax wealth under the Winning 17.55% AI Engine vs. Passive Groww vs. Nifty 500 vs. Nifty 50.")
 
         sim_col1, sim_col2 = st.columns(2)
         with sim_col1:
@@ -1585,25 +1543,25 @@ with tab_chart:
         <div style='display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin-top:10px; margin-bottom:12px;'>
             <div class='fin-card' style='border-top:3px solid #059669; padding:12px 14px;'>
                 <div style='font-size:0.72rem; color:#059669; font-weight:700;'>🏆 AI Engine (17.55%)</div>
-                <div class='mono-num' style='font-size:1.22rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(final_ai)}</div>
+                <div class='mono-num' style='font-size:1.22rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(final_ai)}</div>
                 <div class='mono-num' style='font-size:0.70rem; color:#059669; margin-top:2px;'>Gain: +{format_inr(final_ai - tot_invested_sim)}</div>
             </div>
 
             <div class='fin-card' style='border-top:3px solid #D97706; padding:12px 14px;'>
                 <div style='font-size:0.72rem; color:#D97706; font-weight:700;'>📦 Passive Groww (14.60%)</div>
-                <div class='mono-num' style='font-size:1.22rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(final_groww)}</div>
+                <div class='mono-num' style='font-size:1.22rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(final_groww)}</div>
                 <div class='mono-num' style='font-size:0.70rem; color:#D97706; margin-top:2px;'>Gain: +{format_inr(final_groww - tot_invested_sim)}</div>
             </div>
 
             <div class='fin-card' style='border-top:3px solid #2563EB; padding:12px 14px;'>
                 <div style='font-size:0.72rem; color:#2563EB; font-weight:700;'>🌐 Nifty 500 (9.27%)</div>
-                <div class='mono-num' style='font-size:1.22rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(final_n500)}</div>
+                <div class='mono-num' style='font-size:1.22rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(final_n500)}</div>
                 <div class='mono-num' style='font-size:0.70rem; color:#2563EB; margin-top:2px;'>Gain: +{format_inr(final_n500 - tot_invested_sim)}</div>
             </div>
 
             <div class='fin-card' style='border-top:3px solid #7C3AED; padding:12px 14px;'>
                 <div style='font-size:0.72rem; color:#7C3AED; font-weight:700;'>🏛️ Nifty 50 (7.49%)</div>
-                <div class='mono-num' style='font-size:1.22rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(final_n50)}</div>
+                <div class='mono-num' style='font-size:1.22rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(final_n50)}</div>
                 <div class='mono-num' style='font-size:0.70rem; color:#7C3AED; margin-top:2px;'>Gain: +{format_inr(final_n50 - tot_invested_sim)}</div>
             </div>
         </div>
@@ -1611,11 +1569,11 @@ with tab_chart:
 
         # Callout Highlight Banner
         render_html(f"""
-        <div style='background:#ECFDF5; border:1px solid #A7F3D0; border-radius:10px; padding:10px 16px; margin-bottom:14px;'>
-            <div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.86rem; font-weight:700; color:#059669;'>
+        <div style='background:{T["pill_emerald_bg"]}; border:1px solid {T["pill_emerald_border"]}; border-radius:10px; padding:10px 16px; margin-bottom:14px;'>
+            <div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.86rem; font-weight:700; color:{T["accent_emerald"] if not is_dark else "#34D399"};'>
                 🚀 Projected Wealth Advantage: <span class='mono-num'>+{format_inr(alpha_vs_n500_sim)}</span> over Nifty 500!
             </div>
-            <div style='font-size:0.75rem; color:#475569; margin-top:2px;'>
+            <div style='font-size:0.75rem; color:{T["text_secondary"]}; margin-top:2px;'>
                 Investing <b class='mono-num'>{format_inr(sim_sip)}/month</b> across <b>{n_years} years</b> (<span class='mono-num'>{format_inr(tot_invested_sim)}</span> total capital) yields 
                 <b class='mono-num'>+{format_inr(alpha_vs_n500_sim)}</b> more wealth than Nifty 500 and <b class='mono-num'>+{format_inr(alpha_vs_groww_sim)}</b> more than passive Groww SIPs.
             </div>
@@ -1699,14 +1657,14 @@ with tab_chart:
         <div class='fin-card' style='border-top:3px solid #2563EB;'>
             <div style='display:flex; justify-content:space-between; align-items:flex-start;'>
                 <div>
-                    <div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.05rem; font-weight:800; color:#0F172A;'>🏆 12-Month Live Forward Challenge</div>
-                    <div style='font-size:0.78rem; color:#64748B; margin-top:2px;'>
+                    <div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.05rem; font-weight:800; color:{T["text_primary"]};'>🏆 12-Month Live Forward Challenge</div>
+                    <div style='font-size:0.78rem; color:{T["text_secondary"]}; margin-top:2px;'>
                         Passive Groww SIPs (₹50k/Mo) vs. Unrestricted AI Mutual Fund Advisor
                     </div>
                 </div>
                 <span class='badge-pill pill-blue'>{fwd['status_label']}</span>
             </div>
-            <div style='font-size:0.78rem; color:#475569; margin-top:8px; line-height:1.5;'>
+            <div style='font-size:0.78rem; color:{T["text_secondary"]}; margin-top:8px; line-height:1.5;'>
                 Starting <b>Dec 3, 2026</b>, ₹50,000 will be deployed forward on the 3rd of every month across 12 months (<span class='mono-num'>{format_inr(600000)}</span> total).
                 Strictly tracking <b>FIFO tax lots</b>, <b>0.005% stamp duty</b>, exit loads, and actual Indian capital gains taxes.
             </div>
@@ -1714,14 +1672,14 @@ with tab_chart:
         """)
 
         # AI Thesis Log
-        st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.95rem; font-weight:700; color:#0F172A; margin-top:10px; margin-bottom:4px;'>🧠 Plain-English AI Advisor Thesis Log</div>", unsafe_allow_html=True)
+        render_section_header("🧠 Plain-English AI Advisor Thesis Log", margin_top=10)
         top1 = fwd["top_picks"][0] if len(fwd["top_picks"]) > 0 else {}
         top2 = fwd["top_picks"][1] if len(fwd["top_picks"]) > 1 else {}
 
         render_html(f"""
-        <div class='fin-card' style='padding:14px; font-size:0.80rem; color:#334155;'>
-            <div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-weight:700; color:#0F172A; margin-bottom:6px;'>💡 Quantitative Rationale for Dec 3, 2026 Kickoff</div>
-            <div style='color:#64748B; margin-bottom:8px;'>{fwd['ai_thesis_summary']}</div>
+        <div class='fin-card' style='padding:14px; font-size:0.80rem; color:{T["text_secondary"]};'>
+            <div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-weight:700; color:{T["text_primary"]}; margin-bottom:6px;'>💡 Quantitative Rationale for Dec 3, 2026 Kickoff</div>
+            <div style='color:{T["text_muted"]}; margin-bottom:8px;'>{fwd['ai_thesis_summary']}</div>
             <ul style='margin:0; padding-left:18px; line-height:1.6;'>
                 <li><b>{top1.get('short_name', 'Leader 1')} ({top1.get('sub_category', '')}):</b> {top1.get('thesis', '')}</li>
                 <li><b>{top2.get('short_name', 'Leader 2')} ({top2.get('sub_category', '')}):</b> {top2.get('thesis', '')}</li>
@@ -1746,8 +1704,7 @@ with tab_chart:
     # 3. 5-YEAR HISTORICAL BACKTEST (NOV 2021 – NOV 2026)
     # -------------------------------------------------------------
     else:
-        st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.05rem; font-weight:800; color:#0F172A; margin-bottom:2px;'>🏛️ 5-Year Historical Backtest (Nov 2021 – Nov 2026)</div>", unsafe_allow_html=True)
-        st.caption("Systematic ₹50,000/Mo SIP (3rd of month) across 61 months • Net of 0.005% Stamp Duty, Exit Loads & Taxes")
+        render_section_header("🏛️ 5-Year Historical Backtest (Nov 2021 – Nov 2026)", "Systematic ₹50,000/Mo SIP (3rd of month) across 61 months • Net of 0.005% Stamp Duty, Exit Loads & Taxes")
 
         b_res = run_five_year_backtest(force_refresh=False)
         ai_net = b_res.get("ai_net_corpus", 4729634.8)
@@ -1772,36 +1729,36 @@ with tab_chart:
         <div style='display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin-bottom:14px;'>
             <div class='fin-card' style='border-top:3px solid #059669; padding:12px 14px;'>
                 <div style='font-size:0.72rem; color:#059669; font-weight:700;'>🏆 Winning AI Engine</div>
-                <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(ai_net)}</div>
-                <div style='font-size:0.72rem; color:#64748B;'>Post-Tax: <b class='mono-num' style='color:#059669;'>{ai_xirr:.2f}% XIRR</b></div>
-                <div class='mono-num' style='font-size:0.68rem; color:#94A3B8; margin-top:2px;'>Max DD: {ai_dd:.2f}%</div>
+                <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(ai_net)}</div>
+                <div style='font-size:0.72rem; color:{T["text_secondary"]};'>Post-Tax: <b class='mono-num' style='color:#059669;'>{ai_xirr:.2f}% XIRR</b></div>
+                <div class='mono-num' style='font-size:0.68rem; color:{T["text_muted"]}; margin-top:2px;'>Max DD: {ai_dd:.2f}%</div>
             </div>
 
             <div class='fin-card' style='border-top:3px solid #D97706; padding:12px 14px;'>
                 <div style='font-size:0.72rem; color:#D97706; font-weight:700;'>📦 Passive Groww SIP</div>
-                <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(pas_net)}</div>
-                <div style='font-size:0.72rem; color:#64748B;'>Post-Tax: <b class='mono-num' style='color:#D97706;'>{pas_xirr:.2f}% XIRR</b></div>
-                <div class='mono-num' style='font-size:0.68rem; color:#94A3B8; margin-top:2px;'>Max DD: {pas_dd:.2f}%</div>
+                <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(pas_net)}</div>
+                <div style='font-size:0.72rem; color:{T["text_secondary"]};'>Post-Tax: <b class='mono-num' style='color:#D97706;'>{pas_xirr:.2f}% XIRR</b></div>
+                <div class='mono-num' style='font-size:0.68rem; color:{T["text_muted"]}; margin-top:2px;'>Max DD: {pas_dd:.2f}%</div>
             </div>
 
             <div class='fin-card' style='border-top:3px solid #2563EB; padding:12px 14px;'>
                 <div style='font-size:0.72rem; color:#2563EB; font-weight:700;'>🌐 Nifty 500 Index</div>
-                <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(n500_net)}</div>
-                <div style='font-size:0.72rem; color:#64748B;'>Post-Tax: <b class='mono-num' style='color:#2563EB;'>{n500_xirr:.2f}% XIRR</b></div>
-                <div class='mono-num' style='font-size:0.68rem; color:#94A3B8; margin-top:2px;'>Max DD: {n500_dd:.2f}%</div>
+                <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(n500_net)}</div>
+                <div style='font-size:0.72rem; color:{T["text_secondary"]};'>Post-Tax: <b class='mono-num' style='color:#2563EB;'>{n500_xirr:.2f}% XIRR</b></div>
+                <div class='mono-num' style='font-size:0.68rem; color:{T["text_muted"]}; margin-top:2px;'>Max DD: {n500_dd:.2f}%</div>
             </div>
 
             <div class='fin-card' style='border-top:3px solid #7C3AED; padding:12px 14px;'>
                 <div style='font-size:0.72rem; color:#7C3AED; font-weight:700;'>🏛️ Nifty 50 Index</div>
-                <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:#0F172A; margin-top:2px;'>{format_inr(n50_net)}</div>
-                <div style='font-size:0.72rem; color:#64748B;'>Post-Tax: <b class='mono-num' style='color:#7C3AED;'>{n50_xirr:.2f}% XIRR</b></div>
-                <div class='mono-num' style='font-size:0.68rem; color:#94A3B8; margin-top:2px;'>Max DD: {n50_dd:.2f}%</div>
+                <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(n50_net)}</div>
+                <div style='font-size:0.72rem; color:{T["text_secondary"]};'>Post-Tax: <b class='mono-num' style='color:#7C3AED;'>{n50_xirr:.2f}% XIRR</b></div>
+                <div class='mono-num' style='font-size:0.68rem; color:{T["text_muted"]}; margin-top:2px;'>Max DD: {n50_dd:.2f}%</div>
             </div>
         </div>
         """)
 
         # 5-Year Wealth Growth Curve
-        st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.95rem; font-weight:700; color:#0F172A; margin-bottom:4px;'>📈 5-Year Wealth Growth Curve</div>", unsafe_allow_html=True)
+        render_section_header("📈 5-Year Wealth Growth Curve", margin_top=4)
         fig_b = go.Figure()
 
         fig_b.add_trace(go.Scatter(
@@ -1864,10 +1821,9 @@ with tab_chart:
 # TAB 4: TRANSACTION & AUDIT LEDGER
 # ==========================================
 with tab_trades:
-    st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.05rem; font-weight:800; color:#0F172A; margin-bottom:2px;'>📝 Transaction Log & Execution Queue</div>", unsafe_allow_html=True)
-    st.caption("Clean audit trail of upcoming kickoff orders and settled portfolio transactions.")
+    render_section_header("📝 Transaction Log & Execution Queue", "Clean audit trail of upcoming kickoff orders and settled portfolio transactions.")
 
-    st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.95rem; font-weight:700; color:#0F172A; margin-top:8px; margin-bottom:4px;'>📅 Upcoming Dec 3, 2026 Kickoff Orders</div>", unsafe_allow_html=True)
+    render_section_header("📅 Upcoming Dec 3, 2026 Kickoff Orders", margin_top=8)
     fwd = get_live_forward_challenge()
     day1_items = fwd.get("day1_preview", {}).get("ai_engine", [])
 
@@ -1886,7 +1842,7 @@ with tab_trades:
         })
     st.dataframe(pd.DataFrame(q_rows), use_container_width=True, hide_index=True)
 
-    st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.95rem; font-weight:700; color:#0F172A; margin-top:16px; margin-bottom:4px;'>📜 Settled Portfolio Transactions</div>", unsafe_allow_html=True)
+    render_section_header("📜 Settled Portfolio Transactions", margin_top=16)
     txs = db.get_transactions(limit=100)
     clean_txs = [t for t in txs if "CASH" not in t.get("transaction_type", "") and "Shadow" not in t.get("scheme_name", "")]
 
@@ -1911,8 +1867,7 @@ with tab_trades:
 # TAB 5: ON-DEMAND ACTIONS & CLOUD CONTROL
 # ==========================================
 with tab_settings:
-    st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.05rem; font-weight:800; color:#0F172A; margin-bottom:2px;'>⚙️ Cloud Control & Pipeline</div>", unsafe_allow_html=True)
-    st.caption("Trigger live pipeline steps, dispatch alerts, and monitor system health.")
+    render_section_header("⚙️ Cloud Control & Pipeline", "Trigger live pipeline steps, dispatch alerts, and monitor system health.")
 
     act_col1, act_col2, act_col3 = st.columns(3)
     with act_col1:
@@ -1942,32 +1897,32 @@ with tab_settings:
 
     # Cloud Deployment Info
     st.markdown("---")
-    st.markdown("<div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.95rem; font-weight:700; color:#0F172A; margin-bottom:6px;'>☁️ Cloud Deployment Status</div>", unsafe_allow_html=True)
+    render_section_header("☁️ Cloud Deployment Status", margin_top=6)
     supabase_configured = bool(os.getenv("SUPABASE_URL") and "supabase.co" in os.getenv("SUPABASE_URL", ""))
     telegram_configured = bool(os.getenv("TELEGRAM_BOT_TOKEN") and os.getenv("TELEGRAM_CHAT_ID"))
 
     render_html(f"""
     <div style='display:grid; grid-template-columns: 1fr 1fr; gap:10px;'>
         <div class='fin-card' style='padding:12px 14px;'>
-            <div style='font-size:0.75rem; color:#64748B; font-weight:700;'>DATABASE BACKEND</div>
-            <div style='font-size:0.90rem; font-weight:700; color:#0F172A; margin-top:2px;'>
+            <div style='font-size:0.75rem; color:{T["text_secondary"]}; font-weight:700;'>DATABASE BACKEND</div>
+            <div style='font-size:0.90rem; font-weight:700; color:{T["text_primary"]}; margin-top:2px;'>
                 {'🟢 Supabase PostgreSQL Connected' if supabase_configured else '🟡 Local SQLite Active'}
             </div>
         </div>
         <div class='fin-card' style='padding:12px 14px;'>
-            <div style='font-size:0.75rem; color:#64748B; font-weight:700;'>TELEGRAM NOTIFIER</div>
-            <div style='font-size:0.90rem; font-weight:700; color:#0F172A; margin-top:2px;'>
+            <div style='font-size:0.75rem; color:{T["text_secondary"]}; font-weight:700;'>TELEGRAM NOTIFIER</div>
+            <div style='font-size:0.90rem; font-weight:700; color:{T["text_primary"]}; margin-top:2px;'>
                 {'🟢 Bot Verified & Connected' if telegram_configured else '🔴 Token Missing'}
             </div>
         </div>
         <div class='fin-card' style='padding:12px 14px;'>
-            <div style='font-size:0.75rem; color:#64748B; font-weight:700;'>GITHUB SCHEDULER</div>
-            <div style='font-size:0.90rem; font-weight:700; color:#0F172A; margin-top:2px;'>
+            <div style='font-size:0.75rem; color:{T["text_secondary"]}; font-weight:700;'>GITHUB SCHEDULER</div>
+            <div style='font-size:0.90rem; font-weight:700; color:{T["text_primary"]}; margin-top:2px;'>
                 🟢 Mon–Fri @ 09:00 UTC (2:30 PM IST)
             </div>
         </div>
         <div class='fin-card' style='padding:12px 14px;'>
-            <div style='font-size:0.75rem; color:#64748B; font-weight:700;'>TACTICAL STRATEGY</div>
+            <div style='font-size:0.75rem; color:{T["text_secondary"]}; font-weight:700;'>TACTICAL STRATEGY</div>
             <div style='font-size:0.90rem; font-weight:700; color:#059669; margin-top:2px;'>
                 Winning 17.55% AI Engine (Active)
             </div>
