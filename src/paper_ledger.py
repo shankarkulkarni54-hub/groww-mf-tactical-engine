@@ -14,6 +14,7 @@ from src.db import get_db
 try:
     from src.regime_engine import (
         score_unrestricted_universe,
+        get_or_create_monthly_signal,
         UNRESTRICTED_UNIVERSE,
         check_smart_ltcg_switches,
         fetch_universe_navs,
@@ -23,6 +24,7 @@ try:
 except ImportError:
     from src import (
         score_unrestricted_universe,
+        get_or_create_monthly_signal,
         UNRESTRICTED_UNIVERSE,
         check_smart_ltcg_switches,
         fetch_universe_navs,
@@ -46,6 +48,7 @@ __all__ = [
     "get_dual_ledger_holdings",
     "get_live_portfolio_summary",
     "get_live_forward_challenge",
+    "get_tactical_holdings_lots",
     "log_monthly_execution",
     "fetch_scheme_nav_history",
     "get_nav_on_or_before"
@@ -803,6 +806,167 @@ def get_live_portfolio_summary(db=None) -> Dict[str, Any]:
     }
 
 
+def get_tactical_holdings_lots(
+    as_of_date: Optional[date] = None,
+    db = None
+) -> Dict[str, Any]:
+    """
+    Retrieves and enriches all active tactical holdings lots:
+    - Purchase Date (YYYY-MM-03)
+    - Fund Scheme & Category
+    - Invested Amount (₹)
+    - Purchase NAV
+    - Units Credited (Net of 0.005% stamp duty)
+    - Live NAV
+    - Current Value (₹)
+    - Unrealized P&L (% and ₹)
+    - Days Held
+    - 365-Day LTCG / Exit-Load Status (🔒 Locked (<X>d left) vs ✅ >365d Eligible)
+    - Smart LTCG switch alert if >365d and >8% below 200-DMA
+    """
+    if db is None:
+        db = get_db()
+    if as_of_date is None:
+        as_of_date = date.today()
+
+    lots_state = db.get_app_state("tactical_active_lots", []) or []
+    txs = db.get_transactions(ledger="TACTICAL", limit=200)
+
+    known_lot_ids = set()
+    raw_lots = []
+
+    for l in lots_state:
+        lid = l.get("lot_id") or f"LOT_{l.get('purchase_date', '')}_{l.get('scheme_code', '')}"
+        l["lot_id"] = lid
+        known_lot_ids.add(lid)
+        raw_lots.append(l)
+
+    for t in txs:
+        if t.get("transaction_type") == "SIP_EQUITY" and float(t.get("amount", 0)) > 0:
+            t_date = t.get("trade_date", "")[:10]
+            code = t.get("scheme_code", 0)
+            lid = f"LOT_{t_date.replace('-', '')}_{code}"
+            if lid not in known_lot_ids:
+                known_lot_ids.add(lid)
+                duty = round(float(t.get("amount", 0)) * 0.00005, 2)
+                raw_lots.append({
+                    "lot_id": lid,
+                    "purchase_date": t_date,
+                    "scheme_name": t.get("scheme_name", ""),
+                    "scheme_code": code,
+                    "invested_amount": float(t.get("amount", 0)),
+                    "stamp_duty": duty,
+                    "net_invested": float(t.get("amount", 0)) - duty,
+                    "purchase_nav": float(t.get("nav", 0)),
+                    "units": float(t.get("units", 0)),
+                    "notes": t.get("notes", ""),
+                    "status": "ACTIVE"
+                })
+
+    navs_dict = fetch_universe_navs()
+    enriched_lots = []
+    tot_invested = 0.0
+    tot_curr_val = 0.0
+
+    raw_lots.sort(key=lambda x: str(x.get("purchase_date", "")), reverse=True)
+
+    for lot in raw_lots:
+        if lot.get("status") != "ACTIVE":
+            continue
+
+        p_date_str = str(lot.get("purchase_date", ""))[:10]
+        try:
+            p_date = datetime.strptime(p_date_str, "%Y-%m-%d").date()
+        except Exception:
+            p_date = as_of_date
+
+        days_held = max(0, (as_of_date - p_date).days)
+        code = lot.get("scheme_code", 0)
+        s_name = lot.get("scheme_name", "")
+
+        u_key = None
+        for k, meta in UNRESTRICTED_UNIVERSE.items():
+            if meta.get("amfi_code") == code or meta.get("name") == s_name:
+                u_key = k
+                break
+
+        if u_key:
+            f_navs = navs_dict.get(u_key, {})
+            curr_nav = get_universe_nav_on(f_navs, as_of_date)
+            dma_200 = get_universe_nav_on(f_navs, as_of_date - timedelta(days=200))
+        elif code and code > 0:
+            f_navs = fetch_scheme_nav_history(code)
+            curr_nav = get_nav_on_or_before(f_navs, as_of_date)
+            dma_200 = get_nav_on_or_before(f_navs, as_of_date - timedelta(days=200))
+        else:
+            curr_nav = float(lot.get("purchase_nav", 100.0))
+            dma_200 = curr_nav
+
+        if curr_nav <= 0:
+            curr_nav = float(lot.get("purchase_nav", 100.0))
+
+        dma_dist = round(((curr_nav - dma_200) / dma_200 * 100.0), 2) if dma_200 > 0 else 0.0
+        units = float(lot.get("units", 0.0))
+        invested = float(lot.get("invested_amount", 0.0))
+        curr_val = round(units * curr_nav, 2)
+        gain_rs = round(curr_val - invested, 2)
+        gain_pct = round((gain_rs / invested * 100.0), 2) if invested > 0 else 0.0
+
+        if days_held < 365:
+            days_left = 365 - days_held
+            ltcg_status = f"🔒 Locked ({days_left}d left)"
+            ltcg_badge_cls = "pill-amber"
+            is_switch_eligible = False
+            status_note = f"Holding within 365d lock-in ({days_held}d elapsed). 0% exit load, 20% STCG applies if redeemed early."
+        else:
+            ltcg_status = "✅ >365d Eligible"
+            ltcg_badge_cls = "pill-emerald"
+            is_switch_eligible = (dma_dist < -8.0)
+            if is_switch_eligible:
+                status_note = f"🚨 Post-365d holding trading {dma_dist:.1f}% below 200-DMA. Eligible for Smart LTCG Switch."
+            else:
+                status_note = f"Held for {days_held} days (>365d). Safe compounder trading at {dma_dist:+.1f}% vs 200-DMA."
+
+        short_name = s_name.replace(" Fund Direct Growth", "").replace(" Direct Growth", "")
+
+        enriched_lots.append({
+            "lot_id": lot.get("lot_id", ""),
+            "purchase_date": p_date_str,
+            "purchase_date_obj": p_date,
+            "scheme_name": s_name,
+            "short_name": short_name,
+            "scheme_code": code,
+            "invested_amount": invested,
+            "net_invested": float(lot.get("net_invested", invested)),
+            "purchase_nav": float(lot.get("purchase_nav", 0.0)),
+            "units": units,
+            "current_nav": curr_nav,
+            "current_value": curr_val,
+            "unrealized_pl_rs": gain_rs,
+            "unrealized_pl_pct": gain_pct,
+            "days_held": days_held,
+            "dma_dist_pct": dma_dist,
+            "ltcg_status": ltcg_status,
+            "ltcg_badge_cls": ltcg_badge_cls,
+            "is_switch_eligible": is_switch_eligible,
+            "status_note": status_note
+        })
+        tot_invested += invested
+        tot_curr_val += curr_val
+
+    tot_gain_rs = round(tot_curr_val - tot_invested, 2)
+    tot_gain_pct = round((tot_gain_rs / tot_invested * 100.0), 2) if tot_invested > 0 else 0.0
+
+    return {
+        "lots": enriched_lots,
+        "total_invested": tot_invested,
+        "total_current_value": tot_curr_val,
+        "total_unrealized_pl_rs": tot_gain_rs,
+        "total_unrealized_pl_pct": tot_gain_pct,
+        "active_lots_count": len(enriched_lots)
+    }
+
+
 def get_live_forward_challenge(
     as_of_date: Optional[date] = None,
     monthly_sip: float = 50000.0
@@ -837,10 +1001,10 @@ def get_live_forward_challenge(
         status_color = "#00D09C"
         is_active = True
 
-    # 1. Evaluate current AI recommendations
-    ai_score_report = score_unrestricted_universe(as_of_date)
-    top_picks = ai_score_report.get("top_picks", [])
-    thesis_summary = ai_score_report.get("thesis_summary", "")
+    # 1. Evaluate locked Official Monthly Signal (computed and persisted on the 2nd of each month)
+    monthly_signal = get_or_create_monthly_signal(target_date=as_of_date, db=db)
+    top_picks = monthly_signal.get("top_picks", [])
+    thesis_summary = monthly_signal.get("thesis_summary", "")
 
     # Proportional split calculation based on monthly_sip
     parag_amt = round(monthly_sip * 0.20, 2)
@@ -904,7 +1068,7 @@ def get_live_forward_challenge(
     # 4. Day-1 Allocation Preview (Exact Unit & Rupee Computation for Dec 3, 2026)
     # Fetch live NAVs from universe
     navs_dict = {}
-    for rf in ai_score_report.get("ranked_funds", []):
+    for rf in monthly_signal.get("ranked_funds", []):
         navs_dict[rf.get("name")] = float(rf.get("current_nav", 100.0))
         navs_dict[rf.get("short_name")] = float(rf.get("current_nav", 100.0))
         navs_dict[rf.get("key")] = float(rf.get("current_nav", 100.0))
@@ -994,8 +1158,9 @@ def get_live_forward_challenge(
         "nifty50_plan": nifty50_plan,
         "nifty500_plan": nifty500_plan,
         "ai_thesis_summary": thesis_summary,
+        "monthly_signal": monthly_signal,
         "top_picks": top_picks,
-        "ranked_funds": ai_score_report.get("ranked_funds", []),
+        "ranked_funds": monthly_signal.get("ranked_funds", []),
         "friction_breakdown": friction_breakdown,
         "schedule": schedule,
         "day1_preview": day1_preview
@@ -1026,9 +1191,9 @@ def log_monthly_execution(
 
     stamp_duty_pct = 0.00005  # 0.005% Indian MF Stamp Duty
 
-    # 1. Evaluate top momentum leaders as of trade_date
-    ai_score_report = score_unrestricted_universe(trade_date)
-    top_picks = ai_score_report.get("top_picks", [])
+    # 1. Evaluate locked Official Monthly Signal as of trade_date (persisted on the 2nd of each month)
+    monthly_signal = get_or_create_monthly_signal(target_date=trade_date, db=db)
+    top_picks = monthly_signal.get("top_picks", [])
     if len(top_picks) == 0:
         p1_key, p2_key = "MOMC", "NISC"
     elif len(top_picks) == 1:
@@ -1089,6 +1254,7 @@ def log_monthly_execution(
             (p1_meta.get("name", "Fund #1"), p1_meta.get("amfi_code", 0), sip_budget * 0.50, p1_nav, f"AI Leader #1 (50% Split). {notes}".strip()),
             (p2_meta.get("name", "Fund #2"), p2_meta.get("amfi_code", 0), sip_budget * 0.50, p2_nav, f"AI Leader #2 (50% Split). {notes}".strip())
         ]
+        active_lots = db.get_app_state("tactical_active_lots", []) or []
         for s_name, code, amt, nav, note_str in ai_split:
             duty = round(amt * stamp_duty_pct, 2)
             net_amt = amt - duty
@@ -1112,6 +1278,25 @@ def log_monthly_execution(
             }
             res = db.add_transaction(tx)
             logged_txs.append(res or tx)
+
+            lid = f"LOT_{trade_date.strftime('%Y%m%d')}_{code}"
+            lot_entry = {
+                "lot_id": lid,
+                "purchase_date": trade_date.isoformat(),
+                "scheme_name": s_name,
+                "scheme_code": code,
+                "invested_amount": amt,
+                "stamp_duty": duty,
+                "net_invested": net_amt,
+                "purchase_nav": nav,
+                "units": units,
+                "notes": note_str,
+                "status": "ACTIVE"
+            }
+            active_lots = [l for l in active_lots if l.get("lot_id") != lid]
+            active_lots.append(lot_entry)
+
+        db.set_app_state("tactical_active_lots", active_lots)
 
         # 2. Strategy 2: Passive Groww SIPs (20% PPFC, 40% MOMC, 40% NISC)
         groww_split = [

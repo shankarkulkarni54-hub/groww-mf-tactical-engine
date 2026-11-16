@@ -13,13 +13,18 @@ from dotenv import load_dotenv
 from src.db import get_db
 
 try:
-    from src.regime_engine import score_unrestricted_universe, format_inr, check_smart_ltcg_switches
+    from src.regime_engine import (
+        score_unrestricted_universe, format_inr, check_smart_ltcg_switches, get_or_create_monthly_signal
+    )
 except Exception:
     try:
-        from src import score_unrestricted_universe, format_inr, check_smart_ltcg_switches
+        from src import (
+            score_unrestricted_universe, format_inr, check_smart_ltcg_switches, get_or_create_monthly_signal
+        )
     except Exception:
         score_unrestricted_universe = None
         check_smart_ltcg_switches = None
+        get_or_create_monthly_signal = None
         def format_inr(val, decimals=0, show_sign=False):
             return f"₹{val:,.{decimals}f}" if val is not None else "₹0"
 
@@ -98,10 +103,18 @@ def format_tactical_alert(
             f"   └ 200-DMA: {dist_sign}{dma_dist:.1f}% | RSI: {rsi:.1f} | VIX: {vix:.1f}"
         )
 
-    # Fetch AI Advisor recommendations if available
+    # Fetch Official Locked Monthly Signal (Locked on the 2nd)
     ai_picks = []
     ai_thesis = ""
-    if score_unrestricted_universe:
+    monthly_sig = None
+    if get_or_create_monthly_signal:
+        try:
+            monthly_sig = get_or_create_monthly_signal(now.date())
+            ai_picks = monthly_sig.get("top_picks", [])
+            ai_thesis = monthly_sig.get("thesis_summary", "")
+        except Exception as e:
+            print(f"[TelegramBot] Warning: Could not get monthly signal: {e}")
+    elif score_unrestricted_universe:
         try:
             ai_rep = score_unrestricted_universe(now.date())
             ai_picks = ai_rep.get("top_picks", [])
@@ -109,9 +122,16 @@ def format_tactical_alert(
         except Exception as e:
             print(f"[TelegramBot] Warning: Could not score unrestricted universe: {e}")
 
+    locked_label = monthly_sig.get("locked_day_label", "") if monthly_sig else ""
+    refresh_label = monthly_sig.get("next_refresh_label", "") if monthly_sig else ""
+    lock_badge = f"\n🔒 <b>Official Monthly Signal:</b> Locked: {locked_label} (Next Refresh: {refresh_label})" if locked_label else ""
+
     msg.append("━━━━━━━━━━━━━━━━━━━━━")
     msg.append("📌 <b>ACTION DIRECTIVE & GUIDANCE</b>:")
-    msg.append(f"<b>{decisions.get('action_badge', 'No Action Required Today')}</b>\n")
+    msg.append(f"<b>{decisions.get('action_badge', 'No Action Required Today')}</b>")
+    if lock_badge:
+        msg.append(lock_badge)
+    msg.append("")
 
     total_cash_sip = decisions.get("total_sip_cash", 0.0)
     total_eq_sip = decisions.get("total_sip_equity", 50000.0)
@@ -125,10 +145,10 @@ def format_tactical_alert(
     if is_action_window:
         msg.append(f"⚡ <b>ACTION REQUIRED ON GROWW (For 3rd SIP)</b>:")
         if ai_picks:
-            msg.append(f"\n🏆 <b>Winning 17.55% AI Advisor Allocation ({format_inr(50000)}):</b>")
+            msg.append(f"\n🏆 <b>Winning 17.77% AI Advisor Allocation ({format_inr(50000)}):</b>")
             for p in ai_picks:
-                msg.append(f"  • <b>{format_inr(p['allocation_amount'])}</b> in <b>{p['short_name']}</b> (Score {p['score']:.0f})")
-                msg.append(f"    └ <i>{p['thesis']}</i>")
+                msg.append(f"  • <b>{format_inr(p['allocation_amount'])}</b> in <b>{p['short_name']}</b> (Score {p.get('score', 0):.0f})")
+                msg.append(f"    └ <i>{p.get('thesis', '')}</i>")
             msg.append("  └ <i>Smart Switching: 0.005% stamp duty, 0% exit load on fresh SIPs.</i>")
 
         msg.append(f"\n📦 <b>Passive Groww Reference:</b> {format_inr(50000)} Equity (PPFC ₹10k, MOMC ₹20k, NISC ₹20k)")
@@ -141,7 +161,7 @@ def format_tactical_alert(
         msg.append(f"• <b>Daily Status:</b> Outside the monthly SIP window. All active units held safely.")
         msg.append(f"• <b>Next Action Window:</b> {decisions.get('window_status_label')}")
         if ai_picks and len(ai_picks) >= 2:
-            msg.append(f"• <b>Winning 17.55% AI Directive:</b> {format_inr(ai_picks[0]['allocation_amount'])} {ai_picks[0]['short_name']} + {format_inr(ai_picks[1]['allocation_amount'])} {ai_picks[1]['short_name']}")
+            msg.append(f"• <b>Winning 17.77% AI Directive:</b> {format_inr(ai_picks[0]['allocation_amount'])} {ai_picks[0]['short_name']} + {format_inr(ai_picks[1]['allocation_amount'])} {ai_picks[1]['short_name']}")
             msg.append(f"  └ <i>1. {ai_picks[0]['short_name']}:</i> {ai_picks[0].get('thesis', '')}")
             msg.append(f"  └ <i>2. {ai_picks[1]['short_name']}:</i> {ai_picks[1].get('thesis', '')}")
 
@@ -175,8 +195,8 @@ def format_tactical_alert(
         msg.append(f"  └ Active Tradable: {format_inr(act_val)} | Locked ELSS: {format_inr(lck_val)}")
         msg.append(f"  └ Asset Allocation: 100% Equity (Zero Cash Drag)")
         msg.append("\n🏛️ <b>5-YEAR BACKTEST ALPHA (Nov 2021 – Nov 2026)</b>:")
-        msg.append(f"• <b>Winning AI Engine:</b> 17.55% XIRR ({format_inr(4722571)})")
-        msg.append(f"• vs. Nifty 500: +₹8.73L (+8.28% p.a.) | vs. Passive Groww: +₹3.30L (+2.95% p.a.)")
+        msg.append(f"• <b>Winning AI Engine:</b> 17.77% XIRR ({format_inr(4748805)})")
+        msg.append(f"• vs. Nifty 500: +₹8.99L (+8.50% p.a.) | vs. Passive Groww: +₹3.56L (+3.17% p.a.)")
     except Exception as e:
         if snapshot:
             tac_val = snapshot.get("tactical_total_value", 0.0)

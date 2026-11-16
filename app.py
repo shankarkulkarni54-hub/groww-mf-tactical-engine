@@ -20,6 +20,7 @@ try:
         SLEEVE_CONFIG,
         UNRESTRICTED_UNIVERSE,
         score_unrestricted_universe,
+        get_or_create_monthly_signal,
         check_smart_ltcg_switches,
         get_fund_chart_data,
         format_inr
@@ -30,6 +31,7 @@ except ImportError:
         SLEEVE_CONFIG,
         UNRESTRICTED_UNIVERSE,
         score_unrestricted_universe,
+        get_or_create_monthly_signal,
         check_smart_ltcg_switches,
         get_fund_chart_data,
         format_inr
@@ -40,6 +42,7 @@ from src.paper_ledger import (
     calculate_friction_and_drag,
     get_live_portfolio_summary,
     get_live_forward_challenge,
+    get_tactical_holdings_lots,
     log_monthly_execution
 )
 from src.telegram_bot import format_tactical_alert, send_telegram_alert
@@ -889,10 +892,11 @@ def init_app():
         scores = update_all_regimes()
 
     portfolio_sum = get_live_portfolio_summary(db)
-    return db, scores, portfolio_sum
+    monthly_signal = get_or_create_monthly_signal(target_date=date.today(), db=db)
+    return db, scores, portfolio_sum, monthly_signal
 
 
-db, scores, portfolio_sum = init_app()
+db, scores, portfolio_sum, monthly_signal = init_app()
 decisions = evaluate_tactical_decisions(scores)
 
 # =====================================================================
@@ -938,7 +942,7 @@ tot_gain_pct = portfolio_sum.get("total_gain_pct", 14.06)
 gain_color = "#059669" if tot_gain_rs >= 0 else "#DC2626"
 gain_pill_cls = "pill-emerald" if tot_gain_rs >= 0 else "pill-rose"
 
-ai_picks = decisions.get("ai_top_picks", [])
+ai_picks = monthly_signal.get("top_picks", [])
 if not ai_picks and score_unrestricted_universe:
     ai_picks = score_unrestricted_universe().get("top_picks", [])
 
@@ -982,8 +986,8 @@ render_html(f"""
         <div class='kpi-label'>Upcoming Dec 3 SIP</div>
         <div class='kpi-value' style='font-size:1.20rem;'>{format_inr(st.session_state.get('monthly_sip_budget', 50000.0))} {'Full Equity' if st.session_state.get('monthly_sip_budget', 50000.0) > 0 else 'Skipped'}</div>
         <div class='kpi-sub'>
-            <span class='badge-pill pill-purple'>Top 2 Leaders</span>
-            <span style='color:#64748B; font-size:0.70rem;'>Pharma & Midcap</span>
+            <span class='badge-pill pill-purple'>Locked Signal (2nd)</span>
+            <span style='color:#64748B; font-size:0.70rem;'>{pick1_name} & {pick2_name}</span>
         </div>
     </div>
 </div>
@@ -1058,9 +1062,10 @@ render_html(f"""
 <div class='hero-card' style='margin-top:6px;'>
     <div style='display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;'>
         <div>
-            <div style='display:flex; align-items:center; gap:8px;'>
+            <div style='display:flex; align-items:center; gap:8px; flex-wrap:wrap;'>
                 <span style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:1.02rem; font-weight:800; color:{T["text_primary"]};'>📅 Monthly SIP Allocation Directive</span>
-                <span class='badge-pill pill-blue'>Dec 3, 2026 Kickoff</span>
+                <span class='badge-pill pill-purple'>🔒 Official Monthly Signal (Locked: {monthly_signal.get("locked_day_label", "November 2")})</span>
+                <span class='badge-pill pill-blue'>Next Signal Refresh: {monthly_signal.get("next_refresh_label", "December 2")}</span>
             </div>
             <div style='font-size:0.78rem; color:{T["text_secondary"]}; margin-top:2px;'>
                 Governed by Winning 17.55% AI Engine • <span class='mono-num' style='font-weight:700; color:#059669;'>{format_inr(active_budget)}</span>/Month Capital ({'50/50 Split: ' + format_inr(p1_amt) + ' each' if active_budget > 0 else 'Month Skipped'})
@@ -1194,9 +1199,9 @@ with tab_regimes:
             """)
 
     # -------------------------------------------------------------
-    # INTERACTIVE UNIVERSE MOMENTUM SCREENER
+    # INTERACTIVE UNIVERSE MOMENTUM SCREENER (LIVE MARKET MONITOR)
     # -------------------------------------------------------------
-    render_section_header("🔍 Interactive Universe Momentum & 200-DMA Screener", "Scans direct Indian mutual funds across Core, Thematic, Commodities & Global sleeves.", margin_top=18)
+    render_section_header("🔍 Live Market Monitor (For Observation Only — Next SIP Lock on the 2nd)", "Continuous AMFI NAV momentum & 200-DMA tracking for daily observation. Official SIP execution is locked on the 2nd of each month.", margin_top=18)
 
     rep = score_unrestricted_universe()
     ranked_funds = rep.get("ranked_funds", [])
@@ -1464,9 +1469,91 @@ with tab_holdings:
     st.dataframe(pd.DataFrame(day1_table_data), use_container_width=True, hide_index=True)
 
     # -------------------------------------------------------------
-    # SECTION B: MY EXISTING GROWW CORE & LOCKED ELSS SCORECARD
+    # SECTION B: ACTIVE TACTICAL HOLDINGS (MONTHLY SIP LOTS)
     # -------------------------------------------------------------
-    render_section_header("💼 Section B: My Existing Groww Core & Locked ELSS Holdings", "Clean, live valuation of active portfolio and segregated tax-saver holdings (100% direct equity, zero cash drag).", margin_top=20)
+    render_section_header(
+        "🏆 Section B: Active Tactical Holdings (Monthly SIP Lots)",
+        "Automated lot-by-lot tracking of locked monthly SIP executions with live AMFI valuation, exact days held, and 365-day LTCG / exit-load eligibility.",
+        margin_top=16
+    )
+
+    tact_data = get_tactical_holdings_lots(as_of_date=date.today(), db=db)
+    tact_lots = tact_data.get("lots", [])
+
+    if tact_lots:
+        tot_t_inv = tact_data.get("total_invested", 0.0)
+        tot_t_val = tact_data.get("total_current_value", 0.0)
+        tot_t_gain = tact_data.get("total_unrealized_pl_rs", 0.0)
+        tot_t_pct = tact_data.get("total_unrealized_pl_pct", 0.0)
+        gain_cls = "pill-emerald" if tot_t_gain >= 0 else "pill-rose"
+
+        render_html(f"""
+        <div style='display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin-bottom:12px;'>
+            <div class='fin-card' style='border-top:3px solid #059669; padding:10px 14px;'>
+                <div style='font-size:0.70rem; color:{T["text_secondary"]}; font-weight:700;'>TOTAL TACTICAL VALUE</div>
+                <div class='mono-num' style='font-size:1.15rem; font-weight:800; color:{T["text_primary"]};'>{format_inr(tot_t_val)}</div>
+                <div style='font-size:0.68rem; color:{T["text_muted"]}; margin-top:2px;'>100% Direct Equity Units</div>
+            </div>
+            <div class='fin-card' style='border-top:3px solid #2563EB; padding:10px 14px;'>
+                <div style='font-size:0.70rem; color:{T["text_secondary"]}; font-weight:700;'>TOTAL CAPITAL INVESTED</div>
+                <div class='mono-num' style='font-size:1.15rem; font-weight:800; color:{T["text_primary"]};'>{format_inr(tot_t_inv)}</div>
+                <div style='font-size:0.68rem; color:{T["text_muted"]}; margin-top:2px;'>Net of 0.005% Stamp Duty</div>
+            </div>
+            <div class='fin-card' style='border-top:3px solid #10B981; padding:10px 14px;'>
+                <div style='font-size:0.70rem; color:{T["text_secondary"]}; font-weight:700;'>UNREALIZED GAIN / LOSS</div>
+                <div class='mono-num' style='font-size:1.15rem; font-weight:800; color:#059669;'>{format_inr(tot_t_gain, show_sign=True)}</div>
+                <div class='mono-num' style='font-size:0.68rem; color:#059669; margin-top:2px;'>{tot_t_pct:+.2f}% Overall Return</div>
+            </div>
+            <div class='fin-card' style='border-top:3px solid #7C3AED; padding:10px 14px;'>
+                <div style='font-size:0.70rem; color:{T["text_secondary"]}; font-weight:700;'>ACTIVE LOTS COUNT</div>
+                <div class='mono-num' style='font-size:1.15rem; font-weight:800; color:{T["text_primary"]};'>{len(tact_lots)} Lots</div>
+                <div style='font-size:0.68rem; color:{T["text_muted"]}; margin-top:2px;'>FIFO Lot-by-Lot Segregation</div>
+            </div>
+        </div>
+        """)
+
+        tact_rows = []
+        for l in tact_lots:
+            tact_rows.append({
+                "Purchase Date": l["purchase_date"],
+                "Fund Scheme": l["short_name"],
+                "Invested Amount": format_inr(l["invested_amount"]),
+                "Purchase NAV": format_inr(l["purchase_nav"], decimals=2),
+                "Units Credited": f"{l['units']:,.3f}",
+                "Live NAV": format_inr(l["current_nav"], decimals=2),
+                "Current Value": format_inr(l["current_value"]),
+                "Unrealized P&L": f"{format_inr(l['unrealized_pl_rs'], show_sign=True)} ({l['unrealized_pl_pct']:+.1f}%)",
+                "Days Held": f"{l['days_held']}d",
+                "365-Day LTCG / Exit-Load Status": l["ltcg_status"]
+            })
+        st.dataframe(pd.DataFrame(tact_rows), use_container_width=True, hide_index=True)
+    else:
+        top1_pick = monthly_signal.get("top_picks", [{}])[0].get("short_name", "Nippon India Pharma")
+        top2_pick = monthly_signal.get("top_picks", [{}, {}])[1].get("short_name", "Motilal Oswal Midcap")
+        locked_lbl = monthly_signal.get("locked_day_label", "December 2")
+        render_html(f"""
+        <div style='background:{T["bg_subtle"]}; border:1px solid {T["border"]}; border-radius:10px; padding:14px 18px; margin-bottom:12px;'>
+            <div style='display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;'>
+                <div>
+                    <div style='font-family:\"Plus Jakarta Sans\", sans-serif; font-size:0.95rem; font-weight:700; color:{T["text_primary"]};'>
+                        🚀 Upcoming Kickoff Execution: Dec 3, 2026
+                    </div>
+                    <div style='font-size:0.78rem; color:{T["text_secondary"]}; margin-top:3px; line-height:1.4;'>
+                        Official picks locked on <b>{locked_lbl}</b> (50% in <b>{top1_pick}</b> & 50% in <b>{top2_pick}</b>) will automatically roll into this lot-by-lot ledger once executed on Dec 3rd.
+                        You can also log test executions on demand using the <b>⚙️ Actions</b> tab logger.
+                    </div>
+                </div>
+                <div>
+                    <span class='badge-pill pill-blue' style='font-size:0.75rem;'>Awaiting Dec 3 Kickoff</span>
+                </div>
+            </div>
+        </div>
+        """)
+
+    # -------------------------------------------------------------
+    # SECTION C: MY EXISTING GROWW CORE & LOCKED ELSS SCORECARD
+    # -------------------------------------------------------------
+    render_section_header("💼 Section C: My Existing Groww Core & Locked ELSS Holdings", "Clean, live valuation of active portfolio and segregated tax-saver holdings (100% direct equity, zero cash drag).", margin_top=20)
 
     active_items = portfolio_sum.get("active_items", [])
     locked_items = portfolio_sum.get("locked_items", [])

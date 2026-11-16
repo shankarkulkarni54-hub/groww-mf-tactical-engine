@@ -484,6 +484,87 @@ def score_unrestricted_universe(
     }
 
 
+def get_or_create_monthly_signal(
+    target_date: Optional[date] = None,
+    force_refresh: bool = False,
+    db = None
+) -> Dict[str, Any]:
+    """
+    Computes, persists, and locks the Official Monthly SIP Signal on the 2nd of each month.
+    - Uses the latest available AMFI NAVs as of the 2nd of the target month.
+    - Locks 50% / 50% split across #1 and #2 leaders (or defensive cash/gold if bear shield triggers).
+    - Remains frozen throughout the month so execution on the 3rd is deterministic and unfluctuating.
+    - Persists in database app_state ('monthly_signal_YYYY_MM' and 'latest_monthly_signal').
+    """
+    if target_date is None:
+        target_date = date.today()
+
+    # Determine locked signal date (2nd of month)
+    if target_date.day >= 2:
+        locked_date = date(target_date.year, target_date.month, 2)
+        if target_date.month == 12:
+            next_refresh = date(target_date.year + 1, 1, 2)
+        else:
+            next_refresh = date(target_date.year, target_date.month + 1, 2)
+    else:
+        # Before the 2nd, the active signal is from the previous month's 2nd
+        if target_date.month == 1:
+            locked_date = date(target_date.year - 1, 12, 2)
+        else:
+            locked_date = date(target_date.year, target_date.month - 1, 2)
+        next_refresh = date(target_date.year, target_date.month, 2)
+
+    cache_key = f"monthly_signal_{locked_date.strftime('%Y_%m')}"
+
+    # Try reading from DB unless force_refresh is requested
+    if db is None:
+        try:
+            db = get_db()
+        except Exception:
+            db = None
+
+    if db and not force_refresh:
+        try:
+            cached = db.get_app_state(cache_key)
+            if cached and isinstance(cached, dict) and cached.get("locked_date") == locked_date.isoformat():
+                return cached
+        except Exception as e:
+            print(f"[RegimeEngine] Cache lookup notice: {e}")
+
+    # Compute official evaluation using AMFI NAVs strictly on or before locked_date
+    navs_dict = fetch_universe_navs()
+    scored = score_unrestricted_universe(as_of_date=locked_date, navs_dict=navs_dict)
+
+    top_picks = scored.get("top_picks", [])
+    # Explicitly ensure 50/50 allocation split across the 2 leaders
+    for tp in top_picks:
+        tp["allocation_pct"] = 50.0
+
+    signal = {
+        "locked_date": locked_date.isoformat(),
+        "locked_month_label": locked_date.strftime("%B %d, %Y"),
+        "locked_day_label": f"{locked_date.strftime('%B')} 2",
+        "next_refresh_date": next_refresh.isoformat(),
+        "next_refresh_label": f"{next_refresh.strftime('%B')} 2",
+        "status": "LOCKED",
+        "top_picks": top_picks,
+        "ranked_funds": scored.get("ranked_funds", []),
+        "allocation_mode": scored.get("allocation_mode", "EQUITY_MOMENTUM_LEADERSHIP"),
+        "thesis_summary": scored.get("thesis_summary", ""),
+        "nifty_benchmark": scored.get("nifty_benchmark", {}),
+        "created_at": datetime.now().isoformat()
+    }
+
+    if db:
+        try:
+            db.set_app_state(cache_key, signal)
+            db.set_app_state("latest_monthly_signal", signal)
+        except Exception as e:
+            print(f"[RegimeEngine] Warning: Could not cache monthly signal: {e}")
+
+    return signal
+
+
 def compute_fund_volatility_90d(
     nav_dict: Dict[str, float],
     as_of_date: Optional[date] = None,
