@@ -3,14 +3,23 @@
 import os
 import sys
 
-# Ensure repository root is on sys.path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Ensure repository root and src are on sys.path
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_SRC_DIR = os.path.join(_REPO_ROOT, "src")
+for _p in [_REPO_ROOT, _SRC_DIR]:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 import json
 import requests
 from datetime import date, datetime, timedelta
 from typing import Dict, Any, List, Optional, Tuple
-from src.db import get_db
+
+try:
+    from src.db import get_db
+except (ImportError, ModuleNotFoundError):
+    from db import get_db
+
 try:
     from src.regime_engine import (
         score_unrestricted_universe,
@@ -21,16 +30,27 @@ try:
         get_universe_nav_on,
         format_inr
     )
-except ImportError:
-    from src import (
-        score_unrestricted_universe,
-        get_or_create_monthly_signal,
-        UNRESTRICTED_UNIVERSE,
-        check_smart_ltcg_switches,
-        fetch_universe_navs,
-        get_universe_nav_on,
-        format_inr
-    )
+except (ImportError, ModuleNotFoundError):
+    try:
+        from regime_engine import (
+            score_unrestricted_universe,
+            get_or_create_monthly_signal,
+            UNRESTRICTED_UNIVERSE,
+            check_smart_ltcg_switches,
+            fetch_universe_navs,
+            get_universe_nav_on,
+            format_inr
+        )
+    except (ImportError, ModuleNotFoundError):
+        from src import (
+            score_unrestricted_universe,
+            get_or_create_monthly_signal,
+            UNRESTRICTED_UNIVERSE,
+            check_smart_ltcg_switches,
+            fetch_universe_navs,
+            get_universe_nav_on,
+            format_inr
+        )
 
 # Scheme Code Mapping
 SCHEME_CODES = {
@@ -1002,7 +1022,7 @@ def get_live_forward_challenge(
         is_active = True
 
     # 1. Evaluate locked Official Monthly Signal (computed and persisted on the 2nd of each month)
-    monthly_signal = get_or_create_monthly_signal(target_date=as_of_date, db=db)
+    monthly_signal = get_or_create_monthly_signal(target_date=as_of_date)
     top_picks = monthly_signal.get("top_picks", [])
     thesis_summary = monthly_signal.get("thesis_summary", "")
 

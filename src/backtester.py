@@ -12,10 +12,12 @@ import pandas as pd
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, List, Tuple, Optional
 
-# Ensure repository root is on sys.path
+# Ensure repository root and src are on sys.path
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if REPO_ROOT not in sys.path:
-    sys.path.insert(0, REPO_ROOT)
+SRC_DIR = os.path.join(REPO_ROOT, "src")
+for _p in [REPO_ROOT, SRC_DIR]:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 try:
     from src.regime_engine import (
@@ -27,16 +29,27 @@ try:
         compute_fund_volatility_90d,
         format_inr
     )
-except ImportError:
-    from src import (
-        UNRESTRICTED_UNIVERSE,
-        fetch_universe_navs,
-        get_universe_nav_on,
-        score_unrestricted_universe,
-        score_variant_b,
-        compute_fund_volatility_90d,
-        format_inr
-    )
+except (ImportError, ModuleNotFoundError):
+    try:
+        from regime_engine import (
+            UNRESTRICTED_UNIVERSE,
+            fetch_universe_navs,
+            get_universe_nav_on,
+            score_unrestricted_universe,
+            score_variant_b,
+            compute_fund_volatility_90d,
+            format_inr
+        )
+    except (ImportError, ModuleNotFoundError):
+        from src import (
+            UNRESTRICTED_UNIVERSE,
+            fetch_universe_navs,
+            get_universe_nav_on,
+            score_unrestricted_universe,
+            score_variant_b,
+            compute_fund_volatility_90d,
+            format_inr
+        )
 
 CACHE_FILE_PATH = os.path.join(REPO_ROOT, "data", "backtest_5yr_results.json")
 

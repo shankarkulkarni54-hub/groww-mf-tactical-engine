@@ -3,8 +3,12 @@
 import os
 import sys
 
-# Ensure repository root is on sys.path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Ensure repository root and src are on sys.path
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_SRC_DIR = os.path.join(_REPO_ROOT, "src")
+for _p in [_REPO_ROOT, _SRC_DIR]:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 import numpy as np
 import pandas as pd
@@ -12,7 +16,11 @@ import requests
 import yfinance as yf
 from datetime import date, datetime, timedelta
 from typing import Dict, Any, List, Optional, Tuple
-from src.db import get_db
+
+try:
+    from src.db import get_db
+except (ImportError, ModuleNotFoundError):
+    from db import get_db
 
 SLEEVE_CONFIG = {
     "NIFTY_500": {
@@ -98,6 +106,7 @@ __all__ = [
     "compute_fund_volatility_90d",
     "score_unrestricted_universe",
     "score_variant_b",
+    "get_or_create_monthly_signal",
     "check_smart_ltcg_switches",
     "get_fund_chart_data",
     "format_inr",

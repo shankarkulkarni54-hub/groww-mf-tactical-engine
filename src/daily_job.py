@@ -3,20 +3,44 @@
 import os
 import sys
 
-# Ensure repository root is on sys.path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Ensure repository root and src are on sys.path
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_SRC_DIR = os.path.join(_REPO_ROOT, "src")
+for _p in [_REPO_ROOT, _SRC_DIR]:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 import json
 from datetime import date, datetime, timedelta
 from typing import Dict, Any
-from src.db import get_db
-from src.regime_engine import update_all_regimes
-from src.paper_ledger import (
-    evaluate_tactical_decisions,
-    fetch_scheme_nav_history,
-    get_nav_on_or_before
-)
-from src.telegram_bot import format_tactical_alert, send_telegram_alert
+
+try:
+    from src.db import get_db
+except (ImportError, ModuleNotFoundError):
+    from db import get_db
+
+try:
+    from src.regime_engine import update_all_regimes
+except (ImportError, ModuleNotFoundError):
+    from regime_engine import update_all_regimes
+
+try:
+    from src.paper_ledger import (
+        evaluate_tactical_decisions,
+        fetch_scheme_nav_history,
+        get_nav_on_or_before
+    )
+except (ImportError, ModuleNotFoundError):
+    from paper_ledger import (
+        evaluate_tactical_decisions,
+        fetch_scheme_nav_history,
+        get_nav_on_or_before
+    )
+
+try:
+    from src.telegram_bot import format_tactical_alert, send_telegram_alert
+except (ImportError, ModuleNotFoundError):
+    from telegram_bot import format_tactical_alert, send_telegram_alert
 
 
 def run_daily_cycle(force_send_telegram: bool = True) -> Dict[str, Any]:

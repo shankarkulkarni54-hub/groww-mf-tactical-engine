@@ -3,30 +3,43 @@
 import os
 import sys
 
-# Ensure repository root is on sys.path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Ensure repository root and src are on sys.path
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_SRC_DIR = os.path.join(_REPO_ROOT, "src")
+for _p in [_REPO_ROOT, _SRC_DIR]:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 import requests
 from datetime import datetime, date
 from typing import Dict, Any, Optional
 from dotenv import load_dotenv
-from src.db import get_db
+
+try:
+    from src.db import get_db
+except (ImportError, ModuleNotFoundError):
+    from db import get_db
 
 try:
     from src.regime_engine import (
         score_unrestricted_universe, format_inr, check_smart_ltcg_switches, get_or_create_monthly_signal
     )
-except Exception:
+except (ImportError, ModuleNotFoundError):
     try:
-        from src import (
+        from regime_engine import (
             score_unrestricted_universe, format_inr, check_smart_ltcg_switches, get_or_create_monthly_signal
         )
-    except Exception:
-        score_unrestricted_universe = None
-        check_smart_ltcg_switches = None
-        get_or_create_monthly_signal = None
-        def format_inr(val, decimals=0, show_sign=False):
-            return f"₹{val:,.{decimals}f}" if val is not None else "₹0"
+    except (ImportError, ModuleNotFoundError):
+        try:
+            from src import (
+                score_unrestricted_universe, format_inr, check_smart_ltcg_switches, get_or_create_monthly_signal
+            )
+        except Exception:
+            score_unrestricted_universe = None
+            check_smart_ltcg_switches = None
+            get_or_create_monthly_signal = None
+            def format_inr(val, decimals=0, show_sign=False):
+                return f"₹{val:,.{decimals}f}" if val is not None else "₹0"
 
 load_dotenv()
 
@@ -180,7 +193,13 @@ def format_tactical_alert(
 
     # Consolidated Portfolio Valuation & Challenge
     try:
-        from src.paper_ledger import get_live_portfolio_summary
+        try:
+            from src.paper_ledger import get_live_portfolio_summary
+        except (ImportError, ModuleNotFoundError):
+            try:
+                from paper_ledger import get_live_portfolio_summary
+            except (ImportError, ModuleNotFoundError):
+                from src import get_live_portfolio_summary
         port_sum = get_live_portfolio_summary()
         tot_nw = port_sum.get("total_net_worth", 0.0)
         tot_gain = port_sum.get("total_gain_rs", 0.0)

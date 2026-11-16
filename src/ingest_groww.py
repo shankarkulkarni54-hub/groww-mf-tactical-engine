@@ -3,12 +3,20 @@
 import os
 import sys
 
-# Ensure repository root is on sys.path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Ensure repository root and src are on sys.path
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_SRC_DIR = os.path.join(_REPO_ROOT, "src")
+for _p in [_REPO_ROOT, _SRC_DIR]:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 import openpyxl
 from typing import List, Dict, Any, Tuple
-from src.db import get_db
+
+try:
+    from src.db import get_db
+except (ImportError, ModuleNotFoundError):
+    from db import get_db
 
 # Active tradable universe configuration
 ACTIVE_UNIVERSE = {

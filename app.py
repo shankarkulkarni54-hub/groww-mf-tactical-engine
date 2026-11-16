@@ -3,8 +3,12 @@
 import os
 import sys
 
-# Ensure repository root is on sys.path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Ensure repository root and src directory are on sys.path
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+SRC_DIR = os.path.join(ROOT_DIR, "src")
+for p in [ROOT_DIR, SRC_DIR]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
 
 import textwrap
 import streamlit as st
@@ -12,7 +16,11 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime, date, timedelta
-from src.db import get_db
+
+try:
+    from src.db import get_db
+except (ImportError, ModuleNotFoundError):
+    from db import get_db
 
 try:
     from src.regime_engine import (
@@ -25,28 +33,68 @@ try:
         get_fund_chart_data,
         format_inr
     )
-except ImportError:
-    from src import (
-        update_all_regimes,
-        SLEEVE_CONFIG,
-        UNRESTRICTED_UNIVERSE,
-        score_unrestricted_universe,
-        get_or_create_monthly_signal,
-        check_smart_ltcg_switches,
-        get_fund_chart_data,
-        format_inr
-    )
+except (ImportError, ModuleNotFoundError):
+    try:
+        from regime_engine import (
+            update_all_regimes,
+            SLEEVE_CONFIG,
+            UNRESTRICTED_UNIVERSE,
+            score_unrestricted_universe,
+            get_or_create_monthly_signal,
+            check_smart_ltcg_switches,
+            get_fund_chart_data,
+            format_inr
+        )
+    except (ImportError, ModuleNotFoundError):
+        from src import (
+            update_all_regimes,
+            SLEEVE_CONFIG,
+            UNRESTRICTED_UNIVERSE,
+            score_unrestricted_universe,
+            get_or_create_monthly_signal,
+            check_smart_ltcg_switches,
+            get_fund_chart_data,
+            format_inr
+        )
 
-from src.paper_ledger import (
-    evaluate_tactical_decisions,
-    calculate_friction_and_drag,
-    get_live_portfolio_summary,
-    get_live_forward_challenge,
-    get_tactical_holdings_lots,
-    log_monthly_execution
-)
-from src.telegram_bot import format_tactical_alert, send_telegram_alert
-from src.backtester import run_five_year_backtest
+try:
+    from src.paper_ledger import (
+        evaluate_tactical_decisions,
+        calculate_friction_and_drag,
+        get_live_portfolio_summary,
+        get_live_forward_challenge,
+        get_tactical_holdings_lots,
+        log_monthly_execution
+    )
+except (ImportError, ModuleNotFoundError):
+    try:
+        from paper_ledger import (
+            evaluate_tactical_decisions,
+            calculate_friction_and_drag,
+            get_live_portfolio_summary,
+            get_live_forward_challenge,
+            get_tactical_holdings_lots,
+            log_monthly_execution
+        )
+    except (ImportError, ModuleNotFoundError):
+        from src import (
+            evaluate_tactical_decisions,
+            calculate_friction_and_drag,
+            get_live_portfolio_summary,
+            get_live_forward_challenge,
+            get_tactical_holdings_lots,
+            log_monthly_execution
+        )
+
+try:
+    from src.telegram_bot import format_tactical_alert, send_telegram_alert
+except (ImportError, ModuleNotFoundError):
+    from telegram_bot import format_tactical_alert, send_telegram_alert
+
+try:
+    from src.backtester import run_five_year_backtest
+except (ImportError, ModuleNotFoundError):
+    from backtester import run_five_year_backtest
 
 # Streamlit Page Config - Full-Width Layout for Finology Bento Design
 st.set_page_config(
