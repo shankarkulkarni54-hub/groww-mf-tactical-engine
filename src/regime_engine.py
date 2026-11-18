@@ -102,6 +102,7 @@ __all__ = [
     "SLEEVE_CONFIG",
     "UNRESTRICTED_UNIVERSE",
     "fetch_universe_navs",
+    "clear_universe_nav_cache",
     "get_universe_nav_on",
     "compute_fund_volatility_90d",
     "score_unrestricted_universe",
@@ -286,11 +287,25 @@ UNRESTRICTED_UNIVERSE: Dict[str, Dict[str, Any]] = {
     }
 }
 
+try:
+    import streamlit as st
+    _st_cache_data = st.cache_data(ttl=3600, show_spinner=False)
+except Exception:
+    def _st_cache_data(fn):
+        return fn
+
 _UNRESTRICTED_NAV_CACHE: Dict[int, Dict[str, float]] = {}
 
 
+def clear_universe_nav_cache():
+    """Clears both module-level and Streamlit memory caches for universe NAVs."""
+    global _UNRESTRICTED_NAV_CACHE
+    _UNRESTRICTED_NAV_CACHE.clear()
+
+
+@_st_cache_data
 def fetch_universe_navs(force_refresh: bool = False) -> Dict[str, Dict[str, float]]:
-    """Fetches daily NAVs for all 13 universe funds from mfapi.in."""
+    """Fetches daily NAVs for all 13 universe funds from mfapi.in with 1-hr cache."""
     global _UNRESTRICTED_NAV_CACHE
     result = {}
     for key, meta in UNRESTRICTED_UNIVERSE.items():
@@ -784,6 +799,7 @@ def check_smart_ltcg_switches(
     return alerts
 
 
+@_st_cache_data
 def get_fund_chart_data(
     fund_key_or_name: str,
     days: int = 365,

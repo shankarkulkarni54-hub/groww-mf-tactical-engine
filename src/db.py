@@ -314,11 +314,14 @@ class SQLiteFallbackDB:
                     is_active, is_locked, created_at, updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(scheme_name) DO UPDATE SET
+                    folio_no=excluded.folio_no,
                     units=excluded.units,
                     invested_value=excluded.invested_value,
                     current_nav=excluded.current_nav,
                     current_value=excluded.current_value,
                     sip_amount=excluded.sip_amount,
+                    is_active=excluded.is_active,
+                    is_locked=excluded.is_locked,
                     updated_at=excluded.updated_at
                 """, (
                     h["scheme_name"], h.get("scheme_code", 0), h.get("amc", ""),

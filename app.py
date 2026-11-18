@@ -31,6 +31,7 @@ try:
         get_or_create_monthly_signal,
         check_smart_ltcg_switches,
         get_fund_chart_data,
+        clear_universe_nav_cache,
         format_inr
     )
 except (ImportError, ModuleNotFoundError):
@@ -43,6 +44,7 @@ except (ImportError, ModuleNotFoundError):
             get_or_create_monthly_signal,
             check_smart_ltcg_switches,
             get_fund_chart_data,
+            clear_universe_nav_cache,
             format_inr
         )
     except (ImportError, ModuleNotFoundError):
@@ -54,6 +56,7 @@ except (ImportError, ModuleNotFoundError):
             get_or_create_monthly_signal,
             check_smart_ltcg_switches,
             get_fund_chart_data,
+            clear_universe_nav_cache,
             format_inr
         )
 
@@ -64,7 +67,9 @@ try:
         get_live_portfolio_summary,
         get_live_forward_challenge,
         get_tactical_holdings_lots,
-        log_monthly_execution
+        log_monthly_execution,
+        clear_nav_cache,
+        update_groww_folio_units
     )
 except (ImportError, ModuleNotFoundError):
     try:
@@ -74,7 +79,9 @@ except (ImportError, ModuleNotFoundError):
             get_live_portfolio_summary,
             get_live_forward_challenge,
             get_tactical_holdings_lots,
-            log_monthly_execution
+            log_monthly_execution,
+            clear_nav_cache,
+            update_groww_folio_units
         )
     except (ImportError, ModuleNotFoundError):
         from src import (
@@ -83,7 +90,9 @@ except (ImportError, ModuleNotFoundError):
             get_live_portfolio_summary,
             get_live_forward_challenge,
             get_tactical_holdings_lots,
-            log_monthly_execution
+            log_monthly_execution,
+            clear_nav_cache,
+            update_groww_folio_units
         )
 
 try:
@@ -997,49 +1006,64 @@ if not ai_picks and score_unrestricted_universe:
 pick1_name = ai_picks[0]["short_name"] if len(ai_picks) > 0 else "Nippon India Pharma"
 pick2_name = ai_picks[1]["short_name"] if len(ai_picks) > 1 else "Motilal Oswal Midcap"
 
-render_html(f"""
-<div class='kpi-ribbon'>
-    <!-- Tile 1: Portfolio Net Worth -->
-    <div class='kpi-tile' style='border-left: 3px solid #059669;'>
-        <div class='kpi-label'>Groww Portfolio Net Worth</div>
-        <div class='kpi-value'>{format_inr(tot_net_worth)}</div>
-        <div class='kpi-sub'>
-            <span class='badge-pill {gain_pill_cls} mono-num'>{format_inr(tot_gain_rs, show_sign=True)} ({tot_gain_pct:+.2f}%)</span>
-            <span style='color:#64748B; font-size:0.72rem;'>• 100% Equity</span>
+col_kpi_ribbon, col_kpi_action = st.columns([8.6, 1.4])
+with col_kpi_ribbon:
+    render_html(f"""
+    <div class='kpi-ribbon'>
+        <!-- Tile 1: Portfolio Net Worth -->
+        <div class='kpi-tile' style='border-left: 3px solid #059669;'>
+            <div class='kpi-label'>Groww Portfolio Net Worth</div>
+            <div class='kpi-value'>{format_inr(tot_net_worth)}</div>
+            <div class='kpi-sub'>
+                <span class='badge-pill {gain_pill_cls} mono-num'>{format_inr(tot_gain_rs, show_sign=True)} ({tot_gain_pct:+.2f}%)</span>
+                <span style='color:#64748B; font-size:0.72rem;'>• 100% Equity</span>
+            </div>
+            <div style='margin-top:4px; font-size:0.69rem; color:#64748B; font-weight:600; line-height:1.2;'>
+                📅 {portfolio_sum.get("nav_date_label", "Latest AMFI NAVs")}
+            </div>
         </div>
-    </div>
 
-    <!-- Tile 2: 5-Yr Alpha vs Nifty 500 -->
-    <div class='kpi-tile' style='border-left: 3px solid #2563EB;'>
-        <div class='kpi-label'>5-Yr Alpha vs Nifty 500</div>
-        <div class='kpi-value' style='color:#059669;'>+{format_inr(872787)}</div>
-        <div class='kpi-sub'>
-            <span class='badge-pill pill-emerald mono-num'>+8.28% p.a.</span>
-            <span style='color:#64748B; font-size:0.72rem;'>17.55% vs 9.27%</span>
+        <!-- Tile 2: 5-Yr Alpha vs Nifty 500 -->
+        <div class='kpi-tile' style='border-left: 3px solid #2563EB;'>
+            <div class='kpi-label'>5-Yr Alpha vs Nifty 500</div>
+            <div class='kpi-value' style='color:#059669;'>+{format_inr(872787)}</div>
+            <div class='kpi-sub'>
+                <span class='badge-pill pill-emerald mono-num'>+8.28% p.a.</span>
+                <span style='color:#64748B; font-size:0.72rem;'>17.55% vs 9.27%</span>
+            </div>
         </div>
-    </div>
 
-    <!-- Tile 3: 5-Yr Alpha vs Passive Groww -->
-    <div class='kpi-tile' style='border-left: 3px solid #D97706;'>
-        <div class='kpi-label'>5-Yr Alpha vs Passive Groww</div>
-        <div class='kpi-value' style='color:#059669;'>+{format_inr(329792)}</div>
-        <div class='kpi-sub'>
-            <span class='badge-pill pill-amber mono-num'>+2.95% p.a.</span>
-            <span style='color:#64748B; font-size:0.72rem;'>17.55% vs 14.60%</span>
+        <!-- Tile 3: 5-Yr Alpha vs Passive Groww -->
+        <div class='kpi-tile' style='border-left: 3px solid #D97706;'>
+            <div class='kpi-label'>5-Yr Alpha vs Passive Groww</div>
+            <div class='kpi-value' style='color:#059669;'>+{format_inr(329792)}</div>
+            <div class='kpi-sub'>
+                <span class='badge-pill pill-amber mono-num'>+2.95% p.a.</span>
+                <span style='color:#64748B; font-size:0.72rem;'>17.55% vs 14.60%</span>
+            </div>
         </div>
-    </div>
 
-    <!-- Tile 4: Upcoming Dec 3 SIP -->
-    <div class='kpi-tile' style='border-left: 3px solid #7C3AED;'>
-        <div class='kpi-label'>Upcoming Dec 3 SIP</div>
-        <div class='kpi-value' style='font-size:1.20rem;'>{format_inr(st.session_state.get('monthly_sip_budget', 50000.0))} {'Full Equity' if st.session_state.get('monthly_sip_budget', 50000.0) > 0 else 'Skipped'}</div>
-        <div class='kpi-sub'>
-            <span class='badge-pill pill-purple'>Locked Signal (2nd)</span>
-            <span style='color:#64748B; font-size:0.70rem;'>{pick1_name} & {pick2_name}</span>
+        <!-- Tile 4: Upcoming Dec 3 SIP -->
+        <div class='kpi-tile' style='border-left: 3px solid #7C3AED;'>
+            <div class='kpi-label'>Upcoming Dec 3 SIP</div>
+            <div class='kpi-value' style='font-size:1.20rem;'>{format_inr(st.session_state.get('monthly_sip_budget', 50000.0))} {'Full Equity' if st.session_state.get('monthly_sip_budget', 50000.0) > 0 else 'Skipped'}</div>
+            <div class='kpi-sub'>
+                <span class='badge-pill pill-purple'>Locked Signal (2nd)</span>
+                <span style='color:#64748B; font-size:0.70rem;'>{pick1_name} & {pick2_name}</span>
+            </div>
         </div>
     </div>
-</div>
-""")
+    """)
+with col_kpi_action:
+    st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+    if st.button("🔄 Refresh Live NAVs", use_container_width=True, help="Clears 1-hour cache (st.cache_data.clear()) and forces fresh daily AMFI NAV retrieval for all Groww & Universe funds from mfapi.in"):
+        st.cache_data.clear()
+        if clear_nav_cache:
+            clear_nav_cache()
+        if clear_universe_nav_cache:
+            clear_universe_nav_cache()
+        st.toast("Refreshed latest AMFI NAVs!", icon="🔄")
+        st.rerun()
 
 # =====================================================================
 # 3. HERO ACTION BANNER: SCANNABLE 2-COLUMN SIP RECOMMENDATION CARD
@@ -1517,12 +1541,127 @@ with tab_holdings:
     st.dataframe(pd.DataFrame(day1_table_data), use_container_width=True, hide_index=True)
 
     # -------------------------------------------------------------
-    # SECTION B: ACTIVE TACTICAL HOLDINGS (MONTHLY SIP LOTS)
+    # SECTION B: MY EXISTING GROWW CORE & LOCKED ELSS HOLDINGS
+    # -------------------------------------------------------------
+    render_section_header("💼 Section B: My Existing Groww Core & Locked ELSS Holdings", "Clean, live valuation of active portfolio and segregated tax-saver holdings (100% direct equity, zero cash drag).", margin_top=20)
+
+    active_items = portfolio_sum.get("active_items", [])
+    locked_items = portfolio_sum.get("locked_items", [])
+
+    # Expandable Groww Folio Units Editor
+    with st.expander("✏️ Sync / Edit Groww Folio Units", expanded=False):
+        st.markdown(f"""
+        <div style='font-size:0.82rem; color:{T["text_secondary"]}; margin-bottom:10px;'>
+            <b>Update Exact Groww Folio Units & Invested Amounts:</b><br/>
+            Keep your engine valuation 100% matched to your Groww app. Whenever a SIP executes or units are credited, edit the exact unit balances, invested amounts, or folios below and click <b>Save & Sync with Groww</b>. Persists cleanly in Supabase PostgreSQL (with local SQLite fallback) so your portfolio net worth matches Groww to the rupee.
+        </div>
+        """, unsafe_allow_html=True)
+
+        editor_data = []
+        for it in active_items:
+            editor_data.append({
+                "Scheme Name": it["scheme_name"],
+                "Folio No": str(it.get("folio_no", "")),
+                "Units": float(it.get("units", 0.0)),
+                "Invested (₹)": float(it.get("invested_value", 0.0)),
+                "SIP (₹)": float(it.get("sip_amount", 0.0)),
+                "Type": "Active Core",
+                "Active": True
+            })
+        for it in locked_items:
+            editor_data.append({
+                "Scheme Name": it["scheme_name"],
+                "Folio No": str(it.get("folio_no", "")),
+                "Units": float(it.get("units", 0.0)),
+                "Invested (₹)": float(it.get("invested_value", 0.0)),
+                "SIP (₹)": float(it.get("sip_amount", 0.0)),
+                "Type": "ELSS Locked",
+                "Active": True
+            })
+
+        df_editor = pd.DataFrame(editor_data)
+        edited_df = st.data_editor(
+            df_editor,
+            use_container_width=True,
+            num_rows="dynamic",
+            key="groww_folio_editor_table",
+            column_config={
+                "Scheme Name": st.column_config.TextColumn("Fund Scheme Name", width="large", required=True),
+                "Folio No": st.column_config.TextColumn("Folio No", width="medium"),
+                "Units": st.column_config.NumberColumn("Units", format="%.3f", step=0.001, required=True),
+                "Invested (₹)": st.column_config.NumberColumn("Invested (₹)", format="₹%.2f", step=100.0, required=True),
+                "SIP (₹)": st.column_config.NumberColumn("SIP (₹)", format="₹%.0f", step=500.0),
+                "Type": st.column_config.SelectboxColumn("Type", options=["Active Core", "ELSS Locked"], required=True),
+                "Active": st.column_config.CheckboxColumn("Active", default=True)
+            }
+        )
+
+        col_save_btn, col_info = st.columns([1.6, 3.4])
+        with col_save_btn:
+            if st.button("💾 Save & Sync with Groww", type="primary", use_container_width=True, key="save_folio_units_btn"):
+                if update_groww_folio_units:
+                    update_groww_folio_units(edited_df.to_dict(orient="records"), db=db)
+                st.cache_data.clear()
+                if clear_nav_cache:
+                    clear_nav_cache()
+                if clear_universe_nav_cache:
+                    clear_universe_nav_cache()
+                st.toast("✅ Groww folio units successfully synced and persisted!", icon="💾")
+                st.rerun()
+        with col_info:
+            st.caption("ℹ️ Saving immediately updates both Supabase and SQLite, recalculating portfolio valuation to the rupee.")
+
+    # Consolidated Scorecard Table
+    scorecard_rows = []
+    for act in active_items:
+        scorecard_rows.append({
+            "Fund Scheme & Folio": f"{act['short_name']} (Folio {act['folio_no']})",
+            "Category / Type": act.get("sleeve", "Active Core"),
+            "Units": f"{act['units']:,.3f}",
+            "Live NAV": format_inr(act["current_nav"], decimals=2),
+            "NAV Date": act.get("nav_date", ""),
+            "Current Value": format_inr(act["current_value"]),
+            "Invested": format_inr(act["invested_value"]),
+            "All-Time Gain": f"{format_inr(act['gain_rupees'], show_sign=True)} ({act['gain_pct']:+.1f}%)",
+            "200-DMA Dist": f"{act['dma_dist_pct']:+.1f}% (Bullish)" if act['dma_dist_pct'] >= 0 else f"{act['dma_dist_pct']:+.1f}%",
+            "Role": f"Active ({format_inr(act['sip_amount'])}/mo)" if act['sip_amount'] > 0 else "Active Hold"
+        })
+
+    for lck in locked_items:
+        scorecard_rows.append({
+            "Fund Scheme & Folio": f"{lck['short_name']} (Folio {lck['folio_no']})",
+            "Category / Type": "🔒 ELSS Tax Saver",
+            "Units": f"{lck['units']:,.3f}",
+            "Live NAV": format_inr(lck["current_nav"], decimals=2),
+            "NAV Date": lck.get("nav_date", ""),
+            "Current Value": format_inr(lck["current_value"]),
+            "Invested": format_inr(lck["invested_value"]),
+            "All-Time Gain": f"{format_inr(lck['gain_rupees'], show_sign=True)} ({lck['gain_pct']:+.1f}%)",
+            "200-DMA Dist": f"{lck['dma_dist_pct']:+.1f}% (Bullish)" if lck['dma_dist_pct'] >= 0 else f"{lck['dma_dist_pct']:+.1f}%",
+            "Role": "Locked (3-Yr Tax Saver)"
+        })
+
+    st.dataframe(pd.DataFrame(scorecard_rows), use_container_width=True, hide_index=True)
+
+    # Summary Footer Bar
+    active_val = portfolio_sum.get("active_value", 1558114.0)
+    locked_val = portfolio_sum.get("locked_value", 366540.0)
+    render_html(f"""
+    <div style='background:{T["bg_card"]}; border:1px solid {T["border"]}; border-radius:10px; padding:10px 16px; margin-top:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; font-size:0.78rem;'>
+        <span>Active Tradable (4 Funds): <b class='mono-num' style='color:#059669;'>{format_inr(active_val)}</b></span>
+        <span>Locked ELSS (2 Funds): <b class='mono-num' style='color:{T["text_secondary"]};'>{format_inr(locked_val)}</b></span>
+        <span>Total Net Worth: <b class='mono-num' style='color:{T["text_primary"]};'>{format_inr(tot_net_worth)}</b> (100% Equity, Zero Cash Drag)</span>
+        <span style='color:{T["text_muted"]}; font-weight:600;'>📅 {portfolio_sum.get("nav_date_label", "Latest AMFI NAVs")}</span>
+    </div>
+    """)
+
+    # -------------------------------------------------------------
+    # SECTION C: ACTIVE TACTICAL HOLDINGS (MONTHLY SIP LOTS)
     # -------------------------------------------------------------
     render_section_header(
-        "🏆 Section B: Active Tactical Holdings (Monthly SIP Lots)",
+        "🏆 Section C: Active Tactical Holdings (Monthly SIP Lots)",
         "Automated lot-by-lot tracking of locked monthly SIP executions with live AMFI valuation, exact days held, and 365-day LTCG / exit-load eligibility.",
-        margin_top=16
+        margin_top=24
     )
 
     tact_data = get_tactical_holdings_lots(as_of_date=date.today(), db=db)
@@ -1597,55 +1736,6 @@ with tab_holdings:
             </div>
         </div>
         """)
-
-    # -------------------------------------------------------------
-    # SECTION C: MY EXISTING GROWW CORE & LOCKED ELSS SCORECARD
-    # -------------------------------------------------------------
-    render_section_header("💼 Section C: My Existing Groww Core & Locked ELSS Holdings", "Clean, live valuation of active portfolio and segregated tax-saver holdings (100% direct equity, zero cash drag).", margin_top=20)
-
-    active_items = portfolio_sum.get("active_items", [])
-    locked_items = portfolio_sum.get("locked_items", [])
-
-    # Consolidated Scorecard Table
-    scorecard_rows = []
-    for act in active_items:
-        scorecard_rows.append({
-            "Fund Scheme & Folio": f"{act['short_name']} (Folio {act['folio_no']})",
-            "Category / Type": act.get("sleeve", "Active Core"),
-            "Units": f"{act['units']:,.3f}",
-            "Live NAV": format_inr(act["current_nav"], decimals=2),
-            "Current Value": format_inr(act["current_value"]),
-            "Invested": format_inr(act["invested_value"]),
-            "All-Time Gain": f"{format_inr(act['gain_rupees'], show_sign=True)} ({act['gain_pct']:+.1f}%)",
-            "200-DMA Dist": f"{act['dma_dist_pct']:+.1f}% (Bullish)" if act['dma_dist_pct'] >= 0 else f"{act['dma_dist_pct']:+.1f}%",
-            "Role": f"Active ({format_inr(act['sip_amount'])}/mo)" if act['sip_amount'] > 0 else "Active Hold"
-        })
-
-    for lck in locked_items:
-        scorecard_rows.append({
-            "Fund Scheme & Folio": f"{lck['short_name']} (Folio {lck['folio_no']})",
-            "Category / Type": "🔒 ELSS Tax Saver",
-            "Units": f"{lck['units']:,.3f}",
-            "Live NAV": format_inr(lck["current_nav"], decimals=2),
-            "Current Value": format_inr(lck["current_value"]),
-            "Invested": format_inr(lck["invested_value"]),
-            "All-Time Gain": f"{format_inr(lck['gain_rupees'], show_sign=True)} ({lck['gain_pct']:+.1f}%)",
-            "200-DMA Dist": f"{lck['dma_dist_pct']:+.1f}% (Bullish)" if lck['dma_dist_pct'] >= 0 else f"{lck['dma_dist_pct']:+.1f}%",
-            "Role": "Locked (3-Yr Tax Saver)"
-        })
-
-    st.dataframe(pd.DataFrame(scorecard_rows), use_container_width=True, hide_index=True)
-
-    # Summary Footer Bar
-    active_val = portfolio_sum.get("active_value", 1558114.0)
-    locked_val = portfolio_sum.get("locked_value", 366540.0)
-    render_html(f"""
-    <div style='background:{T["bg_card"]}; border:1px solid {T["border"]}; border-radius:10px; padding:10px 16px; margin-top:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; font-size:0.78rem;'>
-        <span>Active Tradable (4 Funds): <b class='mono-num' style='color:#059669;'>{format_inr(active_val)}</b></span>
-        <span>Locked ELSS (2 Funds): <b class='mono-num' style='color:{T["text_secondary"]};'>{format_inr(locked_val)}</b></span>
-        <span>Total Net Worth: <b class='mono-num' style='color:{T["text_primary"]};'>{format_inr(tot_net_worth)}</b> (100% Equity, Zero Cash Drag)</span>
-    </div>
-    """)
 
 # =====================================================================
 # TAB 3: ALPHA TRACKER, BACKTEST & INTERACTIVE SIMULATOR

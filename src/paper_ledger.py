@@ -71,16 +71,34 @@ __all__ = [
     "get_tactical_holdings_lots",
     "log_monthly_execution",
     "fetch_scheme_nav_history",
-    "get_nav_on_or_before"
+    "get_nav_on_or_before",
+    "get_nav_and_date_on_or_before",
+    "clear_nav_cache",
+    "update_groww_folio_units"
 ]
+
+try:
+    import streamlit as st
+    _st_cache_data = st.cache_data(ttl=3600, show_spinner=False)
+except Exception:
+    def _st_cache_data(fn):
+        return fn
 
 # Cache for fetched NAV histories
 _NAV_CACHE: Dict[int, Dict[str, float]] = {}
 
 
-def fetch_scheme_nav_history(scheme_code: int) -> Dict[str, float]:
-    """Fetches full historical daily NAV dictionary keyed by 'YYYY-MM-DD'."""
-    if scheme_code in _NAV_CACHE:
+def clear_nav_cache():
+    """Clears both module-level and Streamlit memory caches for scheme NAVs."""
+    global _NAV_CACHE
+    _NAV_CACHE.clear()
+
+
+@_st_cache_data
+def fetch_scheme_nav_history(scheme_code: int, force_refresh: bool = False) -> Dict[str, float]:
+    """Fetches full historical daily NAV dictionary keyed by 'YYYY-MM-DD' from mfapi.in with 1-hr cache."""
+    global _NAV_CACHE
+    if not force_refresh and scheme_code in _NAV_CACHE:
         return _NAV_CACHE[scheme_code]
 
     url = f"https://api.mfapi.in/mf/{scheme_code}"
@@ -103,19 +121,25 @@ def fetch_scheme_nav_history(scheme_code: int) -> Dict[str, float]:
         return {}
 
 
-def get_nav_on_or_before(nav_dict: Dict[str, float], target_date: date) -> float:
-    """Gets NAV for date or closest prior business day."""
+def get_nav_and_date_on_or_before(nav_dict: Dict[str, float], target_date: date) -> Tuple[float, str]:
+    """Gets (nav, iso_date_str) for date or closest prior business day."""
     curr = target_date
-    for _ in range(10):
+    for _ in range(12):
         iso_str = curr.isoformat()
         if iso_str in nav_dict:
-            return nav_dict[iso_str]
+            return nav_dict[iso_str], iso_str
         curr -= timedelta(days=1)
     if nav_dict:
         # Return latest available
         first_key = sorted(nav_dict.keys(), reverse=True)[0]
-        return nav_dict[first_key]
-    return 100.0
+        return nav_dict[first_key], first_key
+    return 100.0, target_date.isoformat()
+
+
+def get_nav_on_or_before(nav_dict: Dict[str, float], target_date: date) -> float:
+    """Gets NAV for date or closest prior business day."""
+    nav, _ = get_nav_and_date_on_or_before(nav_dict, target_date)
+    return nav
 
 
 def calculate_friction_and_drag(
@@ -695,6 +719,7 @@ def get_live_portfolio_summary(db=None) -> Dict[str, Any]:
     - Gain/loss in ₹ and %
     - Overall Net Worth (100% equity invested, zero cash drag)
     - Smart LTCG switch safety check (>365d holdings >8% below 200-DMA)
+    - Latest AMFI NAV Date tracking with T+1 detection for US Tech FoF
     """
     if db is None:
         db = get_db()
@@ -719,22 +744,33 @@ def get_live_portfolio_summary(db=None) -> Dict[str, Any]:
     locked_inv_sum = 0.0
 
     today = date.today()
+    domestic_dates: List[str] = []
+    us_tech_date: Optional[str] = None
 
     for h in all_holdings:
         name = h["scheme_name"]
-        code = scheme_code_map.get(name)
+        code = scheme_code_map.get(name) or h.get("scheme_code")
         units = float(h.get("units", 0))
         invested = float(h.get("invested_value", 0))
         folio = h.get("folio_no", "N/A")
         sleeve = h.get("sleeve", "CORE")
         sip_amt = float(h.get("sip_amount", 0))
         is_locked = bool(h.get("is_locked", False))
+        is_active = bool(h.get("is_active", True))
+
+        if not is_active and not is_locked:
+            continue
 
         nav_dict = fetch_scheme_nav_history(code) if code else {}
+        matched_nav_date = str(today)
         if nav_dict:
-            curr_nav = get_nav_on_or_before(nav_dict, today)
+            curr_nav, matched_nav_date = get_nav_and_date_on_or_before(nav_dict, today)
             nav_200 = get_nav_on_or_before(nav_dict, today - timedelta(days=200))
             dma_dist = round(((curr_nav - nav_200) / nav_200 * 100.0), 2) if nav_200 > 0 else 0.0
+            if "Edelweiss" in name or code == 148063:
+                us_tech_date = matched_nav_date
+            else:
+                domestic_dates.append(matched_nav_date)
         else:
             curr_nav = float(h.get("current_nav", 0))
             dma_dist = 5.0
@@ -782,7 +818,8 @@ def get_live_portfolio_summary(db=None) -> Dict[str, Any]:
             "status_badge": status_badge,
             "status_color": status_color,
             "status_note": status_note,
-            "is_locked": is_locked
+            "is_locked": is_locked,
+            "nav_date": matched_nav_date
         }
 
         if is_locked:
@@ -805,6 +842,13 @@ def get_live_portfolio_summary(db=None) -> Dict[str, Any]:
     total_gain_rs = round(total_net_worth - total_invested, 2)
     total_gain_pct = round((total_gain_rs / total_invested * 100.0), 2) if total_invested > 0 else 0.0
 
+    latest_domestic_nav_date = max(domestic_dates) if domestic_dates else str(today)
+    is_us_tech_t_plus_1 = bool(us_tech_date and us_tech_date < latest_domestic_nav_date)
+    if is_us_tech_t_plus_1:
+        nav_date_label = f"Latest AMFI NAV Date: {latest_domestic_nav_date} (US Tech FoF: T+1)"
+    else:
+        nav_date_label = f"Latest AMFI NAV Date: {latest_domestic_nav_date}"
+
     return {
         "active_items": active_items,
         "locked_items": locked_items,
@@ -822,7 +866,139 @@ def get_live_portfolio_summary(db=None) -> Dict[str, Any]:
         "total_gain_pct": total_gain_pct,
         "equity_pct": 100.0,
         "cash_pct": 0.0,
-        "as_of_date": str(today)
+        "as_of_date": str(today),
+        "latest_nav_date": latest_domestic_nav_date,
+        "us_tech_nav_date": us_tech_date,
+        "is_us_tech_t_plus_1": is_us_tech_t_plus_1,
+        "nav_date_label": nav_date_label
+    }
+
+
+def update_groww_folio_units(
+    records: List[Dict[str, Any]],
+    db = None
+) -> Dict[str, Any]:
+    """
+    Updates and persists Groww portfolio holdings (units, invested values, folio numbers).
+    Syncs cleanly to Supabase PostgreSQL with local SQLite and app_state fallback.
+    """
+    if db is None:
+        db = get_db()
+
+    canonical_scheme_map = {
+        "Motilal Oswal Midcap Fund Direct Growth": {
+            "scheme_code": 127042, "amc": "Motilal Oswal", "category": "EQUITY", "sub_category": "Mid Cap",
+            "sleeve": "MID_SMALL", "benchmark_ticker": "^NSEMDCP50", "tax_category": "DOMESTIC_EQUITY"
+        },
+        "Nippon India Small Cap Fund Direct Growth": {
+            "scheme_code": 118778, "amc": "Nippon India", "category": "EQUITY", "sub_category": "Small Cap",
+            "sleeve": "MID_SMALL", "benchmark_ticker": "^CNXSC", "tax_category": "DOMESTIC_EQUITY"
+        },
+        "Parag Parikh Flexi Cap Fund Direct Growth": {
+            "scheme_code": 122639, "amc": "PPFAS", "category": "EQUITY", "sub_category": "Flexi Cap",
+            "sleeve": "NIFTY_500", "benchmark_ticker": "^CRSLDX", "tax_category": "DOMESTIC_EQUITY"
+        },
+        "Edelweiss US Technology Equity FoF Direct Growth": {
+            "scheme_code": 148063, "amc": "Edelweiss", "category": "INTERNATIONAL", "sub_category": "US Tech",
+            "sleeve": "NASDAQ_100", "benchmark_ticker": "^NDX", "tax_category": "FOREIGN_FOF"
+        },
+        "Mirae Asset ELSS Tax Saver Fund Direct Growth": {
+            "scheme_code": 135781, "amc": "Mirae Asset", "category": "ELSS", "sub_category": "ELSS Tax Saver",
+            "sleeve": "CORE", "benchmark_ticker": "^CRSLDX", "tax_category": "DOMESTIC_EQUITY"
+        },
+        "Quant ELSS Tax Saver Fund Direct Growth": {
+            "scheme_code": 120847, "amc": "Quant", "category": "ELSS", "sub_category": "ELSS Tax Saver",
+            "sleeve": "CORE", "benchmark_ticker": "^CRSLDX", "tax_category": "DOMESTIC_EQUITY"
+        }
+    }
+
+    existing = {h["scheme_name"]: h for h in db.get_holdings(active_only=False)}
+    now_iso = datetime.now().isoformat()
+    holdings_to_upsert = []
+    incoming_names = set()
+
+    for r in records:
+        raw_name = str(r.get("Scheme Name") or r.get("scheme_name") or "").strip()
+        if not raw_name:
+            continue
+
+        canonical_name = raw_name
+        meta = canonical_scheme_map.get(raw_name)
+        if not meta:
+            for c_name, c_meta in canonical_scheme_map.items():
+                if raw_name.lower() in c_name.lower() or c_name.lower() in raw_name.lower():
+                    canonical_name = c_name
+                    meta = c_meta
+                    break
+
+        incoming_names.add(canonical_name)
+        orig = existing.get(canonical_name, {})
+
+        units_val = r.get("Units") if "Units" in r else r.get("units", orig.get("units", 0.0))
+        inv_val = r.get("Invested (₹)") if "Invested (₹)" in r else (r.get("invested_value", orig.get("invested_value", 0.0)))
+        folio_val = r.get("Folio No") if "Folio No" in r else r.get("folio_no", orig.get("folio_no", ""))
+        sip_val = r.get("SIP (₹)") if "SIP (₹)" in r else r.get("sip_amount", orig.get("sip_amount", 0.0))
+
+        units = float(units_val or 0.0)
+        invested = float(inv_val or 0.0)
+        folio = str(folio_val or "").strip()
+        sip_amt = float(sip_val or 0.0)
+
+        type_str = str(r.get("Type") or ("ELSS Locked" if orig.get("is_locked") else "Active Core"))
+        is_locked = (type_str == "ELSS Locked" or bool(r.get("is_locked", False)))
+        is_active = bool(r.get("Active", r.get("is_active", True)))
+
+        code = meta["scheme_code"] if meta else int(orig.get("scheme_code", 0) or 0)
+        sleeve = meta["sleeve"] if meta else orig.get("sleeve", "CORE")
+        cat = meta["category"] if meta else orig.get("category", "EQUITY")
+        sub_cat = meta["sub_category"] if meta else orig.get("sub_category", "")
+        amc = meta["amc"] if meta else orig.get("amc", "")
+        ticker = meta["benchmark_ticker"] if meta else orig.get("benchmark_ticker", "^CRSLDX")
+        tax_cat = meta["tax_category"] if meta else orig.get("tax_category", "DOMESTIC_EQUITY")
+
+        h_item = {
+            "scheme_name": canonical_name,
+            "scheme_code": code,
+            "amc": amc,
+            "category": cat,
+            "sub_category": sub_cat,
+            "folio_no": folio,
+            "units": units,
+            "invested_value": invested,
+            "current_nav": float(orig.get("current_nav", 0.0)),
+            "current_value": round(units * float(orig.get("current_nav", 0.0)), 2),
+            "benchmark_ticker": ticker,
+            "sleeve": sleeve,
+            "sip_amount": sip_amt,
+            "sip_day": int(orig.get("sip_day", 3)),
+            "exit_load_rules": orig.get("exit_load_rules", {}),
+            "tax_category": tax_cat,
+            "is_active": is_active,
+            "is_locked": is_locked,
+            "updated_at": now_iso
+        }
+        holdings_to_upsert.append(h_item)
+
+    # Deactivate any previous holding not in incoming records
+    for name, old_h in existing.items():
+        if name not in incoming_names:
+            deact_h = dict(old_h)
+            deact_h["is_active"] = False
+            deact_h["updated_at"] = now_iso
+            holdings_to_upsert.append(deact_h)
+
+    # Upsert to DB
+    saved = db.upsert_holdings(holdings_to_upsert)
+
+    try:
+        db.set_app_state("groww_custom_holdings", holdings_to_upsert)
+    except Exception as e:
+        print(f"[PaperLedger] Notice caching custom holdings: {e}")
+
+    return {
+        "success": True,
+        "count": len(holdings_to_upsert),
+        "holdings": holdings_to_upsert
     }
 
 

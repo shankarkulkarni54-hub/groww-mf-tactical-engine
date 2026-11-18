@@ -23,6 +23,7 @@ try:
         compute_sleeve_regime,
         compute_fund_volatility_90d,
         fetch_universe_navs,
+        clear_universe_nav_cache,
         get_universe_nav_on
     )
 except (ImportError, ModuleNotFoundError):
@@ -39,6 +40,7 @@ except (ImportError, ModuleNotFoundError):
         compute_sleeve_regime,
         compute_fund_volatility_90d,
         fetch_universe_navs,
+        clear_universe_nav_cache,
         get_universe_nav_on
     )
 
@@ -52,7 +54,10 @@ try:
         get_tactical_holdings_lots,
         log_monthly_execution,
         fetch_scheme_nav_history,
-        get_nav_on_or_before
+        clear_nav_cache,
+        get_nav_on_or_before,
+        get_nav_and_date_on_or_before,
+        update_groww_folio_units
     )
 except (ImportError, ModuleNotFoundError):
     from paper_ledger import (
@@ -64,7 +69,10 @@ except (ImportError, ModuleNotFoundError):
         get_tactical_holdings_lots,
         log_monthly_execution,
         fetch_scheme_nav_history,
-        get_nav_on_or_before
+        clear_nav_cache,
+        get_nav_on_or_before,
+        get_nav_and_date_on_or_before,
+        update_groww_folio_units
     )
 
 try:
@@ -86,6 +94,7 @@ __all__ = [
     "compute_sleeve_regime",
     "compute_fund_volatility_90d",
     "fetch_universe_navs",
+    "clear_universe_nav_cache",
     "get_universe_nav_on",
     # Paper Ledger
     "evaluate_tactical_decisions",
@@ -96,7 +105,10 @@ __all__ = [
     "get_tactical_holdings_lots",
     "log_monthly_execution",
     "fetch_scheme_nav_history",
+    "clear_nav_cache",
     "get_nav_on_or_before",
+    "get_nav_and_date_on_or_before",
+    "update_groww_folio_units",
     # Database
     "get_db"
 ]
