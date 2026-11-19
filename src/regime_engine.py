@@ -102,6 +102,8 @@ __all__ = [
     "SLEEVE_CONFIG",
     "UNRESTRICTED_UNIVERSE",
     "fetch_universe_navs",
+    "fetch_amfi_live_navs",
+    "clear_amfi_cache",
     "clear_universe_nav_cache",
     "get_universe_nav_on",
     "compute_fund_volatility_90d",
@@ -289,12 +291,24 @@ UNRESTRICTED_UNIVERSE: Dict[str, Dict[str, Any]] = {
 
 try:
     import streamlit as st
-    _st_cache_data = st.cache_data(ttl=3600, show_spinner=False)
+    _st_cache_data_1h = st.cache_data(ttl=3600, show_spinner=False)
+    _st_cache_data_30m = st.cache_data(ttl=1800, show_spinner=False)
 except Exception:
-    def _st_cache_data(fn):
+    def _st_cache_data_1h(fn):
+        return fn
+    def _st_cache_data_30m(fn):
         return fn
 
+_st_cache_data = _st_cache_data_1h
+
+_AMFI_LIVE_CACHE: Dict[int, Dict[str, Any]] = {}
 _UNRESTRICTED_NAV_CACHE: Dict[int, Dict[str, float]] = {}
+
+
+def clear_amfi_cache():
+    """Clears module-level cache for official AMFI NAVs."""
+    global _AMFI_LIVE_CACHE
+    _AMFI_LIVE_CACHE.clear()
 
 
 def clear_universe_nav_cache():
@@ -303,10 +317,83 @@ def clear_universe_nav_cache():
     _UNRESTRICTED_NAV_CACHE.clear()
 
 
-@_st_cache_data
+@_st_cache_data_30m
+def fetch_amfi_live_navs(force_refresh: bool = False) -> Dict[int, Dict[str, Any]]:
+    """
+    Fetches the latest official daily closing NAVs directly from AMFI:
+    https://www.amfiindia.com/spages/NAVAll.txt
+    Cached for ttl=1800 (30 minutes). Bypassed when force_refresh=True.
+    Returns mapping: {scheme_code (int): {'nav': float, 'date': 'YYYY-MM-DD', 'name': str}}
+    """
+    global _AMFI_LIVE_CACHE
+    if force_refresh:
+        _AMFI_LIVE_CACHE.clear()
+
+    if _AMFI_LIVE_CACHE and not force_refresh:
+        return _AMFI_LIVE_CACHE
+
+    url = "https://www.amfiindia.com/spages/NAVAll.txt"
+    month_map = {
+        "jan": "01", "feb": "02", "mar": "03", "apr": "04", "may": "05", "jun": "06",
+        "jul": "07", "aug": "08", "sep": "09", "oct": "10", "nov": "11", "dec": "12"
+    }
+    try:
+        resp = requests.get(url, timeout=15)
+        if resp.status_code == 200:
+            parsed: Dict[int, Dict[str, Any]] = {}
+            for line in resp.text.splitlines():
+                if ";" not in line:
+                    continue
+                parts = line.strip().split(";")
+                if len(parts) >= 6:
+                    code_str = parts[0].strip()
+                    if not code_str.isdigit():
+                        continue
+                    code = int(code_str)
+                    nav_str = parts[-2].strip()
+                    date_str = parts[-1].strip()
+                    scheme_name = parts[3].strip() if len(parts) > 3 else ""
+
+                    try:
+                        nav_val = float(nav_str)
+                    except (ValueError, TypeError):
+                        continue
+
+                    iso_date = ""
+                    d_pts = date_str.split("-")
+                    if len(d_pts) == 3:
+                        if len(d_pts[2]) == 4:
+                            yr = d_pts[2]
+                            mo = month_map.get(d_pts[1].lower(), d_pts[1].zfill(2))
+                            dy = d_pts[0].zfill(2)
+                            iso_date = f"{yr}-{mo}-{dy}"
+                        elif len(d_pts[0]) == 4:
+                            yr = d_pts[0]
+                            mo = month_map.get(d_pts[1].lower(), d_pts[1].zfill(2))
+                            dy = d_pts[2].zfill(2)
+                            iso_date = f"{yr}-{mo}-{dy}"
+
+                    if not iso_date:
+                        iso_date = str(date.today())
+
+                    parsed[code] = {
+                        "nav": nav_val,
+                        "date": iso_date,
+                        "name": scheme_name
+                    }
+            if parsed:
+                _AMFI_LIVE_CACHE = parsed
+    except Exception as e:
+        print(f"[RegimeEngine] Warning: Could not fetch official AMFI NAVs: {e}")
+
+    return _AMFI_LIVE_CACHE
+
+
+@_st_cache_data_1h
 def fetch_universe_navs(force_refresh: bool = False) -> Dict[str, Dict[str, float]]:
-    """Fetches daily NAVs for all 13 universe funds from mfapi.in with 1-hr cache."""
+    """Fetches daily NAVs for universe funds from mfapi.in with 1-hr cache, patched with latest AMFI closing NAV."""
     global _UNRESTRICTED_NAV_CACHE
+    amfi_live = fetch_amfi_live_navs(force_refresh=force_refresh)
     result = {}
     for key, meta in UNRESTRICTED_UNIVERSE.items():
         code = meta["amfi_code"]
@@ -324,6 +411,11 @@ def fetch_universe_navs(force_refresh: bool = False) -> Dict[str, Dict[str, floa
                     val = float(item.get("nav", 0))
                     if val > 0:
                         d_dict[iso] = val
+            # Patch latest official AMFI closing NAV if available
+            if code in amfi_live:
+                live_entry = amfi_live[code]
+                if live_entry.get("nav", 0) > 0 and live_entry.get("date"):
+                    d_dict[live_entry["date"]] = float(live_entry["nav"])
             _UNRESTRICTED_NAV_CACHE[code] = d_dict
             result[key] = d_dict
         except Exception as e:

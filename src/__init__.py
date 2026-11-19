@@ -23,6 +23,8 @@ try:
         compute_sleeve_regime,
         compute_fund_volatility_90d,
         fetch_universe_navs,
+        fetch_amfi_live_navs,
+        clear_amfi_cache,
         clear_universe_nav_cache,
         get_universe_nav_on
     )
@@ -40,6 +42,8 @@ except (ImportError, ModuleNotFoundError):
         compute_sleeve_regime,
         compute_fund_volatility_90d,
         fetch_universe_navs,
+        fetch_amfi_live_navs,
+        clear_amfi_cache,
         clear_universe_nav_cache,
         get_universe_nav_on
     )
@@ -94,6 +98,8 @@ __all__ = [
     "compute_sleeve_regime",
     "compute_fund_volatility_90d",
     "fetch_universe_navs",
+    "fetch_amfi_live_navs",
+    "clear_amfi_cache",
     "clear_universe_nav_cache",
     "get_universe_nav_on",
     # Paper Ledger

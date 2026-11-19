@@ -27,6 +27,8 @@ try:
         UNRESTRICTED_UNIVERSE,
         check_smart_ltcg_switches,
         fetch_universe_navs,
+        fetch_amfi_live_navs,
+        clear_amfi_cache,
         get_universe_nav_on,
         format_inr
     )
@@ -38,6 +40,8 @@ except (ImportError, ModuleNotFoundError):
             UNRESTRICTED_UNIVERSE,
             check_smart_ltcg_switches,
             fetch_universe_navs,
+            fetch_amfi_live_navs,
+            clear_amfi_cache,
             get_universe_nav_on,
             format_inr
         )
@@ -48,6 +52,8 @@ except (ImportError, ModuleNotFoundError):
             UNRESTRICTED_UNIVERSE,
             check_smart_ltcg_switches,
             fetch_universe_navs,
+            fetch_amfi_live_navs,
+            clear_amfi_cache,
             get_universe_nav_on,
             format_inr
         )
@@ -74,6 +80,8 @@ __all__ = [
     "get_nav_on_or_before",
     "get_nav_and_date_on_or_before",
     "clear_nav_cache",
+    "fetch_amfi_live_navs",
+    "clear_amfi_cache",
     "update_groww_folio_units"
 ]
 
@@ -89,9 +97,13 @@ _NAV_CACHE: Dict[int, Dict[str, float]] = {}
 
 
 def clear_nav_cache():
-    """Clears both module-level and Streamlit memory caches for scheme NAVs."""
+    """Clears both module-level and Streamlit memory caches for scheme NAVs and AMFI."""
     global _NAV_CACHE
     _NAV_CACHE.clear()
+    try:
+        clear_amfi_cache()
+    except Exception:
+        pass
 
 
 @_st_cache_data
@@ -714,12 +726,13 @@ def get_live_portfolio_summary(db=None) -> Dict[str, Any]:
     Returns the real consolidated portfolio summary directly from user's live Groww holdings:
     - Active Tradable Core (4 funds: Motilal Midcap, Nippon Smallcap, PPFC, Edelweiss US Tech)
     - Locked ELSS (2 funds: Mirae Asset ELSS, Quant ELSS)
-    - Live daily NAVs from mfapi.in
+    - Primary Live NAV Source: Official AMFI Feed (https://www.amfiindia.com/spages/NAVAll.txt)
+    - Historical Time-Series & 200-DMA: mfapi.in
     - 200-DMA distance % for each holding
     - Gain/loss in ₹ and %
     - Overall Net Worth (100% equity invested, zero cash drag)
     - Smart LTCG switch safety check (>365d holdings >8% below 200-DMA)
-    - Latest AMFI NAV Date tracking with T+1 detection for US Tech FoF
+    - Latest AMFI NAV Date tracking with explicit Edelweiss US Tech FoF (T+1) transparency
     """
     if db is None:
         db = get_db()
@@ -735,6 +748,13 @@ def get_live_portfolio_summary(db=None) -> Dict[str, Any]:
         "Quant ELSS Tax Saver Fund Direct Growth": 120847,
     }
 
+    # Fetch official AMFI live feed directly
+    amfi_live: Dict[int, Dict[str, Any]] = {}
+    try:
+        amfi_live = fetch_amfi_live_navs()
+    except Exception as e:
+        print(f"[PaperLedger] Could not fetch live AMFI feed: {e}")
+
     active_items = []
     locked_items = []
 
@@ -747,6 +767,28 @@ def get_live_portfolio_summary(db=None) -> Dict[str, Any]:
     domestic_dates: List[str] = []
     us_tech_date: Optional[str] = None
 
+    # First pass: determine latest domestic and US tech AMFI dates
+    for h in all_holdings:
+        name = h["scheme_name"]
+        code = scheme_code_map.get(name) or h.get("scheme_code")
+        if not code:
+            continue
+        if code in amfi_live:
+            d_val = amfi_live[code]["date"]
+            if "Edelweiss" in name or code == 148063:
+                us_tech_date = d_val
+            else:
+                domestic_dates.append(d_val)
+
+    latest_domestic_nav_date = max(domestic_dates) if domestic_dates else str(today)
+    is_us_tech_t_plus_1 = bool(us_tech_date and us_tech_date < latest_domestic_nav_date)
+
+    if is_us_tech_t_plus_1:
+        nav_date_label = f"Latest AMFI NAV Date: {latest_domestic_nav_date} • Edelweiss US Tech FoF (T+1)"
+    else:
+        nav_date_label = f"Latest AMFI NAV Date: {latest_domestic_nav_date}"
+
+    # Second pass: calculate live valuations using official AMFI NAVs
     for h in all_holdings:
         name = h["scheme_name"]
         code = scheme_code_map.get(name) or h.get("scheme_code")
@@ -763,16 +805,21 @@ def get_live_portfolio_summary(db=None) -> Dict[str, Any]:
 
         nav_dict = fetch_scheme_nav_history(code) if code else {}
         matched_nav_date = str(today)
-        if nav_dict:
+
+        if code and code in amfi_live:
+            curr_nav = float(amfi_live[code]["nav"])
+            matched_nav_date = str(amfi_live[code]["date"])
+            if nav_dict:
+                nav_dict[matched_nav_date] = curr_nav
+        elif nav_dict:
             curr_nav, matched_nav_date = get_nav_and_date_on_or_before(nav_dict, today)
-            nav_200 = get_nav_on_or_before(nav_dict, today - timedelta(days=200))
-            dma_dist = round(((curr_nav - nav_200) / nav_200 * 100.0), 2) if nav_200 > 0 else 0.0
-            if "Edelweiss" in name or code == 148063:
-                us_tech_date = matched_nav_date
-            else:
-                domestic_dates.append(matched_nav_date)
         else:
             curr_nav = float(h.get("current_nav", 0))
+
+        if nav_dict:
+            nav_200 = get_nav_on_or_before(nav_dict, today - timedelta(days=200))
+            dma_dist = round(((curr_nav - nav_200) / nav_200 * 100.0), 2) if nav_200 > 0 else 0.0
+        else:
             dma_dist = 5.0
 
         curr_val = round(units * curr_nav, 2)
@@ -802,6 +849,9 @@ def get_live_portfolio_summary(db=None) -> Dict[str, Any]:
                 .replace(" Tax Saver", "")
         )
 
+        is_us_tech = ("Edelweiss" in name or code == 148063)
+        display_nav_date = f"{matched_nav_date} (T+1)" if (is_us_tech and is_us_tech_t_plus_1) else matched_nav_date
+
         item = {
             "scheme_name": name,
             "short_name": short_name,
@@ -819,7 +869,7 @@ def get_live_portfolio_summary(db=None) -> Dict[str, Any]:
             "status_color": status_color,
             "status_note": status_note,
             "is_locked": is_locked,
-            "nav_date": matched_nav_date
+            "nav_date": display_nav_date
         }
 
         if is_locked:
@@ -841,13 +891,6 @@ def get_live_portfolio_summary(db=None) -> Dict[str, Any]:
     total_invested = round(active_inv_sum + locked_inv_sum, 2)
     total_gain_rs = round(total_net_worth - total_invested, 2)
     total_gain_pct = round((total_gain_rs / total_invested * 100.0), 2) if total_invested > 0 else 0.0
-
-    latest_domestic_nav_date = max(domestic_dates) if domestic_dates else str(today)
-    is_us_tech_t_plus_1 = bool(us_tech_date and us_tech_date < latest_domestic_nav_date)
-    if is_us_tech_t_plus_1:
-        nav_date_label = f"Latest AMFI NAV Date: {latest_domestic_nav_date} (US Tech FoF: T+1)"
-    else:
-        nav_date_label = f"Latest AMFI NAV Date: {latest_domestic_nav_date}"
 
     return {
         "active_items": active_items,

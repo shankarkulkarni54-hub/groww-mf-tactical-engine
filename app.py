@@ -31,6 +31,8 @@ try:
         get_or_create_monthly_signal,
         check_smart_ltcg_switches,
         get_fund_chart_data,
+        fetch_amfi_live_navs,
+        clear_amfi_cache,
         clear_universe_nav_cache,
         format_inr
     )
@@ -44,6 +46,8 @@ except (ImportError, ModuleNotFoundError):
             get_or_create_monthly_signal,
             check_smart_ltcg_switches,
             get_fund_chart_data,
+            fetch_amfi_live_navs,
+            clear_amfi_cache,
             clear_universe_nav_cache,
             format_inr
         )
@@ -56,6 +60,8 @@ except (ImportError, ModuleNotFoundError):
             get_or_create_monthly_signal,
             check_smart_ltcg_switches,
             get_fund_chart_data,
+            fetch_amfi_live_navs,
+            clear_amfi_cache,
             clear_universe_nav_cache,
             format_inr
         )
@@ -1056,13 +1062,17 @@ with col_kpi_ribbon:
     """)
 with col_kpi_action:
     st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-    if st.button("🔄 Refresh Live NAVs", use_container_width=True, help="Clears 1-hour cache (st.cache_data.clear()) and forces fresh daily AMFI NAV retrieval for all Groww & Universe funds from mfapi.in"):
+    if st.button("🔄 Refresh Live NAVs", use_container_width=True, help="Bypasses AMFI 30-min cache and mfapi 1-hr cache, fetching the latest daily closing NAVs directly from official AMFI feed"):
         st.cache_data.clear()
+        if clear_amfi_cache:
+            clear_amfi_cache()
         if clear_nav_cache:
             clear_nav_cache()
         if clear_universe_nav_cache:
             clear_universe_nav_cache()
-        st.toast("Refreshed latest AMFI NAVs!", icon="🔄")
+        if fetch_amfi_live_navs:
+            fetch_amfi_live_navs(force_refresh=True)
+        st.toast("Refreshed latest official AMFI closing NAVs!", icon="🔄")
         st.rerun()
 
 # =====================================================================
@@ -1618,7 +1628,7 @@ with tab_holdings:
             "Fund Scheme & Folio": f"{act['short_name']} (Folio {act['folio_no']})",
             "Category / Type": act.get("sleeve", "Active Core"),
             "Units": f"{act['units']:,.3f}",
-            "Live NAV": format_inr(act["current_nav"], decimals=2),
+            "Latest NAV": format_inr(act["current_nav"], decimals=2),
             "NAV Date": act.get("nav_date", ""),
             "Current Value": format_inr(act["current_value"]),
             "Invested": format_inr(act["invested_value"]),
@@ -1632,7 +1642,7 @@ with tab_holdings:
             "Fund Scheme & Folio": f"{lck['short_name']} (Folio {lck['folio_no']})",
             "Category / Type": "🔒 ELSS Tax Saver",
             "Units": f"{lck['units']:,.3f}",
-            "Live NAV": format_inr(lck["current_nav"], decimals=2),
+            "Latest NAV": format_inr(lck["current_nav"], decimals=2),
             "NAV Date": lck.get("nav_date", ""),
             "Current Value": format_inr(lck["current_value"]),
             "Invested": format_inr(lck["invested_value"]),
