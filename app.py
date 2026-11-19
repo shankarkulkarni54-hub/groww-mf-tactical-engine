@@ -1004,7 +1004,7 @@ with top_strip_left:
         </span>
         <span style='color:{T["border_light"]}; font-size:0.9rem;'>|</span>
         <span style='font-family:\"Inter\", sans-serif; font-size:0.82rem; color:{T["text_secondary"]}; font-weight:500;'>
-            Groww Direct Portfolios • <b style='color:{T["accent_blue"]};'>17.55% AI Momentum</b>
+            Groww Direct Portfolios • <b style='color:{T["accent_blue"]};'>16.53% AI Momentum</b>
         </span>
         <span style='color:{T["border_light"]}; font-size:0.9rem;'>|</span>
         <span class='badge-pill pill-emerald' style='font-size:0.75rem; font-weight:700;'>
@@ -1062,20 +1062,20 @@ with col_kpi_ribbon:
         <!-- Tile 2: 5-Yr Alpha vs Nifty 500 -->
         <div class='kpi-tile' style='border-left: 3px solid #2563EB;'>
             <div class='kpi-label'>5-Yr Alpha vs Nifty 500</div>
-            <div class='kpi-value' style='color:#059669;'>+{format_inr(872787)}</div>
+            <div class='kpi-value' style='color:#059669;'>+{format_inr(756035)}</div>
             <div class='kpi-sub'>
-                <span class='badge-pill pill-emerald mono-num'>+8.28% p.a.</span>
-                <span style='color:#64748B; font-size:0.72rem;'>17.55% vs 9.27%</span>
+                <span class='badge-pill pill-emerald mono-num'>+7.26% p.a.</span>
+                <span style='color:#64748B; font-size:0.72rem;'>16.53% vs 9.27%</span>
             </div>
         </div>
 
         <!-- Tile 3: 5-Yr Alpha vs Passive Groww -->
         <div class='kpi-tile' style='border-left: 3px solid #D97706;'>
             <div class='kpi-label'>5-Yr Alpha vs Passive Groww</div>
-            <div class='kpi-value' style='color:#059669;'>+{format_inr(329792)}</div>
+            <div class='kpi-value' style='color:#059669;'>+{format_inr(217291)}</div>
             <div class='kpi-sub'>
-                <span class='badge-pill pill-amber mono-num'>+2.95% p.a.</span>
-                <span style='color:#64748B; font-size:0.72rem;'>17.55% vs 14.60%</span>
+                <span class='badge-pill pill-amber mono-num'>+1.97% p.a.</span>
+                <span style='color:#64748B; font-size:0.72rem;'>16.53% vs 14.56%</span>
             </div>
         </div>
 
@@ -1110,7 +1110,7 @@ with col_kpi_action:
 # =====================================================================
 col_hero_hdr, col_hero_input = st.columns([2.7, 1.3])
 with col_hero_hdr:
-    render_section_header("📅 Monthly SIP Allocation Directive", "Governed by Winning 17.55% AI Engine • Dec 3, 2026 Kickoff", margin_top=4)
+    render_section_header("📅 Monthly SIP Allocation Directive", "Governed by Winning 16.53% AI Engine • Dec 3, 2026 Kickoff", margin_top=4)
 with col_hero_input:
     active_budget = float(st.number_input(
         "This Month's SIP Budget (₹)",
@@ -1180,7 +1180,7 @@ render_html(f"""
                 <span class='badge-pill pill-blue'>Next Signal Refresh: {monthly_signal.get("next_refresh_label", "December 2")}</span>
             </div>
             <div style='font-size:0.78rem; color:{T["text_secondary"]}; margin-top:2px;'>
-                Governed by Winning 17.55% AI Engine • <span class='mono-num' style='font-weight:700; color:#059669;'>{format_inr(active_budget)}</span>/Month Capital ({'50/50 Split: ' + format_inr(p1_amt) + ' each' if active_budget > 0 else 'Month Skipped'})
+                Governed by Winning 16.53% AI Engine • <span class='mono-num' style='font-weight:700; color:#059669;'>{format_inr(active_budget)}</span>/Month Capital ({'50/50 Split: ' + format_inr(p1_amt) + ' each' if active_budget > 0 else 'Month Skipped'})
             </div>
         </div>
         <div>
@@ -1237,8 +1237,16 @@ render_html(f"""
         </div>
     </div>
 
+    <!-- Institutional Execution Playbook: Bypass AMC Lumpsum Caps -->
+    <div style='margin-top:12px; background:rgba(37, 99, 235, 0.06); border:1px solid rgba(59, 130, 246, 0.25); border-radius:8px; padding:10px 14px; display:flex; align-items:center; gap:10px;'>
+        <span style='font-size:1.1rem;'>💡</span>
+        <div style='font-size:0.77rem; color:{T["text_secondary"]}; line-height:1.4;'>
+            <b style='color:{T["accent_blue"]};'>Groww Execution Playbook:</b> Set up an <b>Editable/Skippable Monthly SIP Order</b> on Groww scheduled for the 3rd rather than a one-time lumpsum order. This completely bypasses AMC lumpsum caps (e.g., Nippon Small Cap's ₹0 lumpsum restriction) while allowing you to edit or skip your monthly budget at any time.
+        </div>
+    </div>
+
     <!-- Smart LTCG & Execution Footnote -->
-    <div style='margin-top:12px; padding-top:10px; border-top:1px solid {T["border"]}; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;'>
+    <div style='margin-top:10px; padding-top:10px; border-top:1px solid {T["border"]}; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;'>
         <div style='display:flex; align-items:center; gap:6px;'>
             <span class='badge-pill pill-emerald'>🛡️ Smart LTCG Status</span>
             <span style='font-size:0.75rem; color:{T["text_secondary"]};'>Zero churn triggered — all active units trade safely above 200-DMA bands.</span>
@@ -1504,8 +1512,8 @@ with tab_holdings:
             <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(active_budget)}<span style='font-size:0.70rem; color:{T["text_secondary"]};'>/mo</span></div>
             <div style='font-size:0.72rem; color:{T["text_secondary"]}; margin-top:4px;'>{'Top 2 Leaders (' + format_inr(round(active_budget * 0.5, 2)) + ' each)' if active_budget > 0 else 'Month Skipped (₹0)'}</div>
             <div style='margin-top:8px;'>
-                <span class='badge-pill pill-emerald mono-num'>17.55% XIRR</span>
-                <span class='mono-num' style='font-size:0.68rem; color:{T["text_secondary"]}; margin-left:4px;'>-13.9% DD</span>
+                <span class='badge-pill pill-emerald mono-num'>16.53% XIRR</span>
+                <span class='mono-num' style='font-size:0.68rem; color:{T["text_secondary"]}; margin-left:4px;'>-12.9% DD</span>
             </div>
         </div>
 
@@ -1515,7 +1523,7 @@ with tab_holdings:
             <div class='mono-num' style='font-size:1.20rem; font-weight:800; color:{T["text_primary"]}; margin-top:2px;'>{format_inr(active_budget)}<span style='font-size:0.70rem; color:{T["text_secondary"]};'>/mo</span></div>
             <div style='font-size:0.72rem; color:{T["text_secondary"]}; margin-top:4px;'>{'PPFC ' + format_inr(round(active_budget * 0.2, 2)) + ' + MOMC ' + format_inr(round(active_budget * 0.4, 2)) + ' + NISC ' + format_inr(round(active_budget * 0.4, 2)) if active_budget > 0 else 'Month Skipped (₹0)'}</div>
             <div style='margin-top:8px;'>
-                <span class='badge-pill pill-amber mono-num'>14.60% XIRR</span>
+                <span class='badge-pill pill-amber mono-num'>14.56% XIRR</span>
                 <span class='mono-num' style='font-size:0.68rem; color:{T["text_secondary"]}; margin-left:4px;'>-15.9% DD</span>
             </div>
         </div>
@@ -1550,7 +1558,7 @@ with tab_holdings:
     day1 = fwd.get("day1_preview", {})
     day1_filter = st.selectbox(
         "Filter Strategy",
-        ["All Strategies (Consolidated)", "🏆 Winning 17.55% AI Engine", "📦 My Passive Groww SIPs", "🌐 Nifty 500 Broad Market", "🏛️ Nifty 50 Large Cap"],
+        ["All Strategies (Consolidated)", "🏆 Winning 16.53% AI Engine", "📦 My Passive Groww SIPs", "🌐 Nifty 500 Broad Market", "🏛️ Nifty 50 Large Cap"],
         index=0
     )
 
@@ -1796,7 +1804,7 @@ with tab_chart:
     # 1. INTERACTIVE SIP & CORPUS SIMULATOR
     # -------------------------------------------------------------
     if "Simulator" in alpha_subtab:
-        render_section_header("🔮 Interactive SIP & Corpus Simulator", "Project your future post-tax wealth under the Winning 17.55% AI Engine vs. Passive Groww vs. Nifty 500 vs. Nifty 50.")
+        render_section_header("🔮 Interactive SIP & Corpus Simulator", "Project your future post-tax wealth under the Winning 16.53% AI Engine vs. Passive Groww vs. Nifty 500 vs. Nifty 50.")
 
         sim_col1, sim_col2, sim_col3 = st.columns(3)
         with sim_col1:
@@ -1848,8 +1856,8 @@ with tab_chart:
         tot_invested_sim = cum_invested
 
         strat_cagr = {
-            "ai": 0.1755,
-            "groww": 0.1460,
+            "ai": 0.1653,
+            "groww": 0.1456,
             "n500": 0.0927,
             "n50": 0.0749
         }
@@ -1891,7 +1899,7 @@ with tab_chart:
             <!-- Strategy 1: Winning AI Engine -->
             <div class='fin-card' style='border-top:3px solid #059669; padding:12px 14px;'>
                 <div style='display:flex; justify-content:space-between; align-items:center;'>
-                    <span style='font-size:0.72rem; color:#059669; font-weight:700;'>🏆 AI ENGINE (17.55%)</span>
+                    <span style='font-size:0.72rem; color:#059669; font-weight:700;'>🏆 AI ENGINE (16.53%)</span>
                     <span class='badge-pill pill-emerald' style='font-size:0.65rem;'>Top Alpha</span>
                 </div>
                 <div class='mono-num' style='font-size:1.24rem; font-weight:800; color:{T["text_primary"]}; margin-top:4px;'>{format_inr(final_ai)}</div>
@@ -1968,7 +1976,7 @@ with tab_chart:
             x=list(range(1, n_months + 1)),
             y=curves["ai"],
             mode="lines",
-            name="🏆 Winning AI Engine (17.55%)",
+            name="🏆 Winning AI Engine (16.53%)",
             line=dict(color="#059669", width=2.6),
             customdata=[format_inr(v) for v in curves["ai"]],
             hovertemplate="AI Engine: %{customdata}<extra></extra>"
@@ -2402,7 +2410,7 @@ with tab_settings:
         <div class='fin-card' style='padding:12px 14px;'>
             <div style='font-size:0.75rem; color:{T["text_secondary"]}; font-weight:700;'>TACTICAL STRATEGY</div>
             <div style='font-size:0.90rem; font-weight:700; color:#059669; margin-top:2px;'>
-                Winning 17.55% AI Engine (Active)
+                Winning 16.53% AI Engine (Active)
             </div>
         </div>
     </div>

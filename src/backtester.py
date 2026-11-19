@@ -113,6 +113,17 @@ def calculate_xirr(cash_flows: List[Tuple[date, float]]) -> float:
     return round(mid * 100.0, 2)
 
 
+def add_business_days(start_date: date, n_days: int) -> date:
+    """Adds n business days (Monday-Friday) to start_date, skipping weekends."""
+    cur = start_date
+    added = 0
+    while added < n_days:
+        cur += timedelta(days=1)
+        if cur.weekday() < 5:  # Mon to Fri
+            added += 1
+    return cur
+
+
 def compute_portfolio_tax_and_friction(
     lots_dict: Dict[str, List[TaxLot]],
     navs_dict: Dict[str, Dict[str, float]],
@@ -120,9 +131,10 @@ def compute_portfolio_tax_and_friction(
 ) -> Tuple[float, float, float, float]:
     """
     Computes gross portfolio value, net portfolio value, total tax liability,
-    and total exit load friction following strict FIFO lot tracking and Indian MF tax laws:
-    - Equity: 20% STCG if held <= 365 days; 12.5% LTCG if held > 365 days (with ₹1.25L annual exemption).
-    - Gold / International: 20% capital gains tax.
+    and total exit load friction following strict FIFO lot tracking and FY 2026-27 Indian MF tax laws:
+    - Domestic Equity: 20% STCG if held <= 365 days; 12.5% LTCG if held > 365 days (above ₹1.25L annual exemption).
+    - Liquid / Debt: 30% marginal income tax slab rate on all gains regardless of holding duration (Finance Act 2023).
+    - Gold / International FoF: 24-month (730d) threshold: 30% slab rate if <= 730d; 12.5% LTCG if > 730d.
     - Exit Load: Exact fund rules if held < exit_days.
     Returns: (gross_total, net_total, total_tax, total_exit_load)
     """
@@ -145,7 +157,7 @@ def compute_portfolio_tax_and_friction(
             if holding_days < lot.exit_days:
                 total_exit_load += (lot.exit_pct / 100.0) * lot_gross
 
-            # Capital Gains Tax
+            # Capital Gains Tax (FY 2026-27 Compliance)
             if gain > 0:
                 if lot.category == "EQUITY":
                     if holding_days <= 365:
@@ -155,10 +167,17 @@ def compute_portfolio_tax_and_friction(
                         annual_equity_exemption -= exempt
                         taxable = max(0.0, gain - exempt)
                         total_tax += 0.125 * taxable  # 12.5% LTCG above ₹1.25L
-                elif lot.category == "CASH":
-                    pass  # Liquid cash NAV yield handled as ordinary interest
-                else:  # Commodity Gold / International Tech
-                    total_tax += 0.20 * gain
+                elif lot.category in ("CASH", "DEBT"):
+                    # Liquid / Debt: Marginal income tax slab rate 30%
+                    total_tax += 0.30 * gain
+                else:
+                    # Gold Mutual Funds & International FoFs:
+                    # <= 730 days: Marginal income tax slab rate 30%
+                    # > 730 days: 12.5% LTCG (no 1.25L equity exemption)
+                    if holding_days <= 730:
+                        total_tax += 0.30 * gain
+                    else:
+                        total_tax += 0.125 * gain
 
     net_total = max(0.0, gross_total - total_tax - total_exit_load)
     return gross_total, net_total, total_tax, total_exit_load
@@ -189,6 +208,7 @@ def simulate_engine_variant(
     net_sip_invested = monthly_sip_amount * (1.0 - stamp_duty_pct)
     ai_lots: Dict[str, List[TaxLot]] = {k: [] for k in UNRESTRICTED_UNIVERSE}
     ai_cfs: List[Tuple[date, float]] = []
+    pending_switches: List[Dict[str, Any]] = []
 
     current_fy = None
     fy_exempt_used = 0.0
@@ -204,8 +224,32 @@ def simulate_engine_variant(
             current_fy = fy
             fy_exempt_used = 0.0
 
-        # Time-weighted return pre-cash flow
+        # Process matured inter-AMC switches after T+3 business-day settlement lag
+        rem_switches = []
+        for ps in pending_switches:
+            if ps["settle_date"] <= curr_date:
+                dest_k = ps["destination"]
+                t_nav = get_universe_nav_on(navs_dict.get(dest_k, {}), curr_date)
+                t_meta = UNRESTRICTED_UNIVERSE[dest_k]
+                ai_lots[dest_k].append(TaxLot(
+                    purchase_date=curr_date,
+                    units=ps["proceeds"] / t_nav,
+                    purchase_nav=t_nav,
+                    category=t_meta["category"],
+                    exit_days=t_meta["exit_load_days"],
+                    exit_pct=t_meta["exit_load_pct"],
+                    scheme_key=dest_k,
+                    invested_amount=ps["proceeds"]
+                ))
+            else:
+                rem_switches.append(ps)
+        pending_switches = rem_switches
+
+        # Time-weighted return pre-cash flow (including cash in transit)
+        in_transit_cash = sum(ps["proceeds"] for ps in pending_switches)
         g_pre, n_pre, t_pre, e_pre = compute_portfolio_tax_and_friction(ai_lots, navs_dict, curr_date)
+        g_pre += in_transit_cash
+        n_pre += in_transit_cash
         if prev_net > 0:
             daily_twrs.append((n_pre - prev_net) / prev_net)
 
@@ -244,9 +288,32 @@ def simulate_engine_variant(
                     invested_amount=amt
                 ))
 
-            # Multi-Crore Tax-Smart Switch (>365d & >8% below 200-DMA, ₹1.25L tax-free priority + 25% quarterly cap on >₹25L lots)
+            # Smart LTCG Switch (>365d & >8% below 200-DMA):
+            # 1. 100% immediate exit on breakdown (removed 25% quarterly cap for capital preservation)
+            # 2. Institutional Fallback Protocol: If ZERO equity qualify above 200-DMA, route to Bear Mode Liquid/Gold
+            # 3. Realistic T+3 settlement lag: hold switch proceeds in transit cash for 3 business days
             active_keys = [k for k, _ in splits]
             primary_destination = splits[0][0]
+
+            # Check qualifying equity funds above 200-DMA
+            qualifying_equity = [
+                k for k, meta in UNRESTRICTED_UNIVERSE.items()
+                if meta.get("category") == "EQUITY"
+                and (
+                    (get_universe_nav_on(navs_dict.get(k, {}), dec_date) -
+                     get_universe_nav_on(navs_dict.get(k, {}), dec_date - timedelta(days=200)))
+                    / max(get_universe_nav_on(navs_dict.get(k, {}), dec_date - timedelta(days=200)), 1e-4)
+                    * 100.0 >= 0.0
+                )
+            ]
+            if len(qualifying_equity) == 0:
+                # Fallback: ZERO equity qualify above 200-DMA -> Bear Mode Liquid/Gold defensive bucket
+                gold_now = get_universe_nav_on(navs_dict.get("SBI_GOLD", {}), dec_date)
+                gold_200 = get_universe_nav_on(navs_dict.get("SBI_GOLD", {}), dec_date - timedelta(days=200))
+                gold_dma = ((gold_now - gold_200) / gold_200 * 100.0) if gold_200 > 0 else 0.0
+                switch_dest = "SBI_GOLD" if gold_dma >= 0.0 else "NIPPON_LIQUID"
+            else:
+                switch_dest = primary_destination
 
             for s_key, k_lots in list(ai_lots.items()):
                 if s_key in active_keys or s_key == "NIPPON_LIQUID" or not k_lots:
@@ -256,62 +323,57 @@ def simulate_engine_variant(
                 dma_d = ((f_now - f_200) / f_200 * 100.0) if f_200 > 0 else 0.0
                 if dma_d < -8.0:
                     cur_fund_nav = get_universe_nav_on(navs_dict.get(s_key, {}), curr_date)
-                    fund_total_val = sum(lot.units * cur_fund_nav for lot in k_lots)
-                    cap_ratio = 0.25 if fund_total_val > 2500000.0 else 1.0
-
                     remaining_lots = []
                     switch_proceeds = 0.0
                     for lot in k_lots:
-                        if (curr_date - lot.purchase_date).days >= 365:
-                            sell_units = lot.units * cap_ratio
-                            rem_units = lot.units - sell_units
-                            if rem_units > 1e-5:
-                                remaining_lots.append(TaxLot(
-                                    purchase_date=lot.purchase_date,
-                                    units=rem_units,
-                                    purchase_nav=lot.purchase_nav,
-                                    category=lot.category,
-                                    exit_days=lot.exit_days,
-                                    exit_pct=lot.exit_pct,
-                                    scheme_key=lot.scheme_key,
-                                    invested_amount=lot.invested_amount * (rem_units / lot.units)
-                                ))
+                        lot_hold_days = (curr_date - lot.purchase_date).days
+                        if lot_hold_days >= 365:
+                            # 100% exit of qualifying lot immediately (no 25% cap)
+                            sell_units = lot.units
                             lot_val = sell_units * cur_fund_nav
                             gain = lot_val - (sell_units * lot.purchase_nav)
+
+                            # Asset-Class Specific Indian Tax Rules (FY 2026-27 Compliance)
                             if lot.category == "EQUITY":
                                 avail = max(0.0, 125000.0 - fy_exempt_used)
                                 exempt = min(max(0.0, gain), avail)
                                 fy_exempt_used += exempt
                                 taxable = max(0.0, gain - exempt)
                                 tax = 0.125 * taxable
+                            elif lot.category in ("CASH", "DEBT"):
+                                tax = 0.30 * max(0.0, gain)
                             else:
-                                tax = 0.20 * max(0.0, gain)
+                                tax_rate = 0.30 if lot_hold_days <= 730 else 0.125
+                                tax = tax_rate * max(0.0, gain)
+
                             switch_proceeds += (lot_val - tax) * (1.0 - stamp_duty_pct)
                             switches_count += 1
                         else:
                             remaining_lots.append(lot)
                     ai_lots[s_key] = remaining_lots
                     if switch_proceeds > 0:
-                        t_nav = get_universe_nav_on(navs_dict.get(primary_destination, {}), curr_date)
-                        t_meta = UNRESTRICTED_UNIVERSE[primary_destination]
-                        ai_lots[primary_destination].append(TaxLot(
-                            purchase_date=curr_date,
-                            units=switch_proceeds / t_nav,
-                            purchase_nav=t_nav,
-                            category=t_meta["category"],
-                            exit_days=t_meta["exit_load_days"],
-                            exit_pct=t_meta["exit_load_pct"],
-                            scheme_key=primary_destination,
-                            invested_amount=switch_proceeds
-                        ))
+                        # Queue inter-AMC switch with T+3 business-day settlement lag
+                        settle_d = add_business_days(curr_date, 3)
+                        pending_switches.append({
+                            "settle_date": settle_d,
+                            "proceeds": switch_proceeds,
+                            "destination": switch_dest
+                        })
 
-        # Valuation post-deposit
+        # Valuation post-deposit (including transit cash)
+        in_transit_cash = sum(ps["proceeds"] for ps in pending_switches)
         g_post, n_post, t_post, e_post = compute_portfolio_tax_and_friction(ai_lots, navs_dict, curr_date)
+        g_post += in_transit_cash
+        n_post += in_transit_cash
         prev_net = n_post
         daily_records.append({"date": curr_date, "net": n_post})
         curr_date += timedelta(days=1)
 
+    # Terminal valuation at end_date
+    in_transit_cash = sum(ps["proceeds"] for ps in pending_switches)
     ai_final_g, ai_final_n, ai_final_tax, ai_final_exit = compute_portfolio_tax_and_friction(ai_lots, navs_dict, end_date)
+    ai_final_g += in_transit_cash
+    ai_final_n += in_transit_cash
     ai_cfs.append((end_date, ai_final_n))
 
     df_daily = pd.DataFrame(daily_records)
@@ -505,10 +567,41 @@ def run_five_year_backtest(force_refresh: bool = False) -> Dict[str, Any]:
     net_sip_invested = monthly_sip_amount - stamp_duty_rupees
     daily_cash_yield = (1.0 + 0.065) ** (1.0 / 365.0) - 1.0  # 6.5% p.a.
 
+    ai_pending_switches: List[Dict[str, Any]] = []
+    ai_current_fy = None
+    ai_fy_exempt_used = 0.0
+    switches_count = 0
+
     curr_date = start_date
     daily_records: List[Dict[str, Any]] = []
 
     while curr_date <= end_date:
+        fy = curr_date.year if curr_date.month >= 4 else curr_date.year - 1
+        if fy != ai_current_fy:
+            ai_current_fy = fy
+            ai_fy_exempt_used = 0.0
+
+        # Process matured inter-AMC switches after T+3 business-day settlement lag
+        rem_switches = []
+        for ps in ai_pending_switches:
+            if ps["settle_date"] <= curr_date:
+                dest_k = ps["destination"]
+                t_nav = get_universe_nav_on(navs_dict.get(dest_k, {}), curr_date)
+                t_meta = UNRESTRICTED_UNIVERSE[dest_k]
+                ai_lots[dest_k].append(TaxLot(
+                    purchase_date=curr_date,
+                    units=ps["proceeds"] / t_nav,
+                    purchase_nav=t_nav,
+                    category=t_meta["category"],
+                    exit_days=t_meta["exit_load_days"],
+                    exit_pct=t_meta["exit_load_pct"],
+                    scheme_key=dest_k,
+                    invested_amount=ps["proceeds"]
+                ))
+            else:
+                rem_switches.append(ps)
+        ai_pending_switches = rem_switches
+
         # On the 3rd of every month: Execute ₹50,000 SIP across all strategies & benchmarks
         if curr_date.day == 3:
             total_invested += monthly_sip_amount
@@ -597,42 +690,72 @@ def run_five_year_backtest(force_refresh: bool = False) -> Dict[str, Any]:
                 )
                 ai_lots[k].append(lot)
 
-            # Smart LTCG Switch: For existing holdings, if held > 365 days (0% exit load, 12.5% LTCG)
-            # and current price is < -8.0% below 200-DMA (structural breakdown), harvest proceeds and switch into top leader
-            for s_key, k_lots in ai_lots.items():
+            # Smart LTCG Switch (>365d & >8% below 200-DMA):
+            # 1. 100% immediate exit on breakdown (removed 25% quarterly cap for capital preservation)
+            # 2. Institutional Fallback Protocol: If ZERO equity qualify above 200-DMA, route to Bear Mode Liquid/Gold
+            # 3. Realistic T+3 settlement lag: hold switch proceeds in transit cash for 3 business days
+            qualifying_equity = [
+                k for k, meta in UNRESTRICTED_UNIVERSE.items()
+                if meta.get("category") == "EQUITY"
+                and (
+                    (get_universe_nav_on(navs_dict.get(k, {}), dec_date) -
+                     get_universe_nav_on(navs_dict.get(k, {}), dec_date - timedelta(days=200)))
+                    / max(get_universe_nav_on(navs_dict.get(k, {}), dec_date - timedelta(days=200)), 1e-4)
+                    * 100.0 >= 0.0
+                )
+            ]
+            if len(qualifying_equity) == 0:
+                # Fallback: ZERO equity qualify above 200-DMA -> Bear Mode Liquid/Gold defensive bucket
+                gold_now = get_universe_nav_on(navs_dict.get("SBI_GOLD", {}), dec_date)
+                gold_200 = get_universe_nav_on(navs_dict.get("SBI_GOLD", {}), dec_date - timedelta(days=200))
+                gold_dma = ((gold_now - gold_200) / gold_200 * 100.0) if gold_200 > 0 else 0.0
+                switch_dest = "SBI_GOLD" if gold_dma >= 0.0 else "NIPPON_LIQUID"
+            else:
+                switch_dest = top1_key
+
+            for s_key, k_lots in list(ai_lots.items()):
                 if s_key in [top1_key, top2_key, "NIPPON_LIQUID"] or not k_lots:
                     continue
                 f_now = get_universe_nav_on(navs_dict.get(s_key, {}), dec_date)
                 f_200 = get_universe_nav_on(navs_dict.get(s_key, {}), dec_date - timedelta(days=200))
                 dma_d = ((f_now - f_200) / f_200 * 100.0) if f_200 > 0 else 0.0
                 if dma_d < -8.0:
+                    cur_fund_nav = get_universe_nav_on(navs_dict.get(s_key, {}), curr_date)
                     remaining_lots = []
                     switch_proceeds = 0.0
                     for lot in k_lots:
                         lot_hold_days = (curr_date - lot.purchase_date).days
                         if lot_hold_days >= 365:
-                            sell_nav = get_universe_nav_on(navs_dict.get(s_key, {}), curr_date)
-                            lot_val = lot.units * sell_nav
-                            gain = lot_val - (lot.units * lot.purchase_nav)
-                            tax_rate = 0.125 if lot.category == "EQUITY" else 0.20
-                            tax = tax_rate * max(0.0, gain)
+                            # 100% exit of qualifying lot immediately (no 25% cap)
+                            sell_units = lot.units
+                            lot_val = sell_units * cur_fund_nav
+                            gain = lot_val - (sell_units * lot.purchase_nav)
+
+                            # Asset-Class Specific Indian Tax Rules (FY 2026-27 Compliance)
+                            if lot.category == "EQUITY":
+                                avail = max(0.0, 125000.0 - ai_fy_exempt_used)
+                                exempt = min(max(0.0, gain), avail)
+                                ai_fy_exempt_used += exempt
+                                taxable = max(0.0, gain - exempt)
+                                tax = 0.125 * taxable
+                            elif lot.category in ("CASH", "DEBT"):
+                                tax = 0.30 * max(0.0, gain)
+                            else:
+                                tax_rate = 0.30 if lot_hold_days <= 730 else 0.125
+                                tax = tax_rate * max(0.0, gain)
+
                             switch_proceeds += (lot_val - tax) * (1.0 - stamp_duty_pct)
+                            switches_count += 1
                         else:
                             remaining_lots.append(lot)
                     ai_lots[s_key] = remaining_lots
                     if switch_proceeds > 0:
-                        t_nav = get_universe_nav_on(navs_dict.get(top1_key, {}), curr_date)
-                        t_meta = UNRESTRICTED_UNIVERSE[top1_key]
-                        ai_lots[top1_key].append(TaxLot(
-                            purchase_date=curr_date,
-                            units=switch_proceeds / t_nav,
-                            purchase_nav=t_nav,
-                            category=t_meta["category"],
-                            exit_days=t_meta["exit_load_days"],
-                            exit_pct=t_meta["exit_load_pct"],
-                            scheme_key=top1_key,
-                            invested_amount=switch_proceeds
-                        ))
+                        settle_d = add_business_days(curr_date, 3)
+                        ai_pending_switches.append({
+                            "settle_date": settle_d,
+                            "proceeds": switch_proceeds,
+                            "destination": switch_dest
+                        })
 
             ai_picks_history.append({
                 "date": curr_date.isoformat(),
@@ -679,8 +802,12 @@ def run_five_year_backtest(force_refresh: bool = False) -> Dict[str, Any]:
         # Daily interest compounding on Cash Parking reserve
         cp_cash += cp_cash * daily_cash_yield
 
-        # Record daily valuation
+        # Record daily valuation (including AI cash in transit)
+        ai_transit_cash = sum(ps["proceeds"] for ps in ai_pending_switches)
         ai_g, ai_n, ai_t, ai_e = compute_portfolio_tax_and_friction(ai_lots, navs_dict, curr_date)
+        ai_g += ai_transit_cash
+        ai_n += ai_transit_cash
+
         p_g, p_n, p_t, p_e = compute_portfolio_tax_and_friction(p_lots, navs_dict, curr_date)
         cp_g, cp_n, cp_t, cp_e = compute_portfolio_tax_and_friction(cp_lots, navs_dict, curr_date)
         n50_g, n50_n, n50_t, n50_e = compute_portfolio_tax_and_friction(n50_lots, navs_dict, curr_date)
@@ -701,7 +828,10 @@ def run_five_year_backtest(force_refresh: bool = False) -> Dict[str, Any]:
         curr_date += timedelta(days=1)
 
     # --- FINAL TERMINAL VALUATIONS & POST-TAX RETURNS ---
+    ai_transit_cash = sum(ps["proceeds"] for ps in ai_pending_switches)
     ai_final_g, ai_final_n, ai_final_tax, ai_final_exit = compute_portfolio_tax_and_friction(ai_lots, navs_dict, end_date)
+    ai_final_g += ai_transit_cash
+    ai_final_n += ai_transit_cash
     p_final_g, p_final_n, p_final_tax, p_final_exit = compute_portfolio_tax_and_friction(p_lots, navs_dict, end_date)
     cp_final_g, cp_final_n, cp_final_tax, cp_final_exit = compute_portfolio_tax_and_friction(cp_lots, navs_dict, end_date)
     n50_final_g, n50_final_n, n50_final_tax, n50_final_exit = compute_portfolio_tax_and_friction(n50_lots, navs_dict, end_date)
@@ -783,6 +913,7 @@ def run_five_year_backtest(force_refresh: bool = False) -> Dict[str, Any]:
         "ai_max_dd": ai_max_dd,
         "ai_tax_paid": round(ai_final_tax, 2),
         "ai_exit_load_paid": round(ai_final_exit, 2),
+        "switches_count": switches_count,
 
         # Strategy 2: Passive Blind Groww SIPs
         "passive_net_corpus": round(p_final_n, 2),

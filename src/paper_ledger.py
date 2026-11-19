@@ -191,51 +191,74 @@ def calculate_friction_and_drag(
     holding_days: int = 400
 ) -> Dict[str, Any]:
     """
-    Computes exact exit load and tax drag:
+    Computes exact exit load and tax drag following FY 2026-27 Indian Tax Rules:
     - Exit Load based on holding duration
-    - STCG / LTCG tax:
-      * Domestic equity: LTCG > 365d at 12.5% (above 1.25L exemption), STCG <= 365d at 20%
-      * Foreign FoF (Edelweiss): 24-month rule (LTCG > 730d at 12.5%, STCG <= 730d at 20%)
+    - STCG / LTCG / Slab Tax:
+      * Domestic Equity (>65%): LTCG > 365d at 12.5% (above ₹1.25L exemption), STCG <= 365d at 20%
+      * Liquid / Debt: 30% marginal income tax slab rate regardless of holding period (Finance Act 2023)
+      * Gold & International FoF: 24-month (730d) threshold: 30% slab rate if <= 730d; 12.5% LTCG if > 730d
     - Total friction drag % relative to gross value.
     """
     current_val = units * current_nav
     capital_gain = max(0.0, current_val - invested_value)
+    s_lower = scheme_name.lower()
+
+    # Asset Class Classification
+    is_liquid_debt = "liquid" in s_lower or "debt" in s_lower
+    is_gold = "gold" in s_lower
+    is_foreign_fof = "edelweiss" in s_lower or "fof" in s_lower or "tech" in s_lower and "equity fof" in s_lower
+    is_gold_or_intl = is_gold or is_foreign_fof
 
     # 1. Exit load calculation
-    if "Motilal" in scheme_name or "Nippon" in scheme_name:
+    if is_liquid_debt:
+        load_pct = 0.005 if holding_days < 7 else 0.0
+    elif is_gold:
+        load_pct = 1.0 if holding_days < 15 else 0.0
+    elif is_foreign_fof:
+        load_pct = 1.0 if holding_days < 30 else 0.0
+    elif "motilal" in s_lower or "nippon" in s_lower:
         load_pct = 1.0 if holding_days < 365 else 0.0
-    elif "Parag Parikh" in scheme_name:
+    elif "parag parikh" in s_lower:
         if holding_days < 365:
             load_pct = 2.0
         elif holding_days <= 730:
             load_pct = 1.0
         else:
             load_pct = 0.0
-    elif "Edelweiss" in scheme_name:
-        load_pct = 1.0 if holding_days < 30 else 0.0
+    elif any(k in s_lower for k in ["tata", "pharma", "banking", "auto"]):
+        load_pct = 0.25 if holding_days < 30 else 0.0
+    elif "icici" in s_lower:
+        load_pct = 1.0 if holding_days < 15 else 0.0
     else:
         load_pct = 0.0
 
     exit_load_amount = (load_pct / 100.0) * current_val
 
-    # 2. Tax calculation
-    is_foreign_fof = "Edelweiss" in scheme_name
-    ltcg_threshold_days = 730 if is_foreign_fof else 365
-
+    # 2. Capital Gains / Income Tax Calculation (FY 2026-27 Compliance)
     stcg_tax = 0.0
     ltcg_tax = 0.0
+    slab_tax = 0.0
 
     if capital_gain > 0:
-        if holding_days <= ltcg_threshold_days:
-            stcg_tax = 0.20 * capital_gain
+        if is_liquid_debt:
+            # Liquid / Debt: Marginal income tax slab rate (30%) regardless of holding duration
+            slab_tax = 0.30 * capital_gain
+        elif is_gold_or_intl:
+            # Gold & International FoF: 24-month (730-day) LTCG threshold
+            if holding_days <= 730:
+                slab_tax = 0.30 * capital_gain  # 30% marginal slab rate
+            else:
+                ltcg_tax = 0.125 * capital_gain  # 12.5% LTCG after 730 days
         else:
-            # LTCG 12.5%
-            # For domestic, user has 1.25L annual exemption
-            exempt_portion = 0.0 if is_foreign_fof else min(capital_gain, 125000.0)
-            taxable_ltcg = max(0.0, capital_gain - exempt_portion)
-            ltcg_tax = 0.125 * taxable_ltcg
+            # Domestic Equity (>65%): 12-month (365-day) threshold
+            if holding_days <= 365:
+                stcg_tax = 0.20 * capital_gain  # 20% STCG
+            else:
+                exempt_portion = min(capital_gain, 125000.0)
+                taxable_ltcg = max(0.0, capital_gain - exempt_portion)
+                ltcg_tax = 0.125 * taxable_ltcg  # 12.5% LTCG above ₹1.25L exemption
 
-    total_friction_amount = exit_load_amount + stcg_tax + ltcg_tax
+    total_friction_amount = exit_load_amount + stcg_tax + ltcg_tax + slab_tax
     friction_drag_pct = (total_friction_amount / current_val * 100.0) if current_val > 0 else 0.0
 
     return {
@@ -245,6 +268,7 @@ def calculate_friction_and_drag(
         "exit_load_amount": round(exit_load_amount, 2),
         "stcg_tax": round(stcg_tax, 2),
         "ltcg_tax": round(ltcg_tax, 2),
+        "slab_tax": round(slab_tax, 2),
         "total_friction_amount": round(total_friction_amount, 2),
         "friction_drag_pct": round(friction_drag_pct, 2),
         "net_proceeds": round(current_val - total_friction_amount, 2)
@@ -1328,9 +1352,10 @@ def get_live_forward_challenge(
         "net_invested_per_month": round(monthly_sip - stamp_duty_amount, 2),
         "exit_load_on_fresh_sips": 0.0,
         "exit_load_note": "0% Exit Load on fresh monthly deployments (smart switching prioritizes fresh SIP capital over churning existing units).",
-        "stcg_rate_equity": "20% STCG on units redeemed <= 365 days",
-        "ltcg_rate_equity": "12.5% LTCG on gains above ₹1.25L annual exemption for units held > 365 days",
-        "debt_gold_rate": "20% tax on Gold / Foreign FoFs"
+        "stcg_rate_equity": "20% STCG on domestic equity units redeemed <= 365 days",
+        "ltcg_rate_equity": "12.5% LTCG on domestic equity gains above ₹1.25L annual exemption for units held > 365 days",
+        "debt_liquid_rate": "30% marginal income tax slab rate on Liquid / Debt funds regardless of holding duration",
+        "gold_intl_rate": "30% marginal slab rate if held <= 730 days (24 mos); 12.5% LTCG if held > 730 days"
     }
 
     # 4. Day-1 Allocation Preview (Exact Unit & Rupee Computation for Dec 3, 2026)

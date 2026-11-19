@@ -551,15 +551,29 @@ def score_unrestricted_universe(
     # Rank funds descending by score
     ranked_keys = sorted(fund_evaluations.keys(), key=lambda k: fund_evaluations[k]["score"], reverse=True)
 
-    top1_key = ranked_keys[0]
-    top2_key = ranked_keys[1]
+    # Institutional Fallback Protocol: Identify qualifying equity funds strictly above 200-DMA
+    qualifying_equity = [
+        k for k, meta in UNRESTRICTED_UNIVERSE.items()
+        if meta.get("category") == "EQUITY" and fund_evaluations.get(k, {}).get("dma_dist", -1.0) >= 0.0
+    ]
 
-    # Market crash check: if Nifty < 200-DMA by -5% and top equity score < 35
-    if nifty_dma_dist < -5.0 and fund_evaluations[top1_key]["score"] < 35.0:
-        top1_key = "SBI_GOLD" if fund_evaluations["SBI_GOLD"]["score"] >= 40.0 else "NIPPON_LIQUID"
+    gold_dma = fund_evaluations.get("SBI_GOLD", {}).get("dma_dist", -1.0)
+    gold_mom = fund_evaluations.get("SBI_GOLD", {}).get("mom_90", 0.0)
+    gold_viable = (gold_dma >= 0.0) or (gold_mom > 3.0)
+    bear_fallback_target = "SBI_GOLD" if gold_viable else "NIPPON_LIQUID"
+
+    if len(qualifying_equity) == 0:
+        # ZERO equity funds qualify above 200-DMA: route 100% into Bear Mode Liquid/Gold defensive bucket
+        top1_key = bear_fallback_target
+        top2_key = "NIPPON_LIQUID"
+        allocation_mode = "DEFENSIVE_BEAR_SHIELD"
+    elif nifty_dma_dist < -5.0 and fund_evaluations[ranked_keys[0]]["score"] < 35.0:
+        top1_key = bear_fallback_target
         top2_key = "NIPPON_LIQUID"
         allocation_mode = "DEFENSIVE_CASH_OR_GOLD"
     else:
+        top1_key = ranked_keys[0]
+        top2_key = ranked_keys[1]
         allocation_mode = "EQUITY_MOMENTUM_LEADERSHIP"
 
     top_picks = [
@@ -843,6 +857,7 @@ def check_smart_ltcg_switches(
     """
     Evaluates whether any active portfolio holding has broken down > 8.0% below its 200-DMA
     after being held for > 365 days, triggering a Smart LTCG Switch at 12.5% LTCG / 0% exit load.
+    If ZERO equity funds qualify above their 200-DMA, triggers Fallback Protocol to Bear Mode Liquid/Gold.
     """
     if as_of_date is None:
         as_of_date = date.today()
@@ -855,17 +870,63 @@ def check_smart_ltcg_switches(
         except Exception:
             holdings = []
 
-    name_to_key = {
-        "Motilal Oswal Midcap Fund Direct Growth": "MOMC",
-        "Nippon India Small Cap Fund Direct Growth": "NISC",
-        "Parag Parikh Flexi Cap Fund Direct Growth": "PPFC",
-        "Edelweiss US Technology Equity FoF Direct Growth": "EDEL_USTECH"
-    }
+    # Map scheme names to universe keys
+    name_to_key = {}
+    for u_k, u_meta in UNRESTRICTED_UNIVERSE.items():
+        name_to_key[u_meta["name"].lower()] = u_k
+        name_to_key[u_meta["short_name"].lower()] = u_k
+    name_to_key.update({
+        "motilal oswal midcap fund direct growth": "MOMC",
+        "nippon india small cap fund direct growth": "NISC",
+        "parag parikh flexi cap fund direct growth": "PPFC",
+        "edelweiss us technology equity fof direct growth": "EDEL_USTECH",
+        "uti nifty 50 index fund direct growth": "UTI_NIFTY50",
+        "motilal oswal nifty 500 index fund direct growth": "MO_NIFTY500",
+        "sbi gold fund direct growth": "SBI_GOLD",
+        "nippon india liquid fund direct growth": "NIPPON_LIQUID"
+    })
+
+    # Institutional Fallback Target Resolution:
+    # Check which equity funds qualify above 200-DMA
+    qualifying_equity = []
+    for eq_k, eq_meta in UNRESTRICTED_UNIVERSE.items():
+        if eq_meta.get("category") == "EQUITY" and eq_k in navs_dict:
+            f_now = get_universe_nav_on(navs_dict[eq_k], as_of_date)
+            f_200 = get_universe_nav_on(navs_dict[eq_k], as_of_date - timedelta(days=200))
+            f_dma = ((f_now - f_200) / f_200 * 100.0) if f_200 > 0 else 0.0
+            if f_dma >= 0.0:
+                f_90 = get_universe_nav_on(navs_dict[eq_k], as_of_date - timedelta(days=90))
+                mom_90 = ((f_now - f_90) / f_90 * 100.0) if f_90 > 0 else 0.0
+                qualifying_equity.append((mom_90, eq_k))
+
+    gold_navs = navs_dict.get("SBI_GOLD", {})
+    gold_now = get_universe_nav_on(gold_navs, as_of_date)
+    gold_200 = get_universe_nav_on(gold_navs, as_of_date - timedelta(days=200))
+    gold_dma = ((gold_now - gold_200) / gold_200 * 100.0) if gold_200 > 0 else 0.0
+
+    if qualifying_equity:
+        qualifying_equity.sort(reverse=True)
+        dest_key = qualifying_equity[0][1]
+        dest_meta = UNRESTRICTED_UNIVERSE[dest_key]
+        dest_name = dest_meta["short_name"]
+        is_fallback = False
+    else:
+        # Fallback Protocol: ZERO equity qualify above 200-DMA -> route to Bear Mode Liquid/Gold bucket
+        dest_key = "SBI_GOLD" if gold_dma >= 0.0 else "NIPPON_LIQUID"
+        dest_meta = UNRESTRICTED_UNIVERSE[dest_key]
+        dest_name = dest_meta["short_name"]
+        is_fallback = True
 
     alerts = []
     for h in holdings:
         s_name = h.get("scheme_name", "")
-        key = name_to_key.get(s_name)
+        key = name_to_key.get(s_name.lower())
+        if not key:
+            # Fallback substring match
+            for u_k, u_meta in UNRESTRICTED_UNIVERSE.items():
+                if u_meta["short_name"].lower() in s_name.lower():
+                    key = u_k
+                    break
         if not key or key not in navs_dict:
             continue
         f_navs = navs_dict[key]
@@ -878,9 +939,32 @@ def check_smart_ltcg_switches(
             current_val = units * n_now
             invested_val = float(h.get("invested_value", 0))
             gain = max(0.0, current_val - invested_val)
-            tax_rate = 0.20 if key == "EDEL_USTECH" else 0.125
-            taxable_gain = max(0.0, gain - (125000.0 if key != "EDEL_USTECH" else 0.0))
-            est_tax = tax_rate * taxable_gain
+
+            # Asset-Class Specific Indian Tax Rules (FY 2026-27 Compliance)
+            fund_cat = UNRESTRICTED_UNIVERSE.get(key, {}).get("category", "EQUITY")
+            if fund_cat == "EQUITY":
+                # Domestic Equity: 12.5% LTCG above ₹1.25L exemption (0% exit load since >365d)
+                taxable_gain = max(0.0, gain - 125000.0)
+                est_tax = 0.125 * taxable_gain
+            elif fund_cat in ("CASH", "DEBT"):
+                # Liquid/Debt: 30% marginal slab rate
+                est_tax = 0.30 * gain
+            else:
+                # Gold / International FoF: 12.5% LTCG after 730d (or 30% slab rate if <= 730d)
+                est_tax = 0.125 * gain
+
+            if is_fallback:
+                advice_msg = (
+                    f"Structural Breakdown: {s_name} is trading at {dma_dist:.1f}% vs 200-DMA (NAV {format_inr(n_now, decimals=2)} vs 200-DMA {format_inr(n_200, decimals=2)}). "
+                    f"Post-365d units qualify for 0% exit load. ZERO equity funds qualify above their 200-DMA. "
+                    f"Fallback Protocol active: Route 100% of redeemed proceeds into Bear Mode Defensive Bucket ({dest_name})."
+                )
+            else:
+                advice_msg = (
+                    f"Structural Breakdown: {s_name} is trading at {dma_dist:.1f}% vs 200-DMA (NAV {format_inr(n_now, decimals=2)} vs 200-DMA {format_inr(n_200, decimals=2)}). "
+                    f"Post-365d units qualify for 0% exit load and 12.5% LTCG. "
+                    f"Recommended: Harvest 100% of dead capital and switch proceeds into current #1 momentum leader ({dest_name})."
+                )
 
             alerts.append({
                 "scheme_name": s_name,
@@ -891,11 +975,10 @@ def check_smart_ltcg_switches(
                 "current_value": round(current_val, 2),
                 "units": units,
                 "estimated_tax": round(est_tax, 2),
-                "message": (
-                    f"Structural Breakdown: {s_name} is trading at {dma_dist:.1f}% vs 200-DMA (NAV {format_inr(n_now, decimals=2)} vs 200-DMA {format_inr(n_200, decimals=2)}). "
-                    f"Units held >365 days qualify for 0% exit load and 12.5% LTCG. "
-                    f"Recommended: Harvest dead capital and switch proceeds into current #1 momentum leader."
-                )
+                "switch_target_key": dest_key,
+                "switch_target_name": dest_name,
+                "is_fallback_protocol": is_fallback,
+                "message": advice_msg
             })
     return alerts
 
