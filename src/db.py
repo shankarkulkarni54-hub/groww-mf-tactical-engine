@@ -5,9 +5,11 @@ import json
 import sqlite3
 from datetime import datetime, date
 from typing import List, Dict, Any, Optional
-from dotenv import load_dotenv
-
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
 
 # Check Streamlit secrets if running inside Streamlit Cloud
 def _get_env_or_secret(key: str, default: str = "") -> str:

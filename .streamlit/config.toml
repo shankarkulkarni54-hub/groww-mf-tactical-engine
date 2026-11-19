@@ -11,3 +11,4 @@ headless = true
 
 [client]
 toolbarMode = "minimal"
+showErrorDetails = "full"

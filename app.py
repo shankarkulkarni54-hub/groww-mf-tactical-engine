@@ -3,12 +3,23 @@
 import os
 import sys
 
-# Ensure repository root and src directory are on sys.path
+# Ensure repository root and src directory take absolute precedence on sys.path
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 SRC_DIR = os.path.join(ROOT_DIR, "src")
-for p in [ROOT_DIR, SRC_DIR]:
-    if p not in sys.path:
-        sys.path.insert(0, p)
+
+# Prepend local directories to sys.path with highest priority
+sys.path = [p for p in sys.path if p not in (ROOT_DIR, SRC_DIR)]
+sys.path.insert(0, ROOT_DIR)
+sys.path.insert(0, SRC_DIR)
+
+# Evict any namespace or alien 'src' module that Streamlit Cloud (/mount/src) might inject
+if "src" in sys.modules:
+    _src_mod = sys.modules["src"]
+    _src_file = getattr(_src_mod, "__file__", "") or (
+        getattr(_src_mod, "__path__", [""])[0] if getattr(_src_mod, "__path__", None) else ""
+    )
+    if not _src_file or not _src_file.startswith(ROOT_DIR):
+        del sys.modules["src"]
 
 import textwrap
 import streamlit as st
@@ -17,13 +28,23 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime, date, timedelta
 
+# Enable full error details on Streamlit Cloud client
 try:
-    from src.db import get_db
-except (ImportError, ModuleNotFoundError):
-    from db import get_db
+    st.set_option("client.showErrorDetails", True)
+except Exception:
+    pass
 
 try:
-    from src.regime_engine import (
+    from db import get_db
+except Exception:
+    try:
+        from src.db import get_db
+    except Exception:
+        def get_db():
+            return None
+
+try:
+    from regime_engine import (
         update_all_regimes,
         SLEEVE_CONFIG,
         UNRESTRICTED_UNIVERSE,
@@ -36,9 +57,9 @@ try:
         clear_universe_nav_cache,
         format_inr
     )
-except (ImportError, ModuleNotFoundError):
+except Exception:
     try:
-        from regime_engine import (
+        from src.regime_engine import (
             update_all_regimes,
             SLEEVE_CONFIG,
             UNRESTRICTED_UNIVERSE,
@@ -51,7 +72,7 @@ except (ImportError, ModuleNotFoundError):
             clear_universe_nav_cache,
             format_inr
         )
-    except (ImportError, ModuleNotFoundError):
+    except Exception:
         from src import (
             update_all_regimes,
             SLEEVE_CONFIG,
@@ -67,7 +88,7 @@ except (ImportError, ModuleNotFoundError):
         )
 
 try:
-    from src.paper_ledger import (
+    from paper_ledger import (
         evaluate_tactical_decisions,
         calculate_friction_and_drag,
         get_live_portfolio_summary,
@@ -77,9 +98,9 @@ try:
         clear_nav_cache,
         update_groww_folio_units
     )
-except (ImportError, ModuleNotFoundError):
+except Exception:
     try:
-        from paper_ledger import (
+        from src.paper_ledger import (
             evaluate_tactical_decisions,
             calculate_friction_and_drag,
             get_live_portfolio_summary,
@@ -89,7 +110,7 @@ except (ImportError, ModuleNotFoundError):
             clear_nav_cache,
             update_groww_folio_units
         )
-    except (ImportError, ModuleNotFoundError):
+    except Exception:
         from src import (
             evaluate_tactical_decisions,
             calculate_friction_and_drag,
@@ -102,14 +123,23 @@ except (ImportError, ModuleNotFoundError):
         )
 
 try:
-    from src.telegram_bot import format_tactical_alert, send_telegram_alert
-except (ImportError, ModuleNotFoundError):
     from telegram_bot import format_tactical_alert, send_telegram_alert
+except Exception:
+    try:
+        from src.telegram_bot import format_tactical_alert, send_telegram_alert
+    except Exception:
+        def format_tactical_alert(*args, **kwargs):
+            return ""
+        def send_telegram_alert(*args, **kwargs):
+            return False
 
 try:
-    from src.backtester import run_five_year_backtest
-except (ImportError, ModuleNotFoundError):
     from backtester import run_five_year_backtest
+except Exception:
+    try:
+        from src.backtester import run_five_year_backtest
+    except Exception:
+        run_five_year_backtest = None
 
 # Streamlit Page Config - Full-Width Layout for Finology Bento Design
 st.set_page_config(

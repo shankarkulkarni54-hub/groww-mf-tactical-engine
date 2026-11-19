@@ -3,12 +3,12 @@
 import os
 import sys
 
-# Ensure repository root and src are on sys.path
+# Ensure repository root and src are on sys.path with absolute precedence
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _SRC_DIR = os.path.join(_REPO_ROOT, "src")
-for _p in [_REPO_ROOT, _SRC_DIR]:
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+sys.path = [p for p in sys.path if p not in (_SRC_DIR, _REPO_ROOT)]
+sys.path.insert(0, _REPO_ROOT)
+sys.path.insert(0, _SRC_DIR)
 
 import json
 import requests
@@ -16,12 +16,16 @@ from datetime import date, datetime, timedelta
 from typing import Dict, Any, List, Optional, Tuple
 
 try:
-    from src.db import get_db
-except (ImportError, ModuleNotFoundError):
     from db import get_db
+except Exception:
+    try:
+        from src.db import get_db
+    except Exception:
+        def get_db():
+            return None
 
 try:
-    from src.regime_engine import (
+    from regime_engine import (
         score_unrestricted_universe,
         get_or_create_monthly_signal,
         UNRESTRICTED_UNIVERSE,
@@ -32,6 +36,31 @@ try:
         get_universe_nav_on,
         format_inr
     )
+except Exception:
+    try:
+        from src.regime_engine import (
+            score_unrestricted_universe,
+            get_or_create_monthly_signal,
+            UNRESTRICTED_UNIVERSE,
+            check_smart_ltcg_switches,
+            fetch_universe_navs,
+            fetch_amfi_live_navs,
+            clear_amfi_cache,
+            get_universe_nav_on,
+            format_inr
+        )
+    except Exception:
+        from src import (
+            score_unrestricted_universe,
+            get_or_create_monthly_signal,
+            UNRESTRICTED_UNIVERSE,
+            check_smart_ltcg_switches,
+            fetch_universe_navs,
+            fetch_amfi_live_navs,
+            clear_amfi_cache,
+            get_universe_nav_on,
+            format_inr
+        )
 except (ImportError, ModuleNotFoundError):
     try:
         from regime_engine import (

@@ -13,23 +13,31 @@ for _p in [_REPO_ROOT, _SRC_DIR]:
 import requests
 from datetime import datetime, date
 from typing import Dict, Any, Optional
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
 
 try:
-    from src.db import get_db
-except (ImportError, ModuleNotFoundError):
     from db import get_db
+except Exception:
+    try:
+        from src.db import get_db
+    except Exception:
+        def get_db():
+            return None
 
 try:
-    from src.regime_engine import (
+    from regime_engine import (
         score_unrestricted_universe, format_inr, check_smart_ltcg_switches, get_or_create_monthly_signal
     )
-except (ImportError, ModuleNotFoundError):
+except Exception:
     try:
-        from regime_engine import (
+        from src.regime_engine import (
             score_unrestricted_universe, format_inr, check_smart_ltcg_switches, get_or_create_monthly_signal
         )
-    except (ImportError, ModuleNotFoundError):
+    except Exception:
         try:
             from src import (
                 score_unrestricted_universe, format_inr, check_smart_ltcg_switches, get_or_create_monthly_signal
@@ -40,8 +48,6 @@ except (ImportError, ModuleNotFoundError):
             get_or_create_monthly_signal = None
             def format_inr(val, decimals=0, show_sign=False):
                 return f"₹{val:,.{decimals}f}" if val is not None else "₹0"
-
-load_dotenv()
 
 
 def _get_secret(key: str, default: str = "") -> str:

@@ -12,14 +12,24 @@ import pandas as pd
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, List, Tuple, Optional
 
-# Ensure repository root and src are on sys.path
+# Ensure repository root and src are on sys.path with absolute precedence
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC_DIR = os.path.join(REPO_ROOT, "src")
-for _p in [REPO_ROOT, SRC_DIR]:
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+sys.path = [p for p in sys.path if p not in (SRC_DIR, REPO_ROOT)]
+sys.path.insert(0, REPO_ROOT)
+sys.path.insert(0, SRC_DIR)
 
 try:
+    from regime_engine import (
+        UNRESTRICTED_UNIVERSE,
+        fetch_universe_navs,
+        get_universe_nav_on,
+        score_unrestricted_universe,
+        score_variant_b,
+        compute_fund_volatility_90d,
+        format_inr
+    )
+except Exception:
     from src.regime_engine import (
         UNRESTRICTED_UNIVERSE,
         fetch_universe_navs,

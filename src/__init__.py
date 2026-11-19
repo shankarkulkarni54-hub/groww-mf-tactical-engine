@@ -5,30 +5,12 @@ import sys
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _SRC_DIR = os.path.dirname(os.path.abspath(__file__))
-for _p in [_REPO_ROOT, _SRC_DIR]:
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+
+sys.path = [p for p in sys.path if p not in (_SRC_DIR, _REPO_ROOT)]
+sys.path.insert(0, _REPO_ROOT)
+sys.path.insert(0, _SRC_DIR)
 
 try:
-    from src.regime_engine import (
-        SLEEVE_CONFIG,
-        UNRESTRICTED_UNIVERSE,
-        score_unrestricted_universe,
-        score_variant_b,
-        get_or_create_monthly_signal,
-        check_smart_ltcg_switches,
-        get_fund_chart_data,
-        format_inr,
-        update_all_regimes,
-        compute_sleeve_regime,
-        compute_fund_volatility_90d,
-        fetch_universe_navs,
-        fetch_amfi_live_navs,
-        clear_amfi_cache,
-        clear_universe_nav_cache,
-        get_universe_nav_on
-    )
-except (ImportError, ModuleNotFoundError):
     from regime_engine import (
         SLEEVE_CONFIG,
         UNRESTRICTED_UNIVERSE,
@@ -47,23 +29,27 @@ except (ImportError, ModuleNotFoundError):
         clear_universe_nav_cache,
         get_universe_nav_on
     )
+except Exception:
+    from src.regime_engine import (
+        SLEEVE_CONFIG,
+        UNRESTRICTED_UNIVERSE,
+        score_unrestricted_universe,
+        score_variant_b,
+        get_or_create_monthly_signal,
+        check_smart_ltcg_switches,
+        get_fund_chart_data,
+        format_inr,
+        update_all_regimes,
+        compute_sleeve_regime,
+        compute_fund_volatility_90d,
+        fetch_universe_navs,
+        fetch_amfi_live_navs,
+        clear_amfi_cache,
+        clear_universe_nav_cache,
+        get_universe_nav_on
+    )
 
 try:
-    from src.paper_ledger import (
-        evaluate_tactical_decisions,
-        calculate_friction_and_drag,
-        get_dual_ledger_holdings,
-        get_live_portfolio_summary,
-        get_live_forward_challenge,
-        get_tactical_holdings_lots,
-        log_monthly_execution,
-        fetch_scheme_nav_history,
-        clear_nav_cache,
-        get_nav_on_or_before,
-        get_nav_and_date_on_or_before,
-        update_groww_folio_units
-    )
-except (ImportError, ModuleNotFoundError):
     from paper_ledger import (
         evaluate_tactical_decisions,
         calculate_friction_and_drag,
@@ -78,11 +64,30 @@ except (ImportError, ModuleNotFoundError):
         get_nav_and_date_on_or_before,
         update_groww_folio_units
     )
+except Exception:
+    from src.paper_ledger import (
+        evaluate_tactical_decisions,
+        calculate_friction_and_drag,
+        get_dual_ledger_holdings,
+        get_live_portfolio_summary,
+        get_live_forward_challenge,
+        get_tactical_holdings_lots,
+        log_monthly_execution,
+        fetch_scheme_nav_history,
+        clear_nav_cache,
+        get_nav_on_or_before,
+        get_nav_and_date_on_or_before,
+        update_groww_folio_units
+    )
 
 try:
-    from src.db import get_db
-except (ImportError, ModuleNotFoundError):
     from db import get_db
+except Exception:
+    try:
+        from src.db import get_db
+    except Exception:
+        def get_db():
+            return None
 
 __all__ = [
     # Regime Engine

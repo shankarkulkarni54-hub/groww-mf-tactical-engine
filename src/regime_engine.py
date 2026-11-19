@@ -3,24 +3,33 @@
 import os
 import sys
 
-# Ensure repository root and src are on sys.path
+# Ensure repository root and src are on sys.path with absolute precedence
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _SRC_DIR = os.path.join(_REPO_ROOT, "src")
-for _p in [_REPO_ROOT, _SRC_DIR]:
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+sys.path = [p for p in sys.path if p not in (_SRC_DIR, _REPO_ROOT)]
+sys.path.insert(0, _REPO_ROOT)
+sys.path.insert(0, _SRC_DIR)
 
 import numpy as np
 import pandas as pd
 import requests
-import yfinance as yf
+
+try:
+    import yfinance as yf
+except Exception:
+    yf = None
+
 from datetime import date, datetime, timedelta
 from typing import Dict, Any, List, Optional, Tuple
 
 try:
-    from src.db import get_db
-except (ImportError, ModuleNotFoundError):
     from db import get_db
+except Exception:
+    try:
+        from src.db import get_db
+    except Exception:
+        def get_db():
+            return None
 
 SLEEVE_CONFIG = {
     "NIFTY_500": {
@@ -1007,6 +1016,8 @@ def get_fund_chart_data(
 
 def fetch_ticker_data_with_fallbacks(tickers: List[str], period: str = "2y") -> Tuple[Optional[pd.DataFrame], Optional[str]]:
     """Fetches price history from primary ticker or fallbacks if primary is empty."""
+    if yf is None:
+        return None, None
     for t in tickers:
         try:
             t_obj = yf.Ticker(t)
