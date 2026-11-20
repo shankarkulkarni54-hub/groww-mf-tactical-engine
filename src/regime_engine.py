@@ -13,6 +13,7 @@ sys.path.insert(0, _SRC_DIR)
 import numpy as np
 import pandas as pd
 import requests
+import time
 
 try:
     import yfinance as yf
@@ -311,19 +312,23 @@ except Exception:
 _st_cache_data = _st_cache_data_1h
 
 _AMFI_LIVE_CACHE: Dict[int, Dict[str, Any]] = {}
+_AMFI_CACHE_TIMESTAMP: float = 0.0
 _UNRESTRICTED_NAV_CACHE: Dict[int, Dict[str, float]] = {}
+_UNRESTRICTED_NAV_TIMESTAMP: float = 0.0
 
 
 def clear_amfi_cache():
     """Clears module-level cache for official AMFI NAVs."""
-    global _AMFI_LIVE_CACHE
+    global _AMFI_LIVE_CACHE, _AMFI_CACHE_TIMESTAMP
     _AMFI_LIVE_CACHE.clear()
+    _AMFI_CACHE_TIMESTAMP = 0.0
 
 
 def clear_universe_nav_cache():
     """Clears both module-level and Streamlit memory caches for universe NAVs."""
-    global _UNRESTRICTED_NAV_CACHE
+    global _UNRESTRICTED_NAV_CACHE, _UNRESTRICTED_NAV_TIMESTAMP
     _UNRESTRICTED_NAV_CACHE.clear()
+    _UNRESTRICTED_NAV_TIMESTAMP = 0.0
 
 
 @_st_cache_data_30m
@@ -334,9 +339,11 @@ def fetch_amfi_live_navs(force_refresh: bool = False) -> Dict[int, Dict[str, Any
     Cached for ttl=1800 (30 minutes). Bypassed when force_refresh=True.
     Returns mapping: {scheme_code (int): {'nav': float, 'date': 'YYYY-MM-DD', 'name': str}}
     """
-    global _AMFI_LIVE_CACHE
-    if force_refresh:
+    global _AMFI_LIVE_CACHE, _AMFI_CACHE_TIMESTAMP
+    now = time.time()
+    if force_refresh or (now - _AMFI_CACHE_TIMESTAMP > 1800):
         _AMFI_LIVE_CACHE.clear()
+        _AMFI_CACHE_TIMESTAMP = 0.0
 
     if _AMFI_LIVE_CACHE and not force_refresh:
         return _AMFI_LIVE_CACHE
@@ -392,6 +399,7 @@ def fetch_amfi_live_navs(force_refresh: bool = False) -> Dict[int, Dict[str, Any
                     }
             if parsed:
                 _AMFI_LIVE_CACHE = parsed
+                _AMFI_CACHE_TIMESTAMP = now
     except Exception as e:
         print(f"[RegimeEngine] Warning: Could not fetch official AMFI NAVs: {e}")
 
@@ -401,7 +409,12 @@ def fetch_amfi_live_navs(force_refresh: bool = False) -> Dict[int, Dict[str, Any
 @_st_cache_data_1h
 def fetch_universe_navs(force_refresh: bool = False) -> Dict[str, Dict[str, float]]:
     """Fetches daily NAVs for universe funds from mfapi.in with 1-hr cache, patched with latest AMFI closing NAV."""
-    global _UNRESTRICTED_NAV_CACHE
+    global _UNRESTRICTED_NAV_CACHE, _UNRESTRICTED_NAV_TIMESTAMP
+    now = time.time()
+    if force_refresh or (now - _UNRESTRICTED_NAV_TIMESTAMP > 3600):
+        _UNRESTRICTED_NAV_CACHE.clear()
+        _UNRESTRICTED_NAV_TIMESTAMP = 0.0
+
     amfi_live = fetch_amfi_live_navs(force_refresh=force_refresh)
     result = {}
     for key, meta in UNRESTRICTED_UNIVERSE.items():
@@ -426,6 +439,7 @@ def fetch_universe_navs(force_refresh: bool = False) -> Dict[str, Dict[str, floa
                 if live_entry.get("nav", 0) > 0 and live_entry.get("date"):
                     d_dict[live_entry["date"]] = float(live_entry["nav"])
             _UNRESTRICTED_NAV_CACHE[code] = d_dict
+            _UNRESTRICTED_NAV_TIMESTAMP = now
             result[key] = d_dict
         except Exception as e:
             print(f"[RegimeEngine] Warning: Could not fetch NAV for {key} ({code}): {e}")

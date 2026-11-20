@@ -12,6 +12,7 @@ sys.path.insert(0, _SRC_DIR)
 
 import json
 import requests
+import time
 from datetime import date, datetime, timedelta
 from typing import Dict, Any, List, Optional, Tuple
 
@@ -123,12 +124,14 @@ except Exception:
 
 # Cache for fetched NAV histories
 _NAV_CACHE: Dict[int, Dict[str, float]] = {}
+_NAV_CACHE_TIMESTAMP: Dict[int, float] = {}
 
 
 def clear_nav_cache():
     """Clears both module-level and Streamlit memory caches for scheme NAVs and AMFI."""
-    global _NAV_CACHE
+    global _NAV_CACHE, _NAV_CACHE_TIMESTAMP
     _NAV_CACHE.clear()
+    _NAV_CACHE_TIMESTAMP.clear()
     try:
         clear_amfi_cache()
     except Exception:
@@ -138,7 +141,14 @@ def clear_nav_cache():
 @_st_cache_data
 def fetch_scheme_nav_history(scheme_code: int, force_refresh: bool = False) -> Dict[str, float]:
     """Fetches full historical daily NAV dictionary keyed by 'YYYY-MM-DD' from mfapi.in with 1-hr cache."""
-    global _NAV_CACHE
+    global _NAV_CACHE, _NAV_CACHE_TIMESTAMP
+    now = time.time()
+    last_fetched = _NAV_CACHE_TIMESTAMP.get(scheme_code, 0.0)
+
+    if force_refresh or (now - last_fetched > 3600):
+        _NAV_CACHE.pop(scheme_code, None)
+        _NAV_CACHE_TIMESTAMP.pop(scheme_code, None)
+
     if not force_refresh and scheme_code in _NAV_CACHE:
         return _NAV_CACHE[scheme_code]
 
@@ -156,6 +166,7 @@ def fetch_scheme_nav_history(scheme_code: int, force_refresh: bool = False) -> D
                     iso_date = f"{parts[2]}-{parts[1]}-{parts[0]}"
                     nav_dict[iso_date] = nav_val
         _NAV_CACHE[scheme_code] = nav_dict
+        _NAV_CACHE_TIMESTAMP[scheme_code] = now
         return nav_dict
     except Exception as e:
         print(f"[PaperLedger] Could not fetch NAV for {scheme_code}: {e}")
@@ -774,7 +785,7 @@ def get_dual_ledger_holdings(db=None) -> Dict[str, Any]:
     }
 
 
-def get_live_portfolio_summary(db=None) -> Dict[str, Any]:
+def get_live_portfolio_summary(db=None, force_refresh: bool = False) -> Dict[str, Any]:
     """
     Returns the real consolidated portfolio summary directly from user's live Groww holdings:
     - Active Tradable Core (4 funds: Motilal Midcap, Nippon Smallcap, PPFC, Edelweiss US Tech)
@@ -804,7 +815,7 @@ def get_live_portfolio_summary(db=None) -> Dict[str, Any]:
     # Fetch official AMFI live feed directly
     amfi_live: Dict[int, Dict[str, Any]] = {}
     try:
-        amfi_live = fetch_amfi_live_navs()
+        amfi_live = fetch_amfi_live_navs(force_refresh=force_refresh)
     except Exception as e:
         print(f"[PaperLedger] Could not fetch live AMFI feed: {e}")
 
@@ -819,6 +830,7 @@ def get_live_portfolio_summary(db=None) -> Dict[str, Any]:
     today = date.today()
     domestic_dates: List[str] = []
     us_tech_date: Optional[str] = None
+    ppfc_date: Optional[str] = None
 
     # First pass: determine latest domestic and US tech AMFI dates
     for h in all_holdings:
@@ -830,14 +842,25 @@ def get_live_portfolio_summary(db=None) -> Dict[str, Any]:
             d_val = amfi_live[code]["date"]
             if "Edelweiss" in name or code == 148063:
                 us_tech_date = d_val
+            elif "Parag Parikh" in name or code == 122639:
+                ppfc_date = d_val
+                # PPFC holds foreign equity (Alphabet, Meta, etc.) so it may publish on T+1
+                domestic_dates.append(d_val)
             else:
                 domestic_dates.append(d_val)
 
     latest_domestic_nav_date = max(domestic_dates) if domestic_dates else str(today)
     is_us_tech_t_plus_1 = bool(us_tech_date and us_tech_date < latest_domestic_nav_date)
+    is_ppfc_t_plus_1 = bool(ppfc_date and ppfc_date < latest_domestic_nav_date)
 
+    t_plus_1_notes = []
     if is_us_tech_t_plus_1:
-        nav_date_label = f"Latest AMFI NAV Date: {latest_domestic_nav_date} • Edelweiss US Tech FoF (T+1)"
+        t_plus_1_notes.append("Edelweiss US Tech FoF (T+1)")
+    if is_ppfc_t_plus_1:
+        t_plus_1_notes.append("PPFC (T+1 Global Eq)")
+
+    if t_plus_1_notes:
+        nav_date_label = f"Latest AMFI NAV Date: {latest_domestic_nav_date} • {', '.join(t_plus_1_notes)}"
     else:
         nav_date_label = f"Latest AMFI NAV Date: {latest_domestic_nav_date}"
 
@@ -856,7 +879,7 @@ def get_live_portfolio_summary(db=None) -> Dict[str, Any]:
         if not is_active and not is_locked:
             continue
 
-        nav_dict = fetch_scheme_nav_history(code) if code else {}
+        nav_dict = fetch_scheme_nav_history(code, force_refresh=force_refresh) if code else {}
         matched_nav_date = str(today)
 
         if code and code in amfi_live:
@@ -903,7 +926,13 @@ def get_live_portfolio_summary(db=None) -> Dict[str, Any]:
         )
 
         is_us_tech = ("Edelweiss" in name or code == 148063)
-        display_nav_date = f"{matched_nav_date} (T+1)" if (is_us_tech and is_us_tech_t_plus_1) else matched_nav_date
+        is_ppfc = ("Parag Parikh" in name or code == 122639)
+        if is_us_tech and is_us_tech_t_plus_1:
+            display_nav_date = f"{matched_nav_date} (T+1)"
+        elif is_ppfc and is_ppfc_t_plus_1:
+            display_nav_date = f"{matched_nav_date} (T+1)"
+        else:
+            display_nav_date = matched_nav_date
 
         item = {
             "scheme_name": name,

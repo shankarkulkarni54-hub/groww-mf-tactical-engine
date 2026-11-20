@@ -977,14 +977,14 @@ def render_section_header(title: str, caption: str = None, margin_top: int = 0):
         st.caption(caption)
 
 
-def init_app():
+def init_app(force_refresh: bool = False):
     """Initializes and caches base state."""
     db = get_db()
     scores = db.get_latest_regime_scores()
     if not scores:
         scores = update_all_regimes()
 
-    portfolio_sum = get_live_portfolio_summary(db)
+    portfolio_sum = get_live_portfolio_summary(db, force_refresh=force_refresh)
     monthly_signal = get_or_create_monthly_signal(target_date=date.today(), db=db)
     return db, scores, portfolio_sum, monthly_signal
 
@@ -1102,6 +1102,8 @@ with col_kpi_action:
             clear_universe_nav_cache()
         if fetch_amfi_live_navs:
             fetch_amfi_live_navs(force_refresh=True)
+        if get_live_portfolio_summary:
+            get_live_portfolio_summary(db, force_refresh=True)
         st.toast("Refreshed latest official AMFI closing NAVs!", icon="🔄")
         st.rerun()
 
